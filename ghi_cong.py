@@ -37,6 +37,7 @@ CÁCH DÙNG
     python ghi_cong.py            # chấm HEAD bằng bộ kiểm ĐẦY ĐỦ (kiem_toan_bo.py, ~434s)
     python ghi_cong.py --nhanh    # chấm nhanh bằng kiem_thu.py (~0,1s) — móc post-commit dùng cái này
     python ghi_cong.py --xem      # xem lại sổ
+    python ghi_cong.py --bu       # bù đặc trưng cho các dòng ghi trước khi có phần đặc trưng
     python ghi_cong.py --xuat     # xuất ra JSON đúng dạng cho `project_readiness` / `change_risk`
 
 HẠN CHẾ, khai thẳng: chỉ chấm được TRẠNG THÁI HIỆN TẠI, nên sổ chỉ dày lên từ nay. Và chừng nào
@@ -106,10 +107,12 @@ def doc_hang_muc(ra):
 
 
 # ───────────────────────────────────────────── ĐẶC TRƯNG, tất cả biết được TRƯỚC khi cổng phán
-def _lich_su_truoc():
-    """Trạng thái tệp tính từ MỌI commit TRƯỚC HEAD — không đụng tới HEAD, nên không nhìn tương lai."""
+def _lich_su_truoc(ref="HEAD"):
+    """Trạng thái tệp tính từ MỌI commit TRƯỚC `ref` — không đụng tới chính nó, nên không nhìn
+    tương lai. Tham số hoá theo ref để BÙ được đặc trưng cho các commit cũ: mỗi commit vẫn chỉ
+    thấy đúng phần lịch sử có trước nó."""
     lan_cuoi, so_lan = {}, {}
-    raw = _git("log", "HEAD~1", "-n2000", "--no-merges", "--name-only",
+    raw = _git("log", f"{ref}~1", "-n2000", "--no-merges", "--name-only",
                "--pretty=format:@@|%at")
     gio = None
     for ln in raw.splitlines():
@@ -122,8 +125,8 @@ def _lich_su_truoc():
     return lan_cuoi, so_lan
 
 
-def dac_trung():
-    raw = _git("show", "--numstat", "--pretty=format:", "HEAD")
+def dac_trung(ref="HEAD"):
+    raw = _git("show", "--numstat", "--pretty=format:", ref)
     tep = []
     for ln in raw.splitlines():
         c = ln.split("\t")
@@ -134,9 +137,9 @@ def dac_trung():
     if not tep:
         return {k: 0.0 for k, _ in PHA_DAC_TRUNG}
 
-    gio = int(_git("log", "-1", "--pretty=%at") or 0)
-    nhan = _git("log", "-1", "--pretty=%s")
-    lan_cuoi, so_lan = _lich_su_truoc()
+    gio = int(_git("log", "-1", "--pretty=%at", ref) or 0)
+    nhan = _git("log", "-1", "--pretty=%s", ref)
+    lan_cuoi, so_lan = _lich_su_truoc(ref)
 
     them = sum(t for t, _, _ in tep)
     bot = sum(b for _, b, _ in tep)
@@ -225,7 +228,7 @@ def _ghi(nhanh=False):
          "tac_gia": _git("log", "-1", "--pretty=%an"),
          "loi_nhan": _git("log", "-1", "--pretty=%s"),
          "ghi_luc": int(time.time()),
-         "dac_trung": dac_trung()}          # TRƯỚC cổng
+         "dac_trung": dac_trung("HEAD")}    # TRƯỚC cổng
     d.update(cham(nhanh))                    # SAU cổng
     with io.open(SO, "a", encoding="utf-8") as f:
         f.write(json.dumps(d, ensure_ascii=False) + "\n")
@@ -268,6 +271,29 @@ def xem():
     print(f"-> còn cần ~{max(0, 150 - len(co))} commit có kết cục nữa mới đủ để học được")
 
 
+def bu():
+    """Bù đặc trưng cho các dòng cũ đã ghi trước khi phần đặc trưng tồn tại.
+
+    Không phải nhìn tương lai: với mỗi commit, `dac_trung(hash)` chỉ đọc chính thay đổi ấy và
+    phần lịch sử NẰM TRƯỚC nó. Kết cục thì giữ nguyên như đã chấm lúc đó, không chấm lại.
+    """
+    ds = _nap()
+    n = 0
+    for d in ds:
+        if d.get("dac_trung"):
+            continue
+        try:
+            d["dac_trung"] = dac_trung(d["commit"])
+            n += 1
+        except Exception as e:
+            print(f"  bỏ qua {d['commit_ngan']}: {type(e).__name__}")
+    if n:
+        with io.open(SO, "w", encoding="utf-8") as f:
+            for d in ds:
+                f.write(json.dumps(d, ensure_ascii=False) + "\n")
+    print(f"đã bù đặc trưng cho {n} dòng · tổng {sum(1 for d in ds if d.get('dac_trung'))}/{len(ds)} dòng có đặc trưng")
+
+
 def xuat():
     """Xuất đúng dạng mà `project_readiness` và `change_risk` của CDFL harness nhận."""
     ds = [d for d in _nap() if d.get("dac_trung") and d.get("ti_le") is not None]
@@ -284,6 +310,8 @@ def xuat():
 if __name__ == "__main__":
     if "--xem" in sys.argv:
         xem()
+    elif "--bu" in sys.argv:
+        bu()
     elif "--xuat" in sys.argv:
         xuat()
     else:

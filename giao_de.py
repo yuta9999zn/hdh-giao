@@ -160,7 +160,8 @@ def _bàn():
 
 TỆP_TĨNH = {"/": ("de/index.html", "text/html; charset=utf-8"),
             "/de.css": ("de/de.css", "text/css; charset=utf-8"),
-            "/de.js": ("de/de.js", "application/javascript; charset=utf-8")}
+            "/de.js": ("de/de.js", "application/javascript; charset=utf-8"),
+            "/nha.js": ("de/nha.js", "application/javascript; charset=utf-8")}
 
 
 class Tay(BaseHTTPRequestHandler):
