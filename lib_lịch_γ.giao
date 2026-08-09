@@ -1,0 +1,56 @@
+# ============================================================
+# lib_lịch_γ.giao — BỘ LẬP LỊCH γ (CDFL) cho HĐH-GIAO: nhân QUYẾT, tiến trình không giành được
+# ------------------------------------------------------------
+# Đây là chỗ CDFL khác Linux rõ nhất. Linux xếp hàng theo `nice` — một con số NGƯỜI khai báo, máy
+# tin. HĐH-GIAO xếp hàng theo γ — một con số máy TỰ HỌC từ việc tiến trình THỰC SỰ làm được gì:
+#     ρ  = 255 nếu lát vừa rồi tiến trình có LÀM VIỆC THẬT (có gọi-hệ), 0 nếu chỉ quay vòng
+#     σ ← σ + ((ρ − σ) >> 2)                  ← học độ hữu ích (EMA), kẹp [0,255]
+#     credit ← credit + (σ >> 2), kẻ vừa chạy TRẢ PHÍ COST=128 (bão hoà 0)
+#     chọn kế = argmax(credit)                ← ai đóng góp nhiều thì được ưu tiên
+# Hệ quả: tiến trình THAM LAM (quay vòng, không làm gì) có σ→0 ⇒ credit không lớn lên ⇒ bị BỎ ĐÓI.
+# Nó không "xin" được CPU, cũng không "khai" được ưu tiên cao: nhân đo, nhân quyết.
+#
+# ★ CHÍNH SÁCH NÀY TRÙNG TỪNG PHÉP với γ-scheduler đã chạy ở TẦNG MÁY và trên SILICON
+#   (`gvm_may.GVM.γ_cập_nhật` ≡ wire `hw/gvm.v`). Số nguyên thuần, dịch phải = chia sàn cho 4,
+#   nên GIAO `//` cho ra ĐÚNG kết quả ấy — có `kiem_lich_gamma.py` đối chiếu ngẫu nhiên để chứng.
+# Nạp: nhập "lib_lịch_γ.giao".
+# ============================================================
+
+đặt γ_COST = 128                            # phí một lượt CPU (trùng COST của silicon)
+
+hàm _kẹp255(x) {
+    nếu x < 0 { trả 0 }
+    nếu x > 255 { trả 255 }
+    trả x
+}
+
+# γ_bước: MỘT bước học + chọn. Trả [σ_mới, credit_mới, chỉ_số_được_chọn].
+#   σ_ds/cred_ds: danh sách song song theo chỉ số tiến trình · cur: kẻ vừa chạy · có_ích: sáng/tối
+hàm γ_bước(σ_ds, cred_ds, cur, có_ích, n) {
+    đặt ρ = 0
+    nếu có_ích == sáng { đặt ρ = 255 }
+
+    đặt σ = ghép(σ_ds, [])                                     # bản SAO (không sửa σ_ds của người gọi)
+    đặt σ[cur] = _kẹp255(σ_ds[cur] + (ρ - σ_ds[cur]) // 4)     # >>2 CÓ DẤU = chia sàn cho 4 (A2: gán chỉ mục)
+
+    đặt a = []                              # credit tích luỹ ∝ σ; kẻ vừa chạy TRẢ PHÍ
+    đặt j = 0
+    mãi {
+        nếu j >= n { dừng }
+        gom(a, cred_ds[j] + σ[j] // 4)
+        đặt j = j + 1
+    }
+    đặt a[cur] = lớn(0, a[cur] - γ_COST)    # (A2) trả phí ngay tại chỗ, khỏi rẽ nhánh trong vòng
+
+    đặt chọn = 0                            # argmax; hoà → chỉ số NHỎ (đúng như silicon)
+    đặt k = 1
+    mãi {
+        nếu k >= n { dừng }
+        nếu a[k] > a[chọn] { đặt chọn = k }
+        đặt k = k + 1
+    }
+    trả [σ, a, chọn]
+}
+
+# γ_gamma: đổi σ (0..255) sang γ ∈ [−1,1] để SOI cho người đọc (không dùng trong quyết định).
+hàm γ_gamma(σ) { trả (2 * σ - 255) / 255 }

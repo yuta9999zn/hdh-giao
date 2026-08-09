@@ -1,0 +1,23 @@
+# icebreaker.pcf — ràng buộc chân cho bo iCEBreaker (Lattice iCE40UP5K, gói sg48).
+# Dòng mở-nguồn: yosys + nextpnr-ice40 + icepack + openFPGALoader/iceprog.
+# Chân theo iCEBreaker rev 1.x — KIỂM LẠI theo bo & revision của bạn.
+
+set_io clk        35       # 12 MHz onboard
+
+set_io rst_n      10       # nút bấm người dùng (mức thấp). Đổi cực tính nếu cần.
+
+# UART tới FTDI (host đọc 115200 8N1). Pin 9 = FPGA TX → FTDI RX.
+set_io uart_tx     9
+
+# LED: onboard chỉ có 2 (đỏ 11, xanh 37). led[0] và led_halt là thấy được ngay;
+# led[1..7] cần PMOD LED — bỏ bớt set_io nếu không gắn PMOD.
+set_io led_halt   11       # LED đỏ onboard = CPU DỪNG
+set_io led[0]     37       # LED xanh onboard = bit 0 byte thấp RỌI
+# --- nếu có PMOD 8-LED ở cổng P1A, ví dụ: ---
+# set_io led[1]    4
+# set_io led[2]    2
+# set_io led[3]    47
+# set_io led[4]    45
+# set_io led[5]    3
+# set_io led[6]    48
+# set_io led[7]    46

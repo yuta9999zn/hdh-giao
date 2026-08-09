@@ -1,0 +1,33 @@
+# ============================================================
+# VÍ DỤ 2: 'ẩn' (DE) LÀ CÔNG DÂN HẠNG NHẤT — diệt "lỗi tỉ đô" null
+# Trong ngôn ngữ nhị phân: dùng biến chưa biết -> crash / null-pointer.
+# Trong GIAO: 'ẩn' lan truyền AN TOÀN, và rẽ nhánh BA NGẢ phân biệt
+# rõ "đúng" / "sai" / "chưa thể kết luận".
+# ============================================================
+
+tâm a = 10
+tâm b = ẩn               # chưa biết — KHÔNG phải 0, KHÔNG phải lỗi
+
+rọi "a + b  =>"  + ""
+rọi tâm a                # 10
+rọi (tâm a) + (tâm b)    # ẩn  (lan truyền, không nổ)
+rọi (tâm a) / 0          # ẩn  (chia 0 không nổ — vẫn là vùng tối)
+
+# Rẽ nhánh BA NGẢ: sáng (chắc đúng) / ngờ (chưa biết=DE) / khác (chắc sai)
+nếu (tâm a) > (tâm b) {
+    rọi "→ Chắc chắn a > b"
+} ngờ {
+    rọi "→ Chưa thể kết luận — b vẫn trong vùng tối (DE). KHÔNG đoán bừa."
+} khác {
+    rọi "→ Chắc chắn a ≤ b"
+}
+
+# So với b đã biết:
+tâm b = 3
+nếu (tâm a) > (tâm b) {
+    rọi "→ Sau khi quan sát b=3: chắc chắn a > b"
+} ngờ {
+    rọi "→ vẫn ngờ"
+} khác {
+    rọi "→ a ≤ b"
+}

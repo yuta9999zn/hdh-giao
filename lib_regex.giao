@@ -1,0 +1,328 @@
+# ============================================================
+# lib_regex.giao — REGEX cho GIAO (tham-chiếu `re` Python / Regexp Ruby) — ENGINE AST + BACKTRACK
+# ------------------------------------------------------------
+# Phân-tích mẫu → AST (cây lồng list) rồi khớp bằng BACKTRACKING kiểu CPS (continuation).
+# Hỗ trợ: literal · `.` · `*` `+` `?` (tham-lam) · `^` `$` (neo) · `[abc]`/`[a-z]`/`[^..]` (lớp) ·
+#   `\d \w \s \D \W \S` (số/từ/trắng + phủ) · `\.` `\(` `\\` (escape literal) ·
+#   `(...)` NHÓM (gom + BẮT/capture) · `|` HOẶC (alternation).
+# API: khớp(search→sáng/tối) · khớp_đầu(match từ đầu) · tìm(→chuỗi khớp/ẩn) · nhóm_nắm(→[toàn,nhóm1..]/ẩn) ·
+#      tìm_tất_cả(findall→ds chuỗi) · thay_thế(sub→chuỗi mới).
+# GIỮ CỐT LÕI: ba-trị (KHÔNG khớp → 'ẩn'; vị-từ → sáng/tối) · KIỂM-BIÊN (mẫu hỏng → không crash).
+# Nạp: nhập "lib_regex.giao".
+# ============================================================
+nhập "lib_chuoi.giao"     # lát_chuỗi (chuỗi-con s[a:b])
+
+# ---------------- vị-từ lớp ký-tự ----------------
+hàm _là_số(ch) { nếu ch >= "0" { nếu ch <= "9" { trả sáng } }  trả tối }
+hàm _là_từ(ch) {                              # [A-Za-z0-9_]
+    nếu _là_số(ch) { trả sáng }
+    nếu ch >= "a" { nếu ch <= "z" { trả sáng } }
+    nếu ch >= "A" { nếu ch <= "Z" { trả sáng } }
+    nếu ch == "_" { trả sáng }
+    trả tối
+}
+hàm _rx_trắng(ch) {
+    nếu ch == " " { trả sáng }
+    nếu ch == "\t" { trả sáng }
+    nếu ch == "\n" { trả sáng }
+    trả tối
+}
+hàm _trong_lớp(body, phủ, ch) {               # ch ∈ lớp [body]? (có dải a-z; KIỂM-BIÊN)
+    đặt thấy = tối  đặt j = 0  đặt n = dài(body)
+    mãi {
+        nếu j >= n { dừng }
+        nếu j + 2 < n {
+            nếu body[j + 1] == "-" {
+                nếu ch >= body[j] { nếu ch <= body[j + 2] { đặt thấy = sáng } }
+                đặt j = j + 3
+            } khác {
+                nếu ch == body[j] { đặt thấy = sáng }
+                đặt j = j + 1
+            }
+        } khác {
+            nếu ch == body[j] { đặt thấy = sáng }
+            đặt j = j + 1
+        }
+    }
+    nếu phủ { nếu thấy { trả tối }  trả sáng }
+    trả thấy
+}
+
+# ---------------- tiện ích ----------------  (_lát → lib_chuoi.lát_chuỗi)
+hàm _đặt_idx(ds, i, v) {                       # trả danh-sách MỚI với phần-tử thứ i = v (list hàm-thuần)
+    đặt kq = []  đặt j = 0
+    lặp x trong ds { nếu j == i { gom(kq, v) } khác { gom(kq, x) }  đặt j = j + 1 }
+    trả kq
+}
+
+# ---------------- PHÂN TÍCH mẫu → AST (con-trỏ kiểu bản) ----------------
+hàm _rk(c) { đặt i = lấy_khoá(c, "i")  nếu i >= dài(lấy_khoá(c, "s")) { trả "" }  trả lấy_khoá(c, "s")[i] }
+hàm _rt(c) { đặt_khoá(c, "i", lấy_khoá(c, "i") + 1) }
+
+hàm _pt_biểu(c) {                              # alternation: nối ("|" nối)*
+    đặt nhánh = [_pt_nối(c)]
+    mãi { nếu _rk(c) == "|" { _rt(c)  gom(nhánh, _pt_nối(c)) } khác { dừng } }
+    nếu dài(nhánh) == 1 { trả nhánh[0] }
+    trả ["hoặc", nhánh]
+}
+hàm _pt_nối(c) {                               # concat: lượng_từ* (tới | hoặc ) hoặc hết)
+    đặt items = []
+    mãi {
+        đặt k = _rk(c)
+        nếu k == "" { dừng }
+        nếu k == "|" { dừng }
+        nếu k == ")" { dừng }
+        gom(items, _pt_lượng(c))
+    }
+    trả ["nối", items]
+}
+hàm _pt_lượng(c) {                             # atom với lượng-từ tuỳ chọn
+    đặt a = _pt_atom(c)
+    đặt k = _rk(c)
+    nếu k == "*" { _rt(c)  trả ["sao", a, 0] }
+    nếu k == "+" { _rt(c)  trả ["sao", a, 1] }
+    nếu k == "?" { _rt(c)  trả ["hỏi", a] }
+    trả a
+}
+hàm _pt_atom(c) {
+    đặt k = _rk(c)
+    nếu k == "(" {
+        _rt(c)
+        đặt gi = lấy_khoá(c, "g") + 1
+        đặt_khoá(c, "g", gi)
+        đặt trong = _pt_biểu(c)
+        nếu _rk(c) == ")" { _rt(c) }            # thiếu ')' → graceful
+        trả ["nhóm", trong, gi]
+    }
+    nếu k == "[" {
+        _rt(c)
+        đặt phủ = tối
+        nếu _rk(c) == "^" { đặt phủ = sáng  _rt(c) }
+        đặt body = ""
+        mãi {
+            đặt ch = _rk(c)
+            nếu ch == "" { dừng }
+            nếu ch == "]" { _rt(c)  dừng }
+            đặt body = body + ch  _rt(c)
+        }
+        trả ["lớp", body, phủ]
+    }
+    nếu k == "\\" {
+        _rt(c)
+        đặt e = _rk(c)  _rt(c)
+        nếu e == "d" { trả ["số"] }
+        nếu e == "w" { trả ["từ"] }
+        nếu e == "s" { trả ["trắng"] }
+        nếu e == "D" { trả ["ksố"] }
+        nếu e == "W" { trả ["ktừ"] }
+        nếu e == "S" { trả ["ktrắng"] }
+        trả ["ký", e]                            # \. \( \\ … → literal
+    }
+    nếu k == "." { _rt(c)  trả ["bất"] }
+    nếu k == "^" { _rt(c)  trả ["neo_đầu"] }
+    nếu k == "$" { _rt(c)  trả ["neo_cuối"] }
+    _rt(c)  trả ["ký", k]                        # literal (kể cả "" vô hại)
+}
+hàm _biên_dịch(mẫu) {                          # → [AST, số_nhóm]
+    đặt c = bản()  đặt_khoá(c, "s", mẫu)  đặt_khoá(c, "i", 0)  đặt_khoá(c, "g", 0)
+    đặt nút = _pt_biểu(c)
+    trả [nút, lấy_khoá(c, "g")]
+}
+
+# ---------------- KHỚP (backtracking CPS). Thất-bại = 'ẩn'; thành-công = [kết_thúc, nắm] ----------------
+# CHỐNG DoS (giữ hợp-đồng "mẫu/input xấu → ẩn, KHÔNG crash"):
+#   `ph` = ngân-sách bước (bản mutable, dùng-chung cả lần-gọi-API) → chặn lặp-MŨ (catastrophic backtracking)
+#         trước khi chạm MAX_STEPS=5M của interpreter.  `sâu` = độ-sâu đệ-quy → chặn đệ-quy vượt MAX_DEPTH=900
+#         (chuỗi dài khớp `a*`) trước khi interpreter giết chương-trình. Hết hạn ⇒ trả ẩn (suy-biến êm).
+hàm _ngân_sách() { đặt p = bản()  đặt_khoá(p, "b", 20000)  trả p }   # ~20k lượt-khớp · ×~150 bước/lượt < 5M interpreter
+hàm _hết_ph(ph) { nếu lấy_khoá(ph, "b") <= 0 { trả sáng }  trả tối }
+
+hàm _khớp_nút(nút, t, ti, nắm, sâu, ph, tiếp) {
+    đặt_khoá(ph, "b", lấy_khoá(ph, "b") - 1)
+    nếu lấy_khoá(ph, "b") <= 0 { trả ẩn }              # hết ngân-sách bước → ẩn (chống lặp-mũ catastrophic)
+    nếu sâu > 300 { trả ẩn }                           # quá sâu → ẩn (suy-biến êm). `sâu` LUỒN QUA continuation (cộng-dồn ĐÚNG độ-sâu thật, kể cả quantifier LỒNG (a+)+) ⇒ cap < MAX_DEPTH 900
+    đặt loại_nút = nút[0]
+    nếu loại_nút == "ký"   { nếu ti < dài(t) { nếu t[ti] == nút[1] { trả tiếp(ti + 1, nắm, sâu + 1) } }  trả ẩn }
+    nếu loại_nút == "bất"  { nếu ti < dài(t) { trả tiếp(ti + 1, nắm, sâu + 1) }  trả ẩn }
+    nếu loại_nút == "số"   { nếu ti < dài(t) { nếu _là_số(t[ti]) { trả tiếp(ti + 1, nắm, sâu + 1) } }  trả ẩn }
+    nếu loại_nút == "từ"   { nếu ti < dài(t) { nếu _là_từ(t[ti]) { trả tiếp(ti + 1, nắm, sâu + 1) } }  trả ẩn }
+    nếu loại_nút == "trắng"{ nếu ti < dài(t) { nếu _rx_trắng(t[ti]) { trả tiếp(ti + 1, nắm, sâu + 1) } }  trả ẩn }
+    nếu loại_nút == "ksố"  { nếu ti < dài(t) { nếu _là_số(t[ti]) { } khác { trả tiếp(ti + 1, nắm, sâu + 1) } }  trả ẩn }
+    nếu loại_nút == "ktừ"  { nếu ti < dài(t) { nếu _là_từ(t[ti]) { } khác { trả tiếp(ti + 1, nắm, sâu + 1) } }  trả ẩn }
+    nếu loại_nút == "ktrắng"{ nếu ti < dài(t) { nếu _rx_trắng(t[ti]) { } khác { trả tiếp(ti + 1, nắm, sâu + 1) } }  trả ẩn }
+    nếu loại_nút == "lớp"  { nếu ti < dài(t) { nếu _trong_lớp(nút[1], nút[2], t[ti]) { trả tiếp(ti + 1, nắm, sâu + 1) } }  trả ẩn }
+    nếu loại_nút == "neo_đầu"  { nếu ti == 0 { trả tiếp(ti, nắm, sâu + 1) }  trả ẩn }
+    nếu loại_nút == "neo_cuối" { nếu ti == dài(t) { trả tiếp(ti, nắm, sâu + 1) }  trả ẩn }
+    nếu loại_nút == "nối" { trả _khớp_nối(nút[1], 0, t, ti, nắm, sâu + 1, ph, tiếp) }
+    nếu loại_nút == "hoặc" {
+        lặp nh trong nút[1] {
+            đặt r = _khớp_nút(nh, t, ti, nắm, sâu + 1, ph, tiếp)
+            nếu loại(r) == "ẩn" { } khác { trả r }
+        }
+        trả ẩn
+    }
+    nếu loại_nút == "hỏi" {
+        đặt r = _khớp_nút(nút[1], t, ti, nắm, sâu + 1, ph, tiếp)
+        nếu loại(r) == "ẩn" { trả tiếp(ti, nắm, sâu + 1) }
+        trả r
+    }
+    nếu loại_nút == "sao" { trả _khớp_sao(nút[1], t, ti, nắm, 0, nút[2], sâu + 1, ph, tiếp) }
+    nếu loại_nút == "nhóm" {
+        đặt gi = nút[2]  đặt đ = ti
+        trả _khớp_nút(nút[1], t, ti, nắm, sâu + 1, ph, hàm(ti2, nắm2, sâu2) { trả tiếp(ti2, _đặt_idx(nắm2, gi, [đ, ti2]), sâu2 + 1) })
+    }
+    trả ẩn
+}
+hàm _khớp_nối(items, idx, t, ti, nắm, sâu, ph, tiếp) {
+    nếu idx >= dài(items) { trả tiếp(ti, nắm, sâu + 1) }
+    trả _khớp_nút(items[idx], t, ti, nắm, sâu + 1, ph, hàm(ti2, nắm2, sâu2) { trả _khớp_nối(items, idx + 1, t, ti2, nắm2, sâu2 + 1, ph, tiếp) })
+}
+# node khớp ĐÚNG 1 ký-tự XÁC-ĐỊNH (literal/lớp/vị-từ; KHÔNG nhóm/hoặc/neo) → cho phép gom tham-lam ITERATIVE
+hàm _đơn_ký(nút) {
+    đặt lo = nút[0]
+    nếu lo == "ký" { trả sáng }     nếu lo == "bất" { trả sáng }
+    nếu lo == "số" { trả sáng }     nếu lo == "từ" { trả sáng }
+    nếu lo == "trắng" { trả sáng }  nếu lo == "ksố" { trả sáng }
+    nếu lo == "ktừ" { trả sáng }    nếu lo == "ktrắng" { trả sáng }
+    nếu lo == "lớp" { trả sáng }
+    trả tối
+}
+hàm _khớp_1ký(nút, t, ti) {        # node đơn-ký khớp t[ti]? → sáng/tối (KHÔNG continuation — dùng cho greedy iterative)
+    nếu ti >= dài(t) { trả tối }
+    đặt lo = nút[0]  đặt c = t[ti]
+    nếu lo == "ký" { nếu c == nút[1] { trả sáng }  trả tối }
+    nếu lo == "bất" { trả sáng }
+    nếu lo == "số" { trả _là_số(c) }
+    nếu lo == "từ" { trả _là_từ(c) }
+    nếu lo == "trắng" { trả _rx_trắng(c) }
+    nếu lo == "ksố" { nếu _là_số(c) { trả tối }  trả sáng }
+    nếu lo == "ktừ" { nếu _là_từ(c) { trả tối }  trả sáng }
+    nếu lo == "ktrắng" { nếu _rx_trắng(c) { trả tối }  trả sáng }
+    nếu lo == "lớp" { trả _trong_lớp(nút[1], nút[2], c) }
+    trả tối
+}
+hàm _khớp_sao(nút, t, ti, nắm, đã, tối_thiểu, sâu, ph, tiếp) {
+    nếu _đơn_ký(nút) {
+        # ★ FAST-PATH ITERATIVE: node đơn-ký KHÔNG có capture/biến-độ-dài ⇒ gom tham-lam bằng VÒNG
+        #   (độ-sâu interpreter O(1) theo độ-dài match, KHÔNG đệ-quy 1-lần/ký-tự) rồi backtrack xa→gần.
+        #   Khớp ĐÚNG (greedy) cho a*/\d+/.*/[a-z]+/a+$… trên input DÀI tuỳ-ý (không còn suy-biến tối/ẩn).
+        đặt vt = ti  đặt sốlần = đã
+        mãi {
+            đặt_khoá(ph, "b", lấy_khoá(ph, "b") - 1)
+            nếu lấy_khoá(ph, "b") <= 0 { dừng }              # input cực-lớn vượt ngân-sách → dừng gom (backtrack từ chỗ đang có)
+            nếu _khớp_1ký(nút, t, vt) { đặt vt = vt + 1  đặt sốlần = sốlần + 1 } khác { dừng }
+        }
+        mãi {                                                # thử tiếp từ XA nhất về tối_thiểu (tham-lam)
+            nếu sốlần < tối_thiểu { trả ẩn }
+            đặt r = tiếp(vt, nắm, sâu + 1)
+            nếu loại(r) == "ẩn" { } khác { trả r }
+            nếu vt == ti { trả ẩn }                          # về mốc đầu mà vẫn trượt → hết đường
+            đặt vt = vt - 1  đặt sốlần = sốlần - 1
+        }
+    }
+    # node PHỨC (nhóm/hoặc/neo): đường đệ-quy CPS (có cap-độ-sâu chống ReDoS lồng)
+    đặt r = _khớp_nút(nút, t, ti, nắm, sâu + 1, ph, hàm(ti2, nắm2, sâu2) {
+        nếu ti2 == ti { trả ẩn }                  # chặn lặp zero-width vô hạn
+        trả _khớp_sao(nút, t, ti2, nắm2, đã + 1, tối_thiểu, sâu2 + 1, ph, tiếp)
+    })
+    nếu loại(r) == "ẩn" { } khác { trả r }         # tham-lam: thử THÊM trước
+    nếu đã >= tối_thiểu { trả tiếp(ti, nắm, sâu + 1) }       # đủ số lần → nhường phần còn
+    trả ẩn
+}
+hàm _khớp_từ(nút, t, ti, ng, ph) {             # thử khớp NEO tại ti; trả [kết_thúc, nắm] hoặc ẩn
+    đặt nắm0 = []  đặt i = 0
+    mãi { nếu i > ng { dừng }  gom(nắm0, ẩn)  đặt i = i + 1 }     # ng+1 ô (nhóm 0..ng)
+    trả _khớp_nút(nút, t, ti, nắm0, 0, ph, hàm(ti2, nắm2, sâu2) { trả [ti2, _đặt_idx(nắm2, 0, [ti, ti2])] })
+}
+
+# ---------------- API ----------------
+hàm tìm(mẫu, văn) {                            # re.search → CHUỖI khớp đầu-tiên; KHÔNG khớp → ẩn
+    nếu loại(mẫu) == "ẩn" { trả ẩn }
+    nếu loại(văn) == "ẩn" { trả ẩn }
+    đặt bd = _biên_dịch(mẫu)  đặt nút = bd[0]  đặt ng = bd[1]
+    đặt ph = _ngân_sách()  đặt ti = 0
+    mãi {
+        đặt r = _khớp_từ(nút, văn, ti, ng, ph)
+        nếu loại(r) == "ẩn" { } khác { trả lát_chuỗi(văn, ti, r[0]) }
+        nếu _hết_ph(ph) { dừng }                # hết ngân-sách → thôi quét, trả ẩn (suy-biến êm)
+        nếu ti >= dài(văn) { dừng }
+        đặt ti = ti + 1
+    }
+    trả ẩn
+}
+hàm khớp(mẫu, văn) {                           # search → sáng/tối (TƯƠNG THÍCH cũ)
+    nếu loại(tìm(mẫu, văn)) == "ẩn" { trả tối }
+    trả sáng
+}
+hàm khớp_đầu(mẫu, văn) {                       # re.match: khớp NEO từ đầu → sáng/tối
+    nếu loại(mẫu) == "ẩn" { trả tối }
+    nếu loại(văn) == "ẩn" { trả tối }
+    đặt bd = _biên_dịch(mẫu)
+    nếu loại(_khớp_từ(bd[0], văn, 0, bd[1], _ngân_sách())) == "ẩn" { trả tối }
+    trả sáng
+}
+hàm nhóm_nắm(mẫu, văn) {                       # → [toàn-bộ, nhóm1, nhóm2…]; nhóm không khớp → ẩn; cả-mẫu trượt → ẩn
+    nếu loại(mẫu) == "ẩn" { trả ẩn }
+    nếu loại(văn) == "ẩn" { trả ẩn }
+    đặt bd = _biên_dịch(mẫu)  đặt nút = bd[0]  đặt ng = bd[1]
+    đặt ph = _ngân_sách()  đặt ti = 0
+    mãi {
+        đặt r = _khớp_từ(nút, văn, ti, ng, ph)
+        nếu loại(r) == "ẩn" { } khác {
+            đặt nắm = r[1]  đặt kq = []  đặt gi = 0
+            mãi {
+                nếu gi > ng { dừng }
+                đặt cp = nắm[gi]
+                nếu loại(cp) == "ẩn" { gom(kq, ẩn) } khác { gom(kq, lát_chuỗi(văn, cp[0], cp[1])) }
+                đặt gi = gi + 1
+            }
+            trả kq
+        }
+        nếu _hết_ph(ph) { dừng }
+        nếu ti >= dài(văn) { dừng }
+        đặt ti = ti + 1
+    }
+    trả ẩn
+}
+hàm tìm_tất_cả(mẫu, văn) {                     # re.findall → danh-sách chuỗi khớp (KHÔNG chồng lấn)
+    nếu loại(mẫu) == "ẩn" { trả ẩn }
+    nếu loại(văn) == "ẩn" { trả ẩn }
+    đặt bd = _biên_dịch(mẫu)  đặt nút = bd[0]  đặt ng = bd[1]
+    đặt ph = _ngân_sách()  đặt kq = []  đặt ti = 0
+    mãi {
+        nếu ti > dài(văn) { dừng }
+        nếu _hết_ph(ph) { dừng }                # hết ngân-sách → trả kết-quả-phần (suy-biến êm)
+        đặt r = _khớp_từ(nút, văn, ti, ng, ph)
+        nếu loại(r) == "ẩn" { đặt ti = ti + 1 } khác {
+            đặt cuối = r[0]
+            gom(kq, lát_chuỗi(văn, ti, cuối))
+            nếu cuối == ti { đặt ti = ti + 1 } khác { đặt ti = cuối }   # khớp rỗng → tiến 1
+        }
+    }
+    trả kq
+}
+hàm thay_thế(mẫu, văn, thế) {                  # re.sub → chuỗi MỚI, thay mọi khớp bằng `thế`
+    nếu loại(mẫu) == "ẩn" { trả ẩn }
+    nếu loại(văn) == "ẩn" { trả ẩn }
+    đặt bd = _biên_dịch(mẫu)  đặt nút = bd[0]  đặt ng = bd[1]
+    đặt ph = _ngân_sách()  đặt kq = ""  đặt ti = 0
+    mãi {
+        nếu ti > dài(văn) { dừng }
+        nếu _hết_ph(ph) {                       # hết ngân-sách → nối phần còn nguyên-văn, thôi (suy-biến êm)
+            nếu ti < dài(văn) { đặt kq = kq + lát_chuỗi(văn, ti, dài(văn)) }
+            dừng
+        }
+        đặt r = _khớp_từ(nút, văn, ti, ng, ph)
+        nếu loại(r) == "ẩn" {
+            nếu ti < dài(văn) { đặt kq = kq + văn[ti] }
+            đặt ti = ti + 1
+        } khác {
+            đặt cuối = r[0]  đặt kq = kq + thế
+            nếu cuối == ti {
+                nếu ti < dài(văn) { đặt kq = kq + văn[ti] }
+                đặt ti = ti + 1
+            } khác { đặt ti = cuối }
+        }
+    }
+    trả kq
+}

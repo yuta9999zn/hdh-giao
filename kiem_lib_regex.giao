@@ -1,0 +1,16 @@
+nhập "lib_regex.giao"
+rọi khớp("a*b", "aaab")          # sáng
+rọi khớp("a*b", "b")             # sáng (zero a)
+rọi khớp("^ab", "abc")           # sáng
+rọi khớp("^bc", "abc")           # tối
+rọi khớp("c$", "abc")            # sáng
+rọi khớp("a$", "abc")            # tối
+rọi khớp("h.llo", "hello")       # sáng
+rọi khớp("[0-9]+", "abc123")     # sáng
+rọi khớp("[0-9]+", "abcxyz")     # tối
+rọi khớp("colou?r", "color")     # sáng
+rọi khớp("colou?r", "colour")    # sáng
+rọi khớp("[a-z]+@[a-z]+", "x@mail")  # sáng
+rọi khớp("[^0-9]+$", "abc")      # sáng (toàn không-số)
+rọi khớp_đầu("ab", "abc")        # sáng
+rọi khớp_đầu("bc", "abc")        # tối

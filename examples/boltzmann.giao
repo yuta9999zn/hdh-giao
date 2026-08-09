@@ -1,0 +1,42 @@
+# ============================================================
+# CHỌN BOLTZMANN (port từ Ruby agent.rb pick_with_temperature) — bằng GIAO
+# weight[i] = e^((score[i] − max)/temp); bốc theo phân phối tích luỹ (PRNG GIAO).
+# temp CAO → khám phá (gần đều); temp THẤP → khai thác (gần tham lam).
+# Dùng toán GIAO: mũ_e (Taylor + bình phương) + ngẫu (LCG). KHÔNG randomness hệ thống.
+# ============================================================
+
+# trọng số Boltzmann cho từng score
+hàm trọng(scores, mx, temp) {
+    nếu dài(scores) == 0 { trả [] }
+    trả ghép([mũ_e((đầu(scores) - mx) / temp)], trọng(đuôi(scores), mx, temp))
+}
+# chọn chỉ số theo phân phối tích luỹ: r ∈ [0, tổng)
+hàm chọn_tích(ws, r, i) {
+    nếu dài(ws) == 1 { trả i }
+    nếu r < đầu(ws) { trả i }
+    trả chọn_tích(đuôi(ws), r - đầu(ws), i + 1)
+}
+# chọn Boltzmann → [chỉ_số, seed_mới]
+hàm chọn_boltzmann(scores, temp, seed) {
+    đặt mx = max_ds(scores)
+    đặt ws = trọng(scores, mx, temp)
+    đặt rs = ngẫu_mod(seed, 1000)
+    đặt r = rs[0] / 1000 * gộp(ws)
+    trả [chọn_tích(ws, r, 0), rs[1]]
+}
+# bốc nhiều lần (thread seed) → danh sách chỉ số đã chọn
+hàm bốc_nhiều(scores, temp, seed, n, acc) {
+    nếu n == 0 { trả acc }
+    đặt r = chọn_boltzmann(scores, temp, seed)
+    trả bốc_nhiều(scores, temp, r[1], n - 1, ghép(acc, [r[0]]))
+}
+
+# ===================== CHẠY =====================
+đặt scores = [3, 8, 5]      # hành động 1 điểm cao nhất (8)
+rọi "scores = [3, 8, 5] — hành động 1 tốt nhất"
+rọi ""
+rọi "temp = 4 (KHÁM PHÁ — explore): " + bốc_nhiều(scores, 4, 7, 18, [])
+rọi "temp = 0.3 (KHAI THÁC — exploit): " + bốc_nhiều(scores, 3 / 10, 7, 18, [])
+rọi ""
+rọi "→ Nhiệt độ cao: chọn ĐA DẠNG (thử cả 0,1,2). Nhiệt độ thấp: gần như luôn 1 (tham lam)."
+rọi "  Đây là cân bằng khám-phá/khai-thác của Ruby agent.rb — viết bằng GIAO."

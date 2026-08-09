@@ -1,0 +1,192 @@
+# ============================================================
+# lib_cau_hinh.giao — KIỂM CẤU HÌNH TRƯỚC KHI GHI (bổ khuyết Linux H6)
+# ------------------------------------------------------------
+# Linux hỏng: `/etc` là một đống tệp mỗi thứ một cú pháp — `passwd` ngăn bằng `:`, `group` cũng `:`
+# nhưng nghĩa khác, `fstab` ngăn bằng khoảng trắng, `sudoers` có ngữ pháp riêng hẳn. Không có ai
+# kiểm trước cả:
+#   • gõ sai một dấu trong `/etc/sudoers` là **mất luôn đường lên root** — chính vì thế mới phải
+#     đẻ ra `visudo`, mà `visudo` là chuyện TỰ GIÁC: ghi thẳng bằng trình soạn thảo vẫn được;
+#   • gõ sai `/etc/fstab` thì **máy không boot nổi**, và bạn chỉ biết khi đã khởi động lại;
+#   • gõ sai `/etc/passwd` thì hỏng đăng nhập.
+# GIAO: bộ kiểm nằm ở **tầng gọi-hệ và LUÔN BẬT** — mọi đường ghi đều qua nó, không có cửa nào
+# lách. Ghi sai thì **TỪ CHỐI ngay, nói rõ DÒNG nào sai và sai vì sao**, và **tệp cũ còn nguyên**
+# (chứ không phải ghi hỏng rồi mới biết). Đây là `visudo` cho MỌI tệp cấu hình, không phải tuỳ tâm.
+# ============================================================
+nhập "lib_chuoi.giao"
+
+# ---- tiện ích ----
+hàm _ch_dòng_sạch(nội) {
+    đặt ra = []
+    lặp d trong tách_dòng(nội) {
+        đặt s = cắt_lề(d)
+        nếu s == "" { } khác { nếu bắt_đầu(s, "#") { } khác { gom(ra, s) } }
+    }
+    trả ra
+}
+hàm _là_số_nguyên(s) {
+    nếu dài(s) == 0 { trả tối }
+    lặp c trong s { nếu là_chữ_số(c) { } khác { trả tối } }
+    trả sáng
+}
+hàm _lỗi_dòng(i, vì) { trả "dòng " + (i + 1) + ": " + vì }
+
+# ---- /hệ/người_dùng — "tên:uid:nhà" ----
+hàm kiểm_người_dùng(nội) {
+    đặt ds = _ch_dòng_sạch(nội)
+    nếu dài(ds) == 0 { trả "sổ người dùng RỖNG — ghi thế là không ai đăng nhập được nữa" }
+    đặt thấy_gốc = tối
+    đặt tên_đã = []
+    đặt uid_đã = []
+    đặt i = 0
+    mãi {
+        nếu i >= dài(ds) { dừng }
+        đặt p = tách_giữ(ds[i], ":")
+        nếu dài(p) == 3 { } khác { trả _lỗi_dòng(i, "phải đúng 3 phần 'tên:uid:nhà', đang có " + dài(p)) }
+        nếu dài(p[0]) == 0 { trả _lỗi_dòng(i, "tên rỗng") }
+        nếu chứa(tên_đã, p[0]) { trả _lỗi_dòng(i, "trùng tên '" + p[0] + "' với dòng trên") }
+        nếu _là_số_nguyên(p[1]) { } khác { trả _lỗi_dòng(i, "uid '" + p[1] + "' không phải số") }
+        nếu chứa(uid_đã, p[1]) { trả _lỗi_dòng(i, "trùng uid " + p[1] + " — hai người chung uid là chung QUYỀN") }
+        nếu bắt_đầu(p[2], "/") { } khác { trả _lỗi_dòng(i, "thư mục nhà phải là đường tuyệt đối (bắt đầu bằng /)") }
+        nếu p[1] == "0" { đặt thấy_gốc = sáng }
+        gom(tên_đã, p[0])  gom(uid_đã, p[1])
+        đặt i = i + 1
+    }
+    nếu thấy_gốc == sáng { } khác { trả "không còn ai có uid 0 — ghi thế là MẤT HẲN đường lên gốc-quyền" }
+    trả sáng
+}
+
+# ---- /hệ/nhóm — "tên_nhóm:gid:tv1,tv2" ----
+hàm kiểm_nhóm(nội) {
+    đặt ds = _ch_dòng_sạch(nội)
+    đặt gid_đã = []
+    đặt i = 0
+    mãi {
+        nếu i >= dài(ds) { dừng }
+        đặt p = tách_giữ(ds[i], ":")
+        nếu dài(p) == 3 { } khác { trả _lỗi_dòng(i, "phải đúng 3 phần 'tên:gid:thành_viên'") }
+        nếu dài(p[0]) == 0 { trả _lỗi_dòng(i, "tên nhóm rỗng") }
+        nếu _là_số_nguyên(p[1]) { } khác { trả _lỗi_dòng(i, "gid '" + p[1] + "' không phải số") }
+        nếu chứa(gid_đã, p[1]) { trả _lỗi_dòng(i, "trùng gid " + p[1] + " — hai nhóm chung gid là chung QUYỀN") }
+        gom(gid_đã, p[1])
+        đặt i = i + 1
+    }
+    trả sáng
+}
+
+# ---- /hệ/sudo — "tên: lệnh1 lệnh2" hoặc "tên: *" ----
+hàm kiểm_sudo(nội) {
+    đặt ds = _ch_dòng_sạch(nội)
+    đặt i = 0
+    mãi {
+        nếu i >= dài(ds) { dừng }
+        đặt v = vị_trí(ds[i], ":")
+        nếu loại(v) == "ẩn" { trả _lỗi_dòng(i, "thiếu dấu ':' — phải là 'tên: lệnh…' hoặc 'tên: *'") }
+        đặt ai = cắt_lề(lát_chuỗi(ds[i], 0, v))
+        đặt phần = cắt_lề(lát_chuỗi(ds[i], v + 1, dài(ds[i])))
+        nếu dài(ai) == 0 { trả _lỗi_dòng(i, "chưa nói AI được sudo") }
+        nếu dài(phần) == 0 { trả _lỗi_dòng(i, "'" + ai + "' được sudo NHỮNG LỆNH NÀO? (để trống là vô nghĩa; muốn tất cả thì ghi *)") }
+        đặt i = i + 1
+    }
+    trả sáng
+}
+
+# ---- /hệ/định_dạng — "tên|magic|trình|năng_lực" (B2, hình dạng binfmt_misc) ----
+# Đây đúng là chỗ `binfmt_misc` của Linux hở nhất: ghi thẳng vào /proc, không ai kiểm, sai một mục
+# là mọi tệp khớp magic ấy hết chạy mà chỉ báo "Exec format error". Bộ kiểm này chặn từ lúc GHI.
+đặt CH_TRÌNH = ["nội_trú", "tiến_trình", "mã_máy", "kịch_bản"]
+
+hàm kiểm_định_dạng(nội) {
+    đặt ds = _ch_dòng_sạch(nội)
+    nếu dài(ds) == 0 { trả "sổ định dạng RỖNG — ghi thế thì không tệp nào nhận dạng được nữa" }
+    đặt tên_đã = []
+    đặt magic_đã = []
+    đặt vị_lui = 0 - 1
+    đặt i = 0
+    mãi {
+        nếu i >= dài(ds) { dừng }
+        đặt p = tách_giữ(ds[i], "|")
+        nếu dài(p) == 4 { } khác { trả _lỗi_dòng(i, "phải đúng 4 cột 'tên|magic|trình|năng_lực', đang có " + dài(p)) }
+        nếu dài(cắt_lề(p[0])) == 0 { trả _lỗi_dòng(i, "tên rỗng") }
+        nếu chứa(tên_đã, cắt_lề(p[0])) { trả _lỗi_dòng(i, "trùng tên '" + cắt_lề(p[0]) + "' với dòng trên") }
+        nếu dài(p[1]) == 0 { trả _lỗi_dòng(i, "magic rỗng — dòng này sẽ khớp MỌI tệp mà không ai ngờ") }
+        # ★ trùng magic là bẫy im lặng: dòng sau KHÔNG BAO GIỜ tới lượt, mà chẳng ai báo gì
+        nếu chứa(magic_đã, p[1]) { trả _lỗi_dòng(i, "trùng magic '" + p[1] + "' với dòng trên — dòng này không bao giờ tới lượt") }
+        nếu chứa(CH_TRÌNH, cắt_lề(p[2])) { } khác {
+            trả _lỗi_dòng(i, "trình '" + cắt_lề(p[2]) + "' không có thật (chỉ có: " + nối(CH_TRÌNH, " ") + ")")
+        }
+        nếu dài(cắt_lề(p[3])) == 0 { trả _lỗi_dòng(i, "cột năng lực rỗng — không cần thì ghi '-'") }
+        # ★ ngả lui '*' phải là dòng CUỐI, kẻo nó nuốt hết các dòng sau
+        nếu p[1] == "*" {
+            nếu vị_lui < 0 { đặt vị_lui = i } khác { trả _lỗi_dòng(i, "đã có ngả lui '*' ở dòng " + (vị_lui + 1)) }
+        } khác {
+            nếu vị_lui < 0 { } khác { trả _lỗi_dòng(i, "nằm SAU ngả lui '*' (dòng " + (vị_lui + 1) + ") nên không bao giờ tới lượt — chuyển '*' xuống cuối") }
+        }
+        gom(tên_đã, cắt_lề(p[0]))
+        gom(magic_đã, p[1])
+        đặt i = i + 1
+    }
+    nếu vị_lui < 0 {
+        trả "thiếu NGẢ LUI: phải có một dòng magic '*' ở cuối, kẻo tệp nào không khớp magic nào là không chạy nổi mà chẳng biết vì sao"
+    }
+    trả sáng
+}
+
+# ---- /hệ/mật_khẩu — "tên:$g1$…" hoặc "tên:$g2$…" hoặc "tên:*" (khoá) ----
+hàm kiểm_mật_khẩu(nội) {
+    đặt ds = _ch_dòng_sạch(nội)
+    đặt i = 0
+    mãi {
+        nếu i >= dài(ds) { dừng }
+        đặt v = vị_trí(ds[i], ":")
+        nếu loại(v) == "ẩn" { trả _lỗi_dòng(i, "thiếu dấu ':'") }
+        đặt bóng = lát_chuỗi(ds[i], v + 1, dài(ds[i]))
+        nếu bóng == "*" { } khác {
+            nếu bắt_đầu(bóng, "$g1$") { } khác {
+            nếu bắt_đầu(bóng, "$g2$") { } khác {
+            nếu bắt_đầu(bóng, "$g3$") { } khác {
+                trả _lỗi_dòng(i, "bản băm phải là $g1$…, $g2$… hoặc $g3$… (ghi mật khẩu THÔ vào đây là lộ hết)")
+            } } }
+            đặt p = tách_giữ(bóng, "$")
+            nếu dài(p) >= 5 { } khác { trả _lỗi_dòng(i, "bản băm thiếu phần (cần $kiểu$vòng$muối$băm)") }
+        }
+        đặt i = i + 1
+    }
+    trả sáng
+}
+
+# ---- SỔ ĐĂNG KÝ: đường nào có bộ kiểm nào ----
+# Thêm bộ kiểm mới = thêm một nhánh ở đây; mọi đường ghi tự động được che.
+# ---- /hệ/kho/mục_lục — "tên|phiên|nhóm|phụ_thuộc|năng_lực|băm|mô tả" ----
+hàm kiểm_mục_lục_kho(nội) {
+    đặt ds = _ch_dòng_sạch(nội)
+    đặt tên_đã = []
+    đặt i = 0
+    mãi {
+        nếu i >= dài(ds) { dừng }
+        đặt p = tách_giữ(ds[i], "|")
+        # ĐÚNG 7, không phải "ít nhất 7": thừa một dấu `|` là mọi cột dịch sang phải, băm rơi vào
+        # ô khác — hỏng rất khó thấy. Bắt ngay tại đây thì người viết biết liền.
+        nếu dài(p) == 7 { } khác { trả _lỗi_dòng(i, "cần ĐÚNG 7 phần 'tên|phiên|nhóm|phụ_thuộc|năng_lực|băm|mô tả', đang có " + dài(p) + " — có dấu '|' thừa trong một ô? (thay thế dùng '/', không dùng '|')") }
+        nếu dài(p[0]) == 0 { trả _lỗi_dòng(i, "tên gói rỗng") }
+        nếu chứa(tên_đã, p[0]) { trả _lỗi_dòng(i, "trùng tên gói '" + p[0] + "'") }
+        nếu dài(p[5]) == 64 { } khác { trả _lỗi_dòng(i, "băm phải đúng 64 ký tự hex (SHA-256), đang có " + dài(p[5])) }
+        gom(tên_đã, p[0])
+        đặt i = i + 1
+    }
+    trả sáng
+}
+
+hàm kiểm_cấu_hình(đường, nội) {
+    "→ sáng nếu ghi được · CHUỖI lý do nếu phải từ chối · ẩn nếu đường này không phải cấu hình."
+    nếu đường == "/hệ/kho/mục_lục" { trả kiểm_mục_lục_kho(nội) }
+    nếu đường == "/hệ/người_dùng" { trả kiểm_người_dùng(nội) }
+    nếu đường == "/hệ/nhóm" { trả kiểm_nhóm(nội) }
+    nếu đường == "/hệ/sudo" { trả kiểm_sudo(nội) }
+    nếu đường == "/hệ/mật_khẩu" { trả kiểm_mật_khẩu(nội) }
+    nếu đường == "/hệ/định_dạng" { trả kiểm_định_dạng(nội) }
+    trả ẩn
+}
+hàm là_tệp_cấu_hình(đường) {
+    nếu loại(kiểm_cấu_hình(đường, "")) == "ẩn" { trả tối }
+    trả sáng
+}

@@ -1,0 +1,34 @@
+# Kiểm lib_baomat — bảo-mật γ-gated (no-write-up LIÊN-TỤC + ba-trị + σ HỌC-ĐƯỢC)
+nhập "lib_baomat.giao"
+
+đặt m = tạo_miền()
+đăng_ký(m, "nhật_ký_hệ", MỨC_HỆ, "khởi động")     # ô MỨC HỆ (255)
+đăng_ký(m, "cấu_hình", MỨC_VỪA, "v1")              # ô MỨC VỪA (128)
+đăng_ký(m, "tạm", MỨC_THẤP, "rỗng")                # ô MỨC THẤP (64)
+
+# 1) ĐỌC luôn cho phép
+rọi đọc(m, "cấu_hình")                              # v1
+rọi loại(đọc(m, "không_có"))                        # ẩn (ô không tồn tại)
+
+# 2) no-write-up: chủ-thể VỪA (σ=128) ghi ô THẤP/VỪA → cho; ghi ô HỆ → CHẶN
+rọi ghi(m, 128, "tạm", "dữ liệu")                   # sáng (128 ≥ 64)
+rọi ghi(m, 128, "cấu_hình", "v2")                   # sáng (128 ≥ 128)
+rọi ghi(m, 128, "nhật_ký_hệ", "GIẢ MẠO")            # tối  (128 < 255 = write-UP → CHẶN)
+rọi đọc(m, "nhật_ký_hệ")                            # khởi động  (KHÔNG bị ghi đè)
+rọi đọc(m, "cấu_hình")                              # v2  (đã ghi hợp-lệ)
+
+# 3) chủ-thể HỆ (σ=255) ghi mọi ô → cho
+rọi ghi(m, 255, "nhật_ký_hệ", "đã vá")              # sáng
+rọi đọc(m, "nhật_ký_hệ")                            # đã vá
+
+# 4) BA-TRỊ: tin-cậy chủ-thể CHƯA-SOI (ẩn) → quyết-định ẩn (fail-safe, KHÔNG cho mù)
+rọi có_thể_ghi(ẩn, MỨC_THẤP)                        # ẩn
+
+# 5) ★ σ HỌC-ĐƯỢC (vượt Windows MIC tĩnh): tác_vụ cư-xử XẤU → σ tụt → TỰ mất quyền ghi
+đặt σ = 200                                          # ban đầu tin-cậy CAO
+rọi có_thể_ghi(σ, MỨC_CAO)                          # sáng (200 ≥ 192)
+đặt σ = học_σ(σ, 0)                                  # quan sát: spin/vô-ích (ρ=0) → 100
+đặt σ = học_σ(σ, 0)                                  # tiếp tục xấu → 50
+rọi σ                                                # 50
+rọi có_thể_ghi(σ, MỨC_CAO)                          # tối  (50 < 192 → MẤT quyền ghi ô cao!)
+rọi γ_truy_cập(50, MỨC_CAO) < 0                     # sáng (cộng-hưởng ÂM = ảo-tưởng-quyền)

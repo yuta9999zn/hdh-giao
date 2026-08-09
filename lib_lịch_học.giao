@@ -1,0 +1,69 @@
+# ============================================================
+# lib_lịch_học.giao — BỘ LẬP-LỊCH γ-BIẾT-HỌC ở TẦNG GIAO (Nhánh II — ưu-tiên ĐỘNG, học-được)
+# ------------------------------------------------------------
+# Mô-phỏng ĐÚNG γ-scheduler đã chạy GATE-LEVEL ở silicon (`hw/gvm.v` · `gvm_may.γ_cập_nhật`),
+# nhưng PROGRAMMABLE ở tầng GIAO. Mỗi tác-vụ có NIỀM-TIN σ (tín-nhiệm). Mỗi lượt:
+#   • ρ = THỰC-TẠI hành-vi tác-vụ vừa rồi (100 = làm việc có-ích / XUẤT trong lượng-tử; 0 = spin/treo).
+#   • HỌC:    σ ← σ + (ρ − σ)//4          (silicon: σ + ((ρ−σ)>>2)). LƯU Ý: `//` của GIAO SÀN về
+#             âm-vô-cực ⇒ σ=50,ρ=0 → 50+(0-50)//4 = 50+(-13) = 37 (khít wire khi ρ−σ<0 dùng `//`).
+#   • CHỌN:   argmax σ (tín-nhiệm cao nhất chạy TRƯỚC) — ưu-tiên ĐỘNG, không tĩnh.
+#   ⇒ tác-vụ cư-xử tốt (ρ=100) → σ TĂNG → được ưu-tiên; tác-vụ xấu (ρ=0) → σ TỤT → bị BÓP (throttle).
+# Đây là điểm GIAO HƠN HĐH thường: lương-tâm CDFL ngay trong bộ lập-lịch — tín-nhiệm HỌC-ĐƯỢC.
+#
+# GIỮ CỐT LÕI GIAO: ba-trị (tid LẠ / lịch RỖNG → 'ẩn' = không-có, KHÔNG bịa) · idiom Việt ·
+#   TỰ-THÂN (chỉ builtin bản/đặt_khoá/lấy_khoá/có_khoá + duyệt `lặp k trong l`; KHÔNG nhập lib khác).
+# Trạng-thái 'lịch' = bản mutable: tid → σ (số nguyên 0..100).
+# Nạp: nhập "lib_lịch_học.giao".
+# ============================================================
+
+hàm lịch_học() {                         # bộ lập-lịch RỖNG (chưa tác-vụ nào)
+    trả bản()
+}
+
+hàm thêm_học(l, tid, σ0) {               # đăng-ký tác-vụ với niềm-tin ban-đầu σ0
+    đặt_khoá(l, tid, σ0)
+    trả l
+}
+
+hàm σ_của(l, tid) {                      # σ (niềm-tin) hiện-thời; tid LẠ → ẩn (chưa-biết)
+    nếu có_khoá(l, tid) { trả lấy_khoá(l, tid) }
+    trả ẩn
+}
+
+hàm học_hành_vi(l, tid, ρ) {             # HỌC: σ ← σ + (ρ − σ)//4 (EMA về phía ρ); tid LẠ → không làm gì
+    nếu có_khoá(l, tid) {
+        đặt s = lấy_khoá(l, tid)
+        đặt_khoá(l, tid, s + (ρ - s) // 4)
+    }
+    trả l
+}
+
+hàm chọn_học(l) {                        # CHỌN tid có σ LỚN NHẤT (argmax tín-nhiệm); RỖNG → ẩn
+    đặt tốt = ẩn
+    đặt cao = 0
+    lặp k trong l {
+        đặt s = lấy_khoá(l, k)
+        nếu loại(tốt) == "ẩn" {           # phần tử ĐẦU tiên: nhận làm mốc (tránh so list/khởi-trị bịa)
+            đặt tốt = k
+            đặt cao = s
+        }
+        khác {
+            nếu s > cao {                 # so SỐ (KHÔNG so list) → giữ tín-nhiệm cao nhất
+                đặt tốt = k
+                đặt cao = s
+            }
+        }
+    }
+    trả tốt                              # rỗng → vẫn ẩn (chưa đặt) ⇒ ba-trị
+}
+
+hàm tín_nhiệm(l, tid) {                  # credit = σ//4 (như silicon); tid LẠ → ẩn
+    nếu có_khoá(l, tid) { trả lấy_khoá(l, tid) // 4 }
+    trả ẩn
+}
+
+hàm liệt_σ(l) {                          # [[tid, σ], ...] để IN/khảo-sát (không phá trạng-thái)
+    đặt r = []
+    lặp k trong l { gom(r, [k, lấy_khoá(l, k)]) }
+    trả r
+}

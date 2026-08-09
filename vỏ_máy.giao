@@ -1,0 +1,84 @@
+# ============================================================
+# vỏ_máy.giao — VỎ LỆNH CHẠY TRÊN MÁY, nay TỰ TÁCH TỪ (biên dịch xuống bytecode GVM)
+# ------------------------------------------------------------
+# Trước đây nhân phải tách từ hộ. Nay vỏ tự làm: `_tách_dòng` viết BẰNG GIAO trong tập con
+# biên-dịch-được, nên nó CŨNG là bytecode. Nhân chỉ còn đưa NGUYÊN MỘT DÒNG (gọi_hệ 25) — đúng vai
+# "bàn phím", không hơn.
+#
+# MẸO THEN CHỐT: trên máy, một CHUỖI chính là DANH SÁCH mã ký tự (cons trên heap). Nên:
+#   • `s[i]`            → SỐ (mã ký tự)          ← khác thông dịch (ở đó trả chuỗi 1 ký tự)
+#   • `[s[i]]`          → chuỗi 1 ký tự
+#   • `ghép(a, b)`      → nối chuỗi/danh sách
+#   • `từ == "xem"`     → so sánh THEO NỘI DUNG  ← đã kiểm: token dựng lúc chạy khớp hằng chuỗi
+# Vì lẽ đó tệp này CHỈ dành cho MÁY (chạy bằng thông dịch sẽ khác nghĩa ở `s[i]`).
+#
+# gọi-hệ dùng ở đây: 25 lấy dòng · 0 đọc · 1 ghi · 2 tạo · 3 thêm · 4 liệt · 6 xoá · 7 soi · 11 ở · 12 ai
+# ============================================================
+
+đặt DẤU_CÁCH = 32
+
+# ---------------- tách dòng thành DANH SÁCH TỪ (đệ quy, thuần tập con) ----------------
+hàm _tách_dòng(s, i, hiện, ra) {
+    nếu i >= dài(s) {
+        nếu dài(hiện) > 0 { trả ghép(ra, [hiện]) }
+        trả ra
+    }
+    nếu s[i] == DẤU_CÁCH {
+        nếu dài(hiện) > 0 { trả _tách_dòng(s, i + 1, [], ghép(ra, [hiện])) }
+        trả _tách_dòng(s, i + 1, [], ra)
+    }
+    trả _tách_dòng(s, i + 1, ghép(hiện, [s[i]]), ra)
+}
+
+hàm tách_dòng(s) { trả _tách_dòng(s, 0, [], []) }
+
+hàm từ_thứ(ds, k) {                       # từ thứ k, thiếu → chuỗi rỗng
+    nếu k >= dài(ds) { trả "" }
+    trả ds[k]
+}
+
+# ---------------- vòng lặp vỏ ----------------
+hàm mỗi_dòng(còn) {
+    nếu còn == 0 { trả 0 }
+
+    đặt dòng = gọi_hệ(25)                 # ── nhân đưa NGUYÊN DÒNG ──
+    nếu dòng == 0 { trả 0 }               # hàng rỗng (NIL) → nghỉ
+
+    đặt ds = tách_dòng(dòng)              # ★ VỎ TỰ TÁCH TỪ, bằng bytecode của chính nó
+    đặt n = dài(ds)
+    nếu n == 0 { trả mỗi_dòng(còn - 1) }
+    đặt c = ds[0]
+
+    nếu c == "xem" {
+        nếu n < 2 { rọi "xem: thiếu đường dẫn" } khác { rọi gọi_hệ(0, ds[1]) }
+        trả mỗi_dòng(còn - 1)
+    }
+    nếu c == "liệt" {
+        nếu n < 2 { rọi "liệt: thiếu đường dẫn" } khác { rọi gọi_hệ(4, ds[1]) }
+        trả mỗi_dòng(còn - 1)
+    }
+    nếu c == "soi" {
+        nếu n < 2 { rọi "soi: thiếu đường dẫn" } khác { rọi gọi_hệ(7, ds[1]) }
+        trả mỗi_dòng(còn - 1)
+    }
+    nếu c == "ghi" {
+        nếu n < 3 { rọi "ghi: cần đường dẫn và nội dung" } khác { rọi gọi_hệ(2, ds[1], 644, ds[2]) }
+        trả mỗi_dòng(còn - 1)
+    }
+    nếu c == "thêm" {
+        nếu n < 3 { rọi "thêm: cần đường dẫn và nội dung" } khác { rọi gọi_hệ(3, ds[1], ds[2]) }
+        trả mỗi_dòng(còn - 1)
+    }
+    nếu c == "xoá" {                      # ★ bất-khả-hồi: nhân CHẶN, vỏ máy không lách được
+        nếu n < 2 { rọi "xoá: thiếu đường dẫn" } khác { rọi gọi_hệ(6, ds[1]) }
+        trả mỗi_dòng(còn - 1)
+    }
+    nếu c == "đếm_từ" { rọi n  trả mỗi_dòng(còn - 1) }     # chứng: vỏ TỰ đếm được số từ
+    nếu c == "tôi" { rọi gọi_hệ(12)  trả mỗi_dòng(còn - 1) }
+    nếu c == "ở"   { rọi gọi_hệ(11)  trả mỗi_dòng(còn - 1) }
+
+    rọi "vỏ-máy: không hiểu lệnh"
+    trả mỗi_dòng(còn - 1)
+}
+
+rọi mỗi_dòng(12)

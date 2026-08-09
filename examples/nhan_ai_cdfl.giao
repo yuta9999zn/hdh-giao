@@ -1,0 +1,90 @@
+# ============================================================
+# NHÂN-AI CDFL LIÊN TỤC — VIẾT BẰNG CHÍNH GIAO
+# Gộp: σ/Φ hai nhánh (đa thấu kính) + chọn bốn-mặt + thế giới drift.
+# Ô = [tên, ρ, σ, phiên_bản, đã_học].  σ = ẩn khi chưa quan sát (DE).
+# ============================================================
+
+# --- σ/Φ: đa thấu kính (cách tâm biểu diễn thực tại) ---
+hàm phi_đồng(x) { trả x }
+hàm phi_nửa(x)  { trả x / 2 }
+hàm phi_đôi(x)  { trả x * 2 }
+
+# γ qua Φ TỐT NHẤT (ensemble)
+hàm γ_phi(σ, ρ) {
+    nếu loại(σ) == "ẩn" { trả 0 - 2 }       # chưa tin → coi như rất âm (sẽ rơi vào DE)
+    trả lớn(cộng_hưởng(σ, phi_đồng(ρ)),
+            lớn(cộng_hưởng(σ, phi_nửa(ρ)), cộng_hưởng(σ, phi_đôi(ρ))))
+}
+
+# --- phân loại MẶT của một ô: 3=đốm sáng(DE) · 2=đốm tối(γ<0) · 1=DE_T(trôi) · 0=OR ổn ---
+hàm mặt_ô(ô) {
+    nếu loại(ô[2]) == "ẩn" { trả 3 }
+    đặt γ = γ_phi(ô[2], ô[1])
+    nếu γ < 0 { trả 2 }
+    nếu ô[3] > ô[4] { trả 1 }
+    trả 0
+}
+hàm nhãn_mặt(m) {
+    nếu m == 3 { trả "TRỒI đốm sáng (DE→tri thức)" }
+    nếu m == 2 { trả "SOI đốm tối (xoá ảo tưởng)" }
+    nếu m == 1 { trả "LÀM TƯƠI (DE_T đã trôi)" }
+    trả "OR ổn (nghỉ)"
+}
+
+# --- chọn BỐN-MẶT: ô có mặt cao nhất (trồi sáng > soi tối > làm tươi) ---
+hàm chọn_ô(cells) { trả argmax(mặt_ô, cells) }
+
+# --- σ/Φ học: kéo niềm tin về thấu kính Φ GẦN NHẤT ---
+hàm gần_nhất(σ, ρ) {
+    đặt da = tuyệt(phi_đồng(ρ) - σ)
+    đặt db = tuyệt(phi_nửa(ρ) - σ)
+    đặt dc = tuyệt(phi_đôi(ρ) - σ)
+    nếu da <= db {
+        nếu da <= dc { trả phi_đồng(ρ) }
+        trả phi_đôi(ρ)
+    }
+    nếu db <= dc { trả phi_nửa(ρ) }
+    trả phi_đôi(ρ)
+}
+hàm học_σ(σ, ρ) {
+    nếu loại(σ) == "ẩn" { trả ρ }                       # khai mở: ẩn → quan sát ρ
+    trả σ + (gần_nhất(σ, ρ) - σ) * 6 / 10               # kéo về biểu diễn gần nhất
+}
+
+# --- cập nhật / drift một ô theo tên (dựng lại danh sách, thuần hàm) ---
+hàm cập_nhật_ô(cells, tên) {
+    nếu dài(cells) == 0 { trả [] }
+    đặt ô = đầu(cells)
+    nếu ô[0] == tên {
+        trả ghép([[ô[0], ô[1], học_σ(ô[2], ô[1]), ô[3], ô[3]]], đuôi(cells))
+    }
+    trả ghép([ô], cập_nhật_ô(đuôi(cells), tên))
+}
+hàm drift_ô(cells, tên) {
+    nếu dài(cells) == 0 { trả [] }
+    đặt ô = đầu(cells)
+    nếu ô[0] == tên {
+        trả ghép([[ô[0], ô[1] + 15, ô[2], ô[3] + 1, ô[4]]], đuôi(cells))  # ρ trôi, phiên_bản++
+    }
+    trả ghép([ô], drift_ô(đuôi(cells), tên))
+}
+
+# --- VÒNG LIÊN TỤC: chọn → học → thế giới drift → lặp (không dừng cứng) ---
+hàm vòng(cells, n, idx) {
+    nếu n == 0 { trả cells }
+    đặt ô_c = chọn_ô(cells)
+    rọi "  chọn ô " + ô_c[0] + " → " + nhãn_mặt(mặt_ô(ô_c))
+    đặt cells2 = cập_nhật_ô(cells, ô_c[0])
+    đặt ô_d = cells2[dư(idx, dài(cells2))]               # một ô trôi (xoay vòng)
+    trả vòng(drift_ô(cells2, ô_d[0]), n - 1, idx + 1)
+}
+
+# ===================== CHẠY =====================
+rọi "NHÂN-AI CDFL LIÊN TỤC (bằng GIAO) — A ẩn(DE), B=20 ảo tưởng, C=80 OR"
+đặt cells = [
+    ["A", 100, ẩn, 0, 0],
+    ["B", 200, 20, 0, 0],
+    ["C", 80, 80, 0, 0]
+]
+đặt cuối = vòng(cells, 7, 0)
+rọi "→ Drift luôn tạo DE_T mới ⇒ chỉ viên mãn CỤC BỘ, nhân-AI chạy MÃI (tiên đề 12)."

@@ -1,0 +1,106 @@
+# ============================================================
+# hdh_qs_may.giao — NHÂN HỢP-NHẤT QUOTA + SYNC trong TẬP-CON-MÁY (biên-dịch xuống GVM/silicon)
+# ------------------------------------------------------------
+# Gộp 2 hệ-con HĐH-vượt-CDFL vào MỘT nhân: NHÓM tài-nguyên (quota γ-động) + ĐỒNG-BỘ (lock/semaphore γ-fair).
+# LUẬN ĐIỂM HỢP-NHẤT: cùng MỘT tin-cậy σ điều-phối CẢ (a) thứ-tự đánh-thức khoá (sync) LẪN
+#   (b) trần-quota tài-nguyên — kẻ KÉM-TIN bị BÓP CẢ HAI. (Windows: 2 cơ-chế RỜI-RẠC, đều TĨNH.)
+# Tập-con-máy: bản/ghép/đầu/đuôi/dài/số-học; sentinel 0=rảnh thay ẩn. Gate-level: hw/lam_qs.py
+# ============================================================
+
+# ── QUOTA (Job Object γ-động): bản{"tran","tong"} ──
+hàm nh_đặt_hạn(NH, mức) { đặt_khoá(NH, "tran", mức)  đặt_khoá(NH, "tong", 0)  trả NH }
+hàm nh_trần(NH) { trả lấy_khoá(NH, "tran") }
+hàm nh_tổng(NH) { trả lấy_khoá(NH, "tong") }
+hàm nh_trần_dụng(NH, σ) { trả nh_trần(NH) * σ / 255 }     # `/` = chia-NGUYÊN ở GVM máy (khớp gate-level)
+hàm nh_xin_cấp(NH, σ, lượng) {
+    nếu nh_tổng(NH) + lượng <= nh_trần_dụng(NH, σ) { đặt_khoá(NH, "tong", nh_tổng(NH) + lượng)  trả sáng }
+    trả tối
+}
+
+# ── SYNC: lock γ-fair + semaphore ──
+hàm k_tạo() { đặt L = bản()  đặt_khoá(L, "chu", 0)  đặt_khoá(L, "cho", [])  trả L }
+hàm k_chủ(L) { trả lấy_khoá(L, "chu") }
+hàm k_lấy(L, tid) {
+    nếu lấy_khoá(L, "chu") == 0 { đặt_khoá(L, "chu", tid)  trả sáng }
+    đặt_khoá(L, "cho", ghép(lấy_khoá(L, "cho"), [tid]))  trả tối
+}
+hàm sg_của(σ_b, t) { nếu có_khoá(σ_b, t) { trả lấy_khoá(σ_b, t) }  trả 0 }
+hàm k_mở_γ(L, tid, σ_b) {                     # ★ release CÔNG-BẰNG-γ: trao cho waiter σ CAO nhất
+    nếu lấy_khoá(L, "chu") == tid {
+        đặt q = lấy_khoá(L, "cho")
+        nếu dài(q) > 0 {
+            đặt tốt = đầu(q)  đặt điểm = sg_của(σ_b, tốt)
+            lặp t trong đuôi(q) { đặt e = sg_của(σ_b, t)  nếu e > điểm { đặt tốt = t  đặt điểm = e } }
+            đặt q2 = []  đặt đã = tối
+            lặp t trong q { nếu đã { đặt q2 = ghép(q2, [t]) }  khác { nếu t == tốt { đặt đã = sáng } khác { đặt q2 = ghép(q2, [t]) } } }
+            đặt_khoá(L, "cho", q2)  đặt_khoá(L, "chu", tốt)  trả tốt
+        }
+        đặt_khoá(L, "chu", 0)
+    }
+    trả 0
+}
+hàm s_tạo(n) { đặt S = bản()  đặt_khoá(S, "dem", n)  đặt_khoá(S, "cho", [])  trả S }
+hàm s_đếm(S) { trả lấy_khoá(S, "dem") }
+hàm s_xuống(S, tid) {
+    nếu lấy_khoá(S, "dem") > 0 { đặt_khoá(S, "dem", lấy_khoá(S, "dem") - 1)  trả sáng }
+    đặt_khoá(S, "cho", ghép(lấy_khoá(S, "cho"), [tid]))  trả tối
+}
+hàm s_lên(S) {
+    đặt q = lấy_khoá(S, "cho")
+    nếu dài(q) > 0 { đặt kế = đầu(q)  đặt_khoá(S, "cho", đuôi(q))  trả kế }
+    đặt_khoá(S, "dem", lấy_khoá(S, "dem") + 1)  trả 0
+}
+
+# ── TRẠNG THÁI NHÂN ──
+đặt SG = bản()                       # σ: tid → tin-cậy
+đặt NH = bản()                       # nhóm tài-nguyên (quota)
+đặt L = k_tạo()                      # khoá bảo-vệ "vùng tới-hạn"
+đặt IO = s_tạo(2)                    # semaphore: 2 khe I/O đồng-thời
+
+hàm báo_lấy(tên, r) {
+    nếu r == sáng { rọi "  [" + tên + " lay lock] GIU vung-toi-han" }
+    nếu r == tối { rọi "  [" + tên + " lay lock] CHO-xep-hang" }
+    trả r
+}
+hàm báo_cấp(tên, σ, lượng) {
+    đặt r = nh_xin_cấp(NH, σ, lượng)
+    nếu r == sáng { rọi "    [" + tên + " cap OK] +" + lượng + "MB (sigma=" + σ + " tran-dung=" + nh_trần_dụng(NH, σ) + " tong=" + nh_tổng(NH) + ")" }
+    nếu r == tối { rọi "    [" + tên + " QUOTA CHAN] xin " + lượng + "MB (sigma=" + σ + " tran-dung=" + nh_trần_dụng(NH, σ) + " da-dung=" + nh_tổng(NH) + ")" }
+    trả r
+}
+hàm báo_io(tên, r) {
+    nếu r == sáng { rọi "    [io-" + tên + "] vao khe OK" }
+    nếu r == tối { rọi "    [io-" + tên + "] CHO-khe (het slot)" }
+    trả r
+}
+
+# ── DEMO HỢP-NHẤT ──
+rọi "=== QUOTA+SYNC HOP-NHAT: mot sigma dieu-phoi CA HAI ==="
+đặt_khoá(SG, 1, 255)  đặt_khoá(SG, 2, 200)  đặt_khoá(SG, 3, 80)   # t1 tin-cao, t3 kem-tin
+nh_đặt_hạn(NH, 100)
+
+# t1 (σ=255) vào vùng tới-hạn: lấy lock + xin commit
+báo_lấy("t1", k_lấy(L, 1))
+báo_cấp("t1", 255, 30)
+báo_lấy("t2", k_lấy(L, 2))           # CHO
+báo_lấy("t3", k_lấy(L, 3))           # CHO
+
+# t1 ra: γ-fair đánh-thức → t2 (σ=200 > t3 σ=80)
+rọi "  [t1 ra] gamma-fair trao lock cho t" + k_mở_γ(L, 1, SG)
+báo_cấp("t2", 200, 30)               # σ=200 → tran-dung 78, tong 60 ≤ 78 → cấp
+
+# t2 ra: γ-fair → t3 (kẻ kém-tin cuối cùng)
+rọi "  [t2 ra] gamma-fair trao lock cho t" + k_mở_γ(L, 2, SG)
+báo_cấp("t3", 80, 30)                # σ=80 → tran-dung 31, tong 60 > 31 → QUOTA CHAN
+
+rọi "  [t3 ra] het waiter, lock-chu = " + k_mở_γ(L, 3, SG)
+
+# semaphore I/O: 2 khe, 3 tiến-trình
+rọi "  [io] sem 2 khe, 3 tien-trinh"
+báo_io("a", s_xuống(IO, 1))
+báo_io("b", s_xuống(IO, 2))
+báo_io("c", s_xuống(IO, 3))          # CHO (hết khe)
+rọi "  [io xong-a] wake t" + s_lên(IO)
+
+rọi "[KET] sigma DIEU-PHOI CA: thu-tu-wake-lock VA tran-quota — t3 kem-tin bi bop CA HAI"
+rọi "[nhom] commit = " + nh_tổng(NH) + "/" + nh_trần(NH) + "MB"

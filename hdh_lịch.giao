@@ -1,0 +1,35 @@
+# ============================================================
+# hdh_lịch.giao — NHÂN HĐH HỢP-TÁC cấp-GIAO, lái bằng lib_lịch (lập-lịch ưu-tiên + IPC)
+# ------------------------------------------------------------
+# "Gắn lib_lịch vào nhân thật": vòng-nhân lặp { chọn tiến-trình ưu-tiên cao nhất → chạy MỘT bước →
+#   nếu còn việc thì re-nạp }. Minh hoạ STRICT-PRIORITY (nhường-mới-bị-cướp) + IPC hộp-thư FIFO.
+# Chạy: PYTHONIOENCODING=utf-8 PYTHONUTF8=1 python giao.py hdh_lịch.giao
+# ============================================================
+nhập "lib_lịch.giao"
+
+rọi "=== LẬP-LỊCH ƯU-TIÊN (ưu_tiên NHỎ = chạy trước; chạy tới khi nhường) ==="
+đặt l = tạo_lịch()
+đặt ưu = bản()   đặt_khoá(ưu, "khẩn", 1)   đặt_khoá(ưu, "thường", 5)   đặt_khoá(ưu, "nền", 9)
+đặt còn = bản()  đặt_khoá(còn, "khẩn", 1)  đặt_khoá(còn, "thường", 3)  đặt_khoá(còn, "nền", 1)
+nạp_tt(l, "khẩn", 1)
+nạp_tt(l, "thường", 5)
+nạp_tt(l, "nền", 9)
+mãi {
+    nếu có_việc(l) { } khác { dừng }
+    đặt t = chọn_kế(l)                          # tiến-trình ưu-tiên cao nhất
+    đặt k = lấy_khoá(còn, t)
+    rọi t + " bước #" + ("" + k)                # chạy MỘT bước
+    đặt_khoá(còn, t, k - 1)
+    nếu k - 1 > 0 { nạp_tt(l, t, lấy_khoá(ưu, t)) }   # còn việc → quay lại hàng sẵn-sàng
+}
+
+rọi "=== IPC: tiến-trình gửi/nhận qua hộp-thư FIFO ==="
+đặt h = tạo_lịch()
+gửi(h, "in", "trang-A")                         # sản-xuất → hộp-thư 'in'
+gửi(h, "in", "trang-B")
+gửi(h, "in", "trang-C")
+mãi {
+    nếu có_tin(h, "in") { } khác { dừng }
+    rọi "máy-in nhận: " + ("" + nhận(h, "in"))  # tiêu-thụ FIFO
+}
+rọi "NHÂN dừng (hết việc)"

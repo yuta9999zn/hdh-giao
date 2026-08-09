@@ -1,0 +1,11 @@
+WARNING: gvm_vpi.v:312: $readmemh(program_vpi.hex): Not enough words in the file for the requested range [0:4095].
+   [CPU-silicon] giao-01
+   [CPU-silicon] 1
+   [CPU-silicon] dòng này do CỔNG LOGIC viết
+   [CPU-silicon] 1
+   [CPU-silicon] dòng này do CỔNG LOGIC viết + thêm nữa
+   [CPU-silicon] 0
+   [CPU-silicon] 0
+   [CPU-silicon] 1000 an
+   CPU DUNG sau 5183 chu ky · 8 lan xin nhan (8 lan qua VPI)
+cosim_vpi_tb.v:61: $finish called at 51835000 (1ps)

@@ -1,0 +1,36 @@
+# Kiểm lib_nhóm — Job Object/cgroup γ-động (học Windows, vượt bằng CDFL), ba-trị-aware
+nhập "lib_nhóm.giao"
+
+đặt g = tạo_nhóm()
+đặt_hạn(g, "commit", 1000)
+ghi_dùng(g, 1, "commit", 300)
+ghi_dùng(g, 2, "commit", 400)
+rọi tổng_dùng(g, "commit")        # 700
+rọi còn(g, "commit")              # 300
+rọi quá_hạn(g, "commit")          # tối (trong hạn)
+rọi xin_cấp(g, "commit", 200)     # sáng (700+200 ≤ 1000)
+rọi xin_cấp(g, "commit", 400)     # tối (700+400 > 1000)
+
+# ba-trị: CHƯA đặt-hạn cho "handle" → ẩn (chính-sách phải RÕ trước)
+rọi mức_hạn(g, "handle")          # ẩn
+rọi còn(g, "handle")              # ẩn
+rọi xin_cấp(g, "handle", 5)       # ẩn
+
+# kế-toán cập-nhật (working-set đổi) → vượt trần
+ghi_dùng(g, 1, "commit", 800)
+rọi tổng_dùng(g, "commit")        # 1200
+rọi quá_hạn(g, "commit")          # sáng (vượt)
+rọi dùng_của(g, 2, "commit")      # 400
+
+# γ-động: trần co theo tin-cậy σ (0..255)
+rọi hạn_hiệu_dụng(g, "commit", 255)   # 1000 (tin-cậy tối-đa)
+rọi hạn_hiệu_dụng(g, "commit", 128)   # 501  (≈ nửa)
+đặt g2 = tạo_nhóm()
+đặt_hạn(g2, "commit", 1000)
+ghi_dùng(g2, 9, "commit", 600)
+rọi xin_cấp_γ(g2, "commit", 100, 255) # sáng (700 ≤ trần 1000)
+rọi xin_cấp_γ(g2, "commit", 100, 128) # tối  (700 > trần-hiệu-dụng 501 — tác_vụ kém-tin BỊ BÓP)
+
+# input ẩn → ẩn (không crash)
+rọi tổng_dùng(ẩn, "commit")       # ẩn
+rọi đặt_hạn(ẩn, "x", 5)           # ẩn

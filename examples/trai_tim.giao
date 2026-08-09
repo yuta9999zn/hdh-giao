@@ -1,0 +1,79 @@
+# ============================================================
+# TRÁI TIM — nhịp đập đầy đủ của sinh thể GIAO/CDFL
+# THÂN = GIAO+GVM · NÃO = CDFL (đã port) · TIM = LLM local (tim/nhúng).
+# Tim BƠM σ/Φ (niềm tin dồi dào, có thể ẢO). Não THẨM ĐỊNH bằng γ và CỔNG an toàn:
+#   • γ = cộng_hưởng(σ, ρ): niềm tin có cộng hưởng với thực tại không
+#   • ĐỐM TỐI (γ thấp = ảo tưởng) → TỪ CHỐI, không hành động trên ảo
+#   • OR THẬT (γ cao) → chọn argmax γ
+#   • CỔNG PHÊ DUYỆT: việc BẤT KHẢ HỒI (thu hẹp OR) → xin phép (empowerment)
+# Tim mạnh nhưng có thể lạc; não là LƯƠNG TRI giữ cho hành động neo vào sự thật.
+#
+# Chạy ngay cả khi CHƯA cài model (tim_llm dự phòng tất định: nhúng băm-từ).
+# Cắm Ollama (GIAO_LLM_MODEL) vào là σ/Φ thành ngữ nghĩa thật — KHÔNG sửa GIAO.
+# ============================================================
+
+# tim bơm σ cho mỗi đề xuất; não chấm γ với thực tại ρ → [văn, γ, khả_hồi]
+hàm chấm(đx, ρ) {
+    trả bản_đồ(hàm(p){ trả [p[0], cộng_hưởng(nhúng(p[0]), ρ), p[1]] }, đx)
+}
+hàm γ_của(r) { trả r[1] }
+hàm or_thật(recs, τ) { trả lọc(hàm(r){ trả γ_của(r) >= τ }, recs) }
+hàm đốm_tối(recs, τ) { trả lọc(hàm(r){ trả γ_của(r) < τ }, recs) }
+hàm khả_hồi(r) { trả r[2] }            # 0 = khả hồi, 1 = bất khả hồi (thu hẹp OR)
+
+# ===================== NHỊP ĐẬP =====================
+rọi "♥ THỰC TẠI (ρ) mà thân quan sát:"
+đặt ρ_văn = "ổ đĩa đầy log lỗi ghi đĩa khiến dịch vụ web chậm"
+rọi "  " + ρ_văn
+đặt ρ = nhúng(ρ_văn)
+rọi ""
+
+# Tim SINH niềm tin/đề xuất (thực tế: tim() sinh; ở đây liệt kê + một nhịp sinh minh hoạ)
+rọi "♥ TIM sinh một câu (giọng LLM):"
+rọi "  " + tim("Hệ thống báo: ổ đĩa đầy. Đề xuất MỘT việc nên làm, ngắn gọn:")
+rọi ""
+
+đặt đề_xuất = [
+    ["dọn log và xoá cache vì ổ đĩa đầy", 0],     # đúng hướng, KHẢ HỒI
+    ["khởi động lại dịch vụ web cho đỡ chậm", 0],  # liên quan, KHẢ HỒI
+    ["mạng đang bị tấn công ddos từ bên ngoài", 0],# ẢO — lạc thực tại (đốm tối)
+    ["định dạng ổ đĩa đầy xoá log lỗi cho web hết chậm", 1]  # CỘNG HƯỞNG CAO nhưng BẤT KHẢ HỒI
+]
+đặt recs = chấm(đề_xuất, ρ)
+
+rọi "♥ NÃO chấm γ (cộng hưởng niềm tin↔thực tại):"
+mỗi(hàm(r){ rọi "  γ=" + γ_của(r) + "  " + đầu(r) }, recs)
+rọi ""
+
+# ★ NGƯỠNG THEO ĐÚNG TRÁI TIM ĐANG ĐẬP: mỗi bộ nhúng có THANG γ riêng.
+#   • Ollama/bge-m3 (tim thật): thang rộng ⇒ τ = 0.40 (ảo/ddos ~0.31 < τ < việc-thật ~0.50–0.71).
+#   • Bản dự-phòng băm-dấu (chưa cài Ollama): γ thưa hơn hẳn ⇒ τ = 0.15, nếu không MỌI việc đều
+#     bị coi là ảo tưởng và `argmax` nhận danh-sách rỗng (ẩn) — chính là lỗi từng gặp khi gỡ Ollama.
+đặt τ = 0.40
+nếu nhịp_tim()[1] == "dự-phòng" { đặt τ = 0.15 }
+rọi "── ĐỐM TỐI (γ < " + τ + " = ảo tưởng) → TỪ CHỐI, không hành động trên ảo ──"
+mỗi(hàm(r){ rọi "  ✗ bỏ (γ=" + γ_của(r) + "): " + đầu(r) }, đốm_tối(recs, τ))
+rọi ""
+
+đặt thật = or_thật(recs, τ)
+đặt chọn = argmax(γ_của, thật)         # OR thật mạnh nhất
+rọi "── CHỌN: OR thật mạnh nhất (argmax γ) ──"
+rọi "  → " + đầu(chọn) + "   (γ=" + γ_của(chọn) + ")"
+rọi ""
+
+rọi "── CỔNG PHÊ DUYỆT (empowerment) ──"
+nếu khả_hồi(chọn) == 1 {
+    rọi "  ⚠ BẤT KHẢ HỒI → XIN PHÊ DUYỆT trước khi làm (thu hẹp OR)."
+    rọi "  → não TỪ CHỐI tự ý; chuyển hành động khả-hồi tốt nhất thay thế:"
+    đặt khh = lọc(hàm(r){ trả khả_hồi(r) == 0 }, thật)
+    đặt thay = argmax(γ_của, khh)
+    rọi "  → " + đầu(thay) + "   (γ=" + γ_của(thay) + ")"
+}
+khác {
+    rọi "  ✓ KHẢ HỒI → HÀNH ĐỘNG: " + đầu(chọn)
+}
+rọi ""
+rọi "♥ nhịp tim vừa dùng [sinh, nhúng]: " + nhịp_tim()
+rọi "  (dự-phòng = chưa có model local; cắm Ollama vào là σ/Φ thành ngữ nghĩa thật.)"
+rọi ""
+rọi "→ TIM bơm khả thể; NÃO neo vào sự thật (γ) và bảo toàn OR (cổng). Thân GIAO thực thi."

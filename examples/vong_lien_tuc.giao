@@ -1,0 +1,16 @@
+# HƯỚNG 2: VÒNG LIÊN TỤC có DRIFT — thế giới TRÔI mỗi vòng → DE_T mọc lại.
+# Tác tử học mãi mà KHÔNG bao giờ viên mãn TOÀN CỤC (tiên đề 12: luôn còn sàn tối).
+
+vật đích = 100
+tâm đích = ẩn
+
+rọi "Mỗi vòng: học (kéo σ về ρ) → đo γ → THẾ GIỚI TRÔI (+15)."
+lặp 6 {
+    học đích                       # σ ← σ + ½(ρ − σ)
+    giao kq = đích                 # OR = tâm ⋈ vật, kèm γ
+    rọi kq
+    vật đích = (vật đích) + 15      # ρ_MF trôi ⇒ tri thức vừa học hoá CŨ (DE_T)
+}
+rọi de
+rọi "→ Cứ sắp khớp thì thế giới trôi → γ không lên tới 1. Hội tụ là CHÂN TRỜI TIỆM CẬN,"
+rọi "  chỉ có viên mãn CỤC BỘ–KHOẢNH KHẮC; vòng lặp KHÔNG dừng (continual)."

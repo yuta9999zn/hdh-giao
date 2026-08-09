@@ -1,0 +1,38 @@
+# Kiểm lib_dichvu — tầng dịch-vụ (vòng-đời + phụ-thuộc + hồi-phục/cô-lập, ba-trị)
+nhập "lib_dichvu.giao"
+
+đặt ql = tạo_ql()
+đăng_ký_dv(ql, "ổ_đĩa", [], sáng)               # tự_động, không phụ-thuộc
+đăng_ký_dv(ql, "tệp_hệ", ["ổ_đĩa"], sáng)        # phụ-thuộc ổ_đĩa
+đăng_ký_dv(ql, "mạng", [], sáng)                 # tự_động
+đăng_ký_dv(ql, "web", ["tệp_hệ", "mạng"], tối)   # MANUAL (không tự khởi)
+
+# 1) khởi tự-động → ổ_đĩa/tệp_hệ/mạng chạy; web (manual) vẫn dừng
+khởi_tự_động(ql)
+rọi trạng_thái_dv(ql, "ổ_đĩa")                   # chạy
+rọi trạng_thái_dv(ql, "tệp_hệ")                  # chạy
+rọi trạng_thái_dv(ql, "web")                     # dừng
+
+# 2) khởi web → giải phụ-thuộc (đã chạy) → chạy
+rọi khởi_dv(ql, "web")                           # sáng
+rọi trạng_thái_dv(ql, "web")                     # chạy
+
+# 3) web SẬP nhiều lần → HỒI-PHỤC 2 lần rồi CÔ-LẬP lần 3
+rọi báo_lỗi(ql, "web")                           # sáng (hồi-phục lần 1)
+rọi báo_lỗi(ql, "web")                           # sáng (hồi-phục lần 2)
+rọi báo_lỗi(ql, "web")                           # tối  (quá ngưỡng → CÔ-LẬP)
+rọi trạng_thái_dv(ql, "web")                     # lỗi
+rọi số_lỗi(ql, "web")                            # 3
+rọi khởi_dv(ql, "web")                           # tối  (đã cô-lập, không khởi lại)
+
+# 4) FAULT ISOLATION: web cô-lập nhưng hệ chạy tiếp — dịch-vụ khác KHÔNG hề hấn
+rọi trạng_thái_dv(ql, "ổ_đĩa")                   # chạy
+rọi trạng_thái_dv(ql, "mạng")                    # chạy
+
+# 5) phụ-thuộc HỎNG → dịch-vụ phụ-thuộc KHÔNG khởi được
+đăng_ký_dv(ql, "ứng_dụng", ["web"], tối)         # phụ-thuộc web (đã cô-lập)
+rọi khởi_dv(ql, "ứng_dụng")                      # tối  (phụ-thuộc web hỏng)
+
+# 6) ba-trị: chưa đăng-ký → ẩn
+rọi trạng_thái_dv(ql, "không_có")                # ẩn
+rọi khởi_dv(ql, "không_có")                      # ẩn

@@ -1,0 +1,76 @@
+# ============================================================
+# lib_base64.giao — BASE64 + UTF-8 cho GIAO (tham-chiếu base64 của Python)
+# ------------------------------------------------------------
+# Dựng trên builtin MỚI mã(ord)/ký_tự(chr). UTF-8 encode/decode để base64 chuỗi TIẾNG VIỆT đúng.
+#   mã_hoá_b64(bytes)→chuỗi · giải_b64(chuỗi)→bytes · b64_chuỗi(s) · b64_giải_chuỗi(s) (round-trip).
+# Nạp: nhập "lib_base64.giao".
+# ============================================================
+nhập "lib_chuoi.giao"
+
+đặt _B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+
+# ---------------- UTF-8 ----------------
+hàm _utf8_1(cp) {                                   # mã unicode → list byte
+    nếu cp < 128 { trả [cp] }
+    nếu cp < 2048 { trả [192 + cp // 64, 128 + dư(cp, 64)] }
+    nếu cp < 65536 { trả [224 + cp // 4096, 128 + dư(cp // 64, 64), 128 + dư(cp, 64)] }
+    trả [240 + cp // 262144, 128 + dư(cp // 4096, 64), 128 + dư(cp // 64, 64), 128 + dư(cp, 64)]
+}
+hàm chuỗi_thành_byte(s) {
+    nếu loại(s) == "ẩn" { trả ẩn }
+    đặt kq = []
+    lặp c trong s { lặp b trong _utf8_1(mã(c)) { gom(kq, b) } }   # gom O(1) thay ghép-copy O(n²)
+    trả kq
+}
+hàm byte_thành_chuỗi(bytes) {
+    nếu loại(bytes) == "ẩn" { trả ẩn }
+    đặt kq = ""  đặt i = 0  đặt n = dài(bytes)
+    mãi {
+        nếu i >= n { dừng }
+        đặt b = bytes[i]
+        nếu b < 128 { đặt kq = kq + ký_tự(b)  đặt i = i + 1 }
+        khác { nếu b < 224 { đặt kq = kq + ký_tự(dư(b, 32) * 64 + dư(bytes[i+1], 64))  đặt i = i + 2 }
+        khác { nếu b < 240 { đặt kq = kq + ký_tự(dư(b, 16) * 4096 + dư(bytes[i+1], 64) * 64 + dư(bytes[i+2], 64))  đặt i = i + 3 }
+        khác { đặt kq = kq + ký_tự(dư(b, 8) * 262144 + dư(bytes[i+1], 64) * 4096 + dư(bytes[i+2], 64) * 64 + dư(bytes[i+3], 64))  đặt i = i + 4 } } }
+    }
+    trả kq
+}
+
+# ---------------- BASE64 ----------------
+hàm mã_hoá_b64(bytes) {
+    nếu loại(bytes) == "ẩn" { trả ẩn }
+    đặt kq = ""  đặt i = 0  đặt n = dài(bytes)
+    mãi {
+        nếu i >= n { dừng }
+        đặt b0 = bytes[i]  đặt b1 = 0  đặt b2 = 0
+        đặt có1 = tối  đặt có2 = tối
+        nếu i + 1 < n { đặt b1 = bytes[i+1]  đặt có1 = sáng }
+        nếu i + 2 < n { đặt b2 = bytes[i+2]  đặt có2 = sáng }
+        đặt b24 = b0 * 65536 + b1 * 256 + b2
+        đặt kq = kq + _B64[b24 // 262144] + _B64[dư(b24 // 4096, 64)]
+        nếu có1 { đặt kq = kq + _B64[dư(b24 // 64, 64)] } khác { đặt kq = kq + "=" }
+        nếu có2 { đặt kq = kq + _B64[dư(b24, 64)] } khác { đặt kq = kq + "=" }
+        đặt i = i + 3
+    }
+    trả kq
+}
+hàm giải_b64(s) {
+    nếu loại(s) == "ẩn" { trả ẩn }
+    đặt kq = []  đặt i = 0  đặt n = dài(s)
+    mãi {
+        nếu i >= n { dừng }
+        đặt c0 = chỉ_số(_B64, s[i])  đặt c1 = chỉ_số(_B64, s[i+1])
+        đặt p2 = s[i+2]  đặt p3 = s[i+3]
+        đặt c2 = 0  đặt c3 = 0
+        nếu p2 == "=" { } khác { đặt c2 = chỉ_số(_B64, p2) }
+        nếu p3 == "=" { } khác { đặt c3 = chỉ_số(_B64, p3) }
+        đặt b24 = c0 * 262144 + c1 * 4096 + c2 * 64 + c3
+        gom(kq, b24 // 65536)                          # gom O(1) thay ghép-copy O(n²)
+        nếu p2 == "=" { } khác { gom(kq, dư(b24 // 256, 256)) }
+        nếu p3 == "=" { } khác { gom(kq, dư(b24, 256)) }
+        đặt i = i + 4
+    }
+    trả kq
+}
+hàm b64_chuỗi(s) { trả mã_hoá_b64(chuỗi_thành_byte(s)) }
+hàm b64_giải_chuỗi(s) { trả byte_thành_chuỗi(giải_b64(s)) }

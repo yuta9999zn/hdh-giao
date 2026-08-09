@@ -1,0 +1,86 @@
+# kiem_h5_h6_h7.giao — nghiệm thu BA CHỖ NỮA GIAO LÀM HƠN LINUX
+#   #5 TÊN TỆP không còn là bãi mìn (Linux chỉ cấm byte 0 và '/')
+#   #6 CẤU HÌNH có kiểm-tra-trước, LUÔN BẬT (Linux: `visudo` là tự giác, fstab sai thì mất boot)
+#   #7 TOCTOU + mất-cập-nhật: `ghi_nếu` compare-and-set trên TỆP (Linux không có)
+nhập "lib_gọi_hệ.giao"
+
+đặt M = khởi_máy()
+thêm_người(M, 0, "gốc")  thêm_người(M, 1000, "an")
+đặt khởi = sinh_tt(M, "khởi", 0, 0, "/")
+gọi(M, khởi, GH_TẠO_THƯ, ["/hệ", 755])
+gọi(M, khởi, GH_TẠO_THƯ, ["/tạm", 777])
+gọi(M, khởi, GH_TẠO_THƯ, ["/thùng_rác", 777])
+
+rọi "══ #5 TÊN TỆP: chặn từ lúc TẠO, ở tầng hệ-tệp ══"
+rọi gọi(M, khởi, GH_TẠO, ["/tạm/bình thường", 644, "ok"])       # sáng — dấu cách vẫn cho
+rọi "-- ký tự điều khiển (xuống dòng trong tên) → TỪ CHỐI, nói rõ vì sao --"
+rọi gọi(M, khởi, GH_TẠO, ["/tạm/hai\ndòng", 644, "x"])
+rọi lỗi_cuối(M)
+rọi "-- lề trắng thừa: nhìn y hệt tên thật ⇒ chặn --"
+rọi gọi(M, khởi, GH_TẠO, ["/tạm/lừa ", 644, "x"])
+rọi lỗi_cuối(M)
+rọi "-- '..' và tên rỗng --"
+rọi gọi(M, khởi, GH_TẠO_THƯ, ["/tạm/..", 755])
+rọi lỗi_cuối(M)
+rọi "-- ★ tệp tên '-rf' thì TẠO ĐƯỢC, và VÔ HẠI: vỏ GIAO truyền DANH SÁCH đối, không nối rồi tách --"
+rọi gọi(M, khởi, GH_TẠO, ["/tạm/-rf", 644, "tệp có tên hiểm"])
+rọi gọi(M, khởi, GH_ĐỌC, ["/tạm/-rf"])
+rọi gọi(M, khởi, GH_BỎ, ["/tạm/-rf"])                            # bỏ nó như mọi tệp khác
+rọi liệt_rác(M, khởi)[0][0]
+
+rọi "══ #6 CẤU HÌNH: kiểm TRƯỚC KHI GHI, luôn bật ══"
+gọi(M, khởi, GH_TẠO, ["/hệ/người_dùng", 644, "gốc:0:/\nan:1000:/nhà/an"])
+gọi(M, khởi, GH_TẠO, ["/hệ/sudo", 440, "an: xem liệt"])
+rọi "sổ hiện tại đọc lại được: " + gọi(M, khởi, GH_ĐỌC, ["/hệ/người_dùng"])
+
+rọi "-- ★★ ghi sổ người dùng mà BỎ MẤT uid 0 → TỪ CHỐI (Linux ghi bừa rồi mất root) --"
+rọi gọi(M, khởi, GH_GHI, ["/hệ/người_dùng", "an:1000:/nhà/an"])
+rọi lỗi_cuối(M)
+rọi "-- ★ tệp cũ CÒN NGUYÊN --"
+rọi gọi(M, khởi, GH_ĐỌC, ["/hệ/người_dùng"])
+
+rọi "-- sai cú pháp: nói rõ DÒNG nào --"
+rọi gọi(M, khởi, GH_GHI, ["/hệ/người_dùng", "gốc:0:/\nan:mười:/nhà/an"])
+rọi lỗi_cuối(M)
+rọi gọi(M, khởi, GH_GHI, ["/hệ/người_dùng", "gốc:0:/\nan:1000:nhà/an"])
+rọi lỗi_cuối(M)
+rọi "-- trùng uid = chung QUYỀN, Linux im lặng cho qua --"
+rọi gọi(M, khởi, GH_GHI, ["/hệ/người_dùng", "gốc:0:/\nan:1000:/nhà/an\nbình:1000:/nhà/bình"])
+rọi lỗi_cuối(M)
+rọi "-- sudo bỏ trống phần lệnh (vô nghĩa) --"
+rọi gọi(M, khởi, GH_GHI, ["/hệ/sudo", "an:"])
+rọi lỗi_cuối(M)
+rọi "-- mật khẩu THÔ (không băm) lọt vào sổ bóng --"
+gọi(M, khởi, GH_TẠO, ["/hệ/mật_khẩu", 600, "gốc:*"])
+rọi gọi(M, khởi, GH_GHI, ["/hệ/mật_khẩu", "an:sen-vàng-2026"])
+rọi lỗi_cuối(M)
+rọi "-- ★ cửa NỐI THÊM (>>) cũng qua bộ kiểm, không lách được --"
+rọi gọi(M, khởi, GH_THÊM, ["/hệ/người_dùng", "\nbình:hai:/nhà/bình"])
+rọi lỗi_cuối(M)
+rọi "-- ghi ĐÚNG thì vẫn qua bình thường --"
+rọi gọi(M, khởi, GH_GHI, ["/hệ/người_dùng", "gốc:0:/\nan:1000:/nhà/an\nbình:1001:/nhà/bình"])
+rọi gọi(M, khởi, GH_ĐỌC, ["/hệ/người_dùng"])
+
+rọi "══ #7 HAI NGƯỜI CÙNG SỬA: ghi_nếu (compare-and-set) ══"
+gọi(M, khởi, GH_TẠO, ["/tạm/sổ_chung", 666, "dòng 1"])
+đặt A = gọi(M, khởi, GH_SINH, ["thợ_A", 5])
+đặt B = gọi(M, khởi, GH_SINH, ["thợ_B", 5])
+rọi "-- cả hai cùng ĐỌC một lúc --"
+đặt bản_A = gọi(M, A, GH_ĐỌC, ["/tạm/sổ_chung"])
+đặt bản_B = gọi(M, B, GH_ĐỌC, ["/tạm/sổ_chung"])
+rọi bản_A
+rọi "-- A ghi trước: được --"
+rọi gọi(M, A, GH_GHI_NẾU, ["/tạm/sổ_chung", bản_A, bản_A + "\ndòng của A"])
+rọi "-- ★★ B ghi sau bằng bản CŨ: TỪ CHỐI, không đè mất việc của A --"
+rọi gọi(M, B, GH_GHI_NẾU, ["/tạm/sổ_chung", bản_B, bản_B + "\ndòng của B"])
+rọi lỗi_cuối(M)
+rọi "-- việc của A còn nguyên --"
+rọi gọi(M, khởi, GH_ĐỌC, ["/tạm/sổ_chung"])
+rọi "-- B đọc LẠI rồi làm lại thì được --"
+đặt bản_B2 = gọi(M, B, GH_ĐỌC, ["/tạm/sổ_chung"])
+rọi gọi(M, B, GH_GHI_NẾU, ["/tạm/sổ_chung", bản_B2, bản_B2 + "\ndòng của B"])
+rọi gọi(M, khởi, GH_ĐỌC, ["/tạm/sổ_chung"])
+rọi "-- ghi_nếu vẫn qua bộ kiểm cấu hình (H6 + H7 chồng nhau đúng thứ tự) --"
+đặt sổ = gọi(M, khởi, GH_ĐỌC, ["/hệ/người_dùng"])
+rọi gọi(M, khởi, GH_GHI_NẾU, ["/hệ/người_dùng", sổ, "an:1000:/nhà/an"])
+rọi lỗi_cuối(M)

@@ -1,0 +1,42 @@
+# MÃI (vòng liên tục) + THỬ/BẮT (ngoại lệ) trên MÁY GVM — mốc 3e
+# mãi { } = vòng không-điều-kiện, chạy tới 'dừng'.
+# thử/bắt = ngăn xếp HANDLER + NÉM gỡ-cuộn (unwind): chỉ-mục-ngoài-phạm-vi NÉM mã lỗi,
+#   thử/bắt bắt được → chương trình KHÔNG sập, phục hồi chạy tiếp.
+# (mã lỗi máy = SỐ; thông dịch là chuỗi thông điệp — luồng điều khiển khớp nhau)
+
+# --- mãi + dừng: đếm tới 7 ---
+đặt n = 0
+mãi {
+    đặt n = n + 1
+    nếu n == 7 { dừng }
+}
+rọi n                 # 7
+
+# --- thử/bắt: chỉ mục ngoài phạm vi → bắt, phục hồi ---
+đặt ds = [11, 22, 33]
+rọi ds[1]             # 22  (hợp lệ)
+thử {
+    rọi ds[10]        # NGOÀI phạm vi → NÉM (gỡ-cuộn)
+    rọi 999           # bỏ qua
+} bắt (e) {
+    rọi 0             # nhánh bắt chạy
+}
+rọi 42                # phục hồi: chạy tiếp (KHÔNG sập)
+
+# --- thử KHÔNG lỗi → bắt bị bỏ qua ---
+thử { rọi 100 } bắt (e) { rọi 200 }
+
+# --- thử/bắt LỒNG trong mãi (mọi truy cập hợp lệ → cộng dồn) ---
+đặt tổng = 0
+đặt k = 0
+mãi {
+    đặt k = k + 1
+    thử {
+        đặt v = [k]
+        đặt tổng = tổng + v[0]      # hợp lệ → cộng k
+    } bắt (e) {
+        đặt tổng = tổng + 1000      # không xảy ra
+    }
+    nếu k == 4 { dừng }
+}
+rọi tổng              # 1+2+3+4 = 10

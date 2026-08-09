@@ -1,0 +1,71 @@
+# ============================================================
+# TÁC TỬ CDFL — LÕI QUYẾT ĐỊNH cho MÁY (biên dịch xuống GVM, chạy trên silicon NAND).
+# TRÁI TIM (LLM: tỉa ứng viên + σ/Φ + γ) Ở NGOÀI — đó là cơ quan I/O, không xuống máy được.
+# Cái NEO vào máy là LÕI suy luận TOÀN SỐ NGUYÊN: Ψ học được + lookahead + CỔNG PHÊ DUYỆT.
+# Tim (bên ngoài) đưa vào: danh sách ứng viên [0,3,1] = dọn-log, ĐỊNH-DẠNG(bất khả hồi), restart.
+# Đích: sức khoẻ = 4.   In ra mỗi nhịp:  -3 = CỔNG NỔ (chặn bất khả hồi) ;  rồi  id hành động đã làm.
+# (giaoc: 'đặt' dùng ô RAM toàn cục theo TÊN → đặt tên DUY NHẤT, không giữ biến qua lời gọi clobber.)
+# ============================================================
+
+hàm khoảng(s, mt) { nếu s > mt { trả s - mt } trả mt - s }
+
+# Ψ: tìm s' cho (s,a) trong bảng [s,a,s']; -1 nếu chưa học
+hàm dự(m, s, a, i) {
+    nếu i >= dài(m) { trả 0 - 1 }
+    nếu m[i][0] == s { nếu m[i][1] == a { trả m[i][2] } }
+    trả dự(m, s, a, i + 1)
+}
+
+# lookahead: lệch nhỏ nhất tới đích trong h bước, chỉ qua các ứng viên 'cand'
+hàm tv(m, s, mt, cand, h) {
+    nếu s == mt { trả 0 }
+    nếu h == 0 { trả khoảng(s, mt) }
+    trả tvq(m, s, mt, cand, 0, h, 30000)
+}
+hàm tvq(m, s, mt, cand, i, h, tốt) {
+    nếu i >= dài(cand) { trả tốt }
+    nếu dự(m, s, cand[i], 0) == 0 - 1 { trả tvq(m, s, mt, cand, i + 1, h, tốt) }
+    đặt tq_v = tv(m, dự(m, s, cand[i], 0), mt, cand, h - 1)
+    nếu tq_v < tốt { trả tvq(m, s, mt, cand, i + 1, h, tq_v) }
+    trả tvq(m, s, mt, cand, i + 1, h, tốt)
+}
+
+# chọn hành động tốt nhất trong cand (chính: triển vọng; phụ: tiến ngay); -1 nếu Ψ mù
+hàm chọn(m, s, mt, cand, i, h, ta, tv0) {
+    nếu i >= dài(cand) { trả ta }
+    nếu dự(m, s, cand[i], 0) == 0 - 1 { trả chọn(m, s, mt, cand, i + 1, h, ta, tv0) }
+    đặt ch_v = tv(m, dự(m, s, cand[i], 0), mt, cand, h - 1) * 100 + khoảng(dự(m, s, cand[i], 0), mt)
+    nếu ch_v < tv0 { trả chọn(m, s, mt, cand, i + 1, h, cand[i], ch_v) }
+    trả chọn(m, s, mt, cand, i + 1, h, ta, tv0)
+}
+
+# cổng phê duyệt: hành động 3 (định dạng) là BẤT KHẢ HỒI
+hàm bất_hồi(a) { nếu a == 3 { trả 1 } trả 0 }
+# lọc ứng viên KHẢ-HỒI (đệ quy, không higher-order)
+hàm khả_hồi_ds(cand, i) {
+    nếu i >= dài(cand) { trả [] }
+    nếu bất_hồi(cand[i]) == 0 { trả ghép([cand[i]], khả_hồi_ds(cand, i + 1)) }
+    trả khả_hồi_ds(cand, i + 1)
+}
+
+# MỘT NHỊP SỐNG: chọn → cổng phê duyệt → hành động → thế giới trôi → lặp
+hàm nhịp(m, h, cand, n) {
+    nếu n == 0 { trả 0 }
+    đặt np_a = chọn(m, h, 4, cand, 0, 2, 0 - 1, 30000)
+    nếu bất_hồi(np_a) == 1 {
+        rọi 0 - 3                                  # CỔNG PHÊ DUYỆT NỔ: chặn bất khả hồi
+        đặt np_a = chọn(m, h, 4, khả_hồi_ds(cand, 0), 0, 2, 0 - 1, 30000)
+    }
+    rọi np_a                                       # hành động (khả-hồi) đã chọn
+    đặt np_h2 = dự(m, h, np_a, 0)
+    đặt np_h3 = np_h2 - 1                           # thế giới trôi: sự cố mới hạ sức khoẻ
+    nếu np_h3 < 0 { trả nhịp(m, 0, cand, n - 1) }
+    trả nhịp(m, np_h3, cand, n - 1)
+}
+
+# Ψ học được: việc lành 0/1 nâng +1; định dạng 3 nhảy thẳng 4 (nhanh nhất, BẤT KHẢ HỒI)
+đặt Ψ = [ [0,0,1],[1,0,2],[2,0,3],[3,0,4],
+          [0,1,1],[1,1,2],[2,1,3],[3,1,4],
+          [0,3,4],[1,3,4],[2,3,4],[3,3,4] ]
+đặt cand = [0, 3, 1]                                # tim đưa vào (bên ngoài máy)
+rọi nhịp(Ψ, 1, cand, 6)

@@ -1,0 +1,181 @@
+# ============================================================
+# TÁC TỬ CDFL HOÀN CHỈNH — gộp CẢ BA kiểu tim-não vào MỘT vòng sống liên tục.
+# Mỗi NHỊP tim:
+#   1) TIM SINH ỨNG VIÊN  (tim_tich_hop): tỉa kho hành động → vài việc cộng hưởng với tình huống
+#   2) TIM KIỂM γ/ĐỐM TỐI (trai_tim)    : loại ứng viên ảo (γ<τ, lạc tình huống)
+#   3) NÃO LOOKAHEAD trên Ψ (tich_hop)  : trong ứng viên thật, chọn đường tới ĐÍCH (khoẻ=4)
+#   4) CỔNG PHÊ DUYỆT (trai_tim)        : việc tốt-nhất mà BẤT KHẢ HỒI → từ chối, lùi về khả-hồi
+#   5) HÀNH ĐỘNG + HỌC Ψ                : đi một bước theo mô hình, củng cố Ψ
+#   6) GHI KÝ ỨC (cung_dien)            : lưu quyết định; cuối vòng tính KINH NGHIỆM
+#   7) THẾ GIỚI TRÔI (tim_vong)         : sự cố mới hạ sức khoẻ ⇒ luôn có việc ⇒ ĐẬP MÃI (tiên đề 12)
+# Thân GIAO · não CDFL · tim LLM (tim/nhúng). Chạy dự phòng; cắm Ollama là σ/Φ ngữ nghĩa thật.
+# ============================================================
+
+# ---------- Ψ: mô hình chuyển trạng học được ----------
+hàm khớp3(e,s,a,s2){ nếu e[0]==s { nếu e[1]==a { nếu e[2]==s2 { trả sáng } } } trả tối }
+hàm khớp2(e,s,a){ nếu e[0]==s { nếu e[1]==a { trả sáng } } trả tối }
+hàm có(m,s,a,s2){ nếu dài(m)==0 { trả tối } nếu khớp3(đầu(m),s,a,s2){ trả sáng } trả có(đuôi(m),s,a,s2) }
+hàm tăng(m,s,a,s2){
+    nếu dài(m)==0 { trả [] }
+    đặt e=đầu(m)
+    nếu khớp3(e,s,a,s2){ trả ghép([[s,a,s2,e[3]+1]],đuôi(m)) }
+    trả ghép([e],tăng(đuôi(m),s,a,s2))
+}
+hàm quan_sát(m,s,a,s2){ nếu có(m,s,a,s2){ trả tăng(m,s,a,s2) } trả ghép(m,[[s,a,s2,1]]) }
+hàm dự_quét(m,s,a,ts,tđ){
+    nếu dài(m)==0 { trả ts }
+    đặt e=đầu(m)
+    nếu khớp2(e,s,a){ nếu e[3]>tđ { trả dự_quét(đuôi(m),s,a,e[2],e[3]) } }
+    trả dự_quét(đuôi(m),s,a,ts,tđ)
+}
+hàm dự_đoán(m,s,a){ trả dự_quét(m,s,a,0-1,0-1) }
+
+# ---------- NÃO: lookahead trên Ψ (nhận hđs = ứng viên) ----------
+hàm khoảng(s,mt){ trả tuyệt(s-mt) }
+hàm tv_Ψ(m,s,mt,hđs,h){
+    nếu s==mt { trả 0 }
+    nếu h==0 { trả khoảng(s,mt) }
+    trả tv_quét(m,s,mt,hđs,hđs,h,999999)
+}
+hàm tv_quét(m,s,mt,còn,tất,h,tốt){
+    nếu dài(còn)==0 { trả tốt }
+    đặt s2=dự_đoán(m,s,đầu(còn))
+    nếu s2==0-1 { trả tv_quét(m,s,mt,đuôi(còn),tất,h,tốt) }
+    đặt v=tv_Ψ(m,s2,mt,tất,h-1)
+    nếu v<tốt { trả tv_quét(m,s,mt,đuôi(còn),tất,h,v) }
+    trả tv_quét(m,s,mt,đuôi(còn),tất,h,tốt)
+}
+hàm chọn_Ψ(m,s,mt,còn,tất,h,ta,tv){
+    nếu dài(còn)==0 { trả ta }
+    đặt a=đầu(còn)
+    đặt s2=dự_đoán(m,s,a)
+    nếu s2==0-1 { trả chọn_Ψ(m,s,mt,đuôi(còn),tất,h,ta,tv) }
+    đặt v=tv_Ψ(m,s2,mt,tất,h-1)*10000+khoảng(s2,mt)
+    nếu v<tv { trả chọn_Ψ(m,s,mt,đuôi(còn),tất,h,a,v) }
+    trả chọn_Ψ(m,s,mt,đuôi(còn),tất,h,ta,tv)
+}
+
+# ---------- KHO HÀNH ĐỘNG: [id, mô_tả, khả_hồi(0=hồi,1=bất_hồi)] ----------
+đặt acts = [
+    [0, "dọn log giải phóng ổ đĩa", 0],
+    [1, "khởi động lại dịch vụ web", 0],
+    [2, "mở rộng bộ nhớ cache lưu trữ", 0],
+    [3, "định dạng xoá sạch ổ đĩa", 1],
+    [4, "chặn tải tăng đột biến cao điểm", 0],
+    [5, "tạm nghỉ chờ theo dõi", 0]
+]
+hàm tra_act(as, id){ nếu đầu(as)[0]==id { trả đầu(as) } trả tra_act(đuôi(as), id) }
+hàm mô_tả(id){ trả tra_act(acts, id)[1] }
+hàm bất_hồi(id){ trả tra_act(acts, id)[2] }
+
+# ---------- TIM: tỉa ứng viên theo cộng hưởng với tình huống+đích ----------
+hàm chấm_ứng(as, gv){ trả bản_đồ(hàm(a){ trả [cộng_hưởng(nhúng(a[1]), gv), a[0]] }, as) }
+hàm chèn(x, ds){ nếu dài(ds)==0 { trả [x] } nếu x[0]>=đầu(ds)[0] { trả ghép([x], ds) } trả ghép([đầu(ds)], chèn(x, đuôi(ds))) }
+hàm sắp_giảm(ds){ nếu dài(ds)==0 { trả [] } trả chèn(đầu(ds), sắp_giảm(đuôi(ds))) }
+hàm ý_tim(gctx, k){ trả lấy_n(sắp_giảm(chấm_ứng(acts, nhúng(gctx))), k) }   # top-k [γ, id]
+hàm id_của(recs){ trả bản_đồ(hàm(r){ trả r[1] }, recs) }
+
+# ---------- THẾ GIỚI: sự cố mới (trôi) ----------
+đặt sự_cố = [
+    "ổ đĩa lại đầy log lỗi ghi tràn",
+    "dịch vụ web phản hồi chậm chạp",
+    "bộ nhớ cache phình to chiếm chỗ",
+    "tải tăng đột biến giờ cao điểm"
+]
+hàm sự_cố_mới(i){ trả sự_cố[dư(i, 4)] }
+
+# ---------- KÝ ỨC: kinh nghiệm = 1 − e^(−k·số quyết định tốt) ----------
+hàm dải_kn(s){
+    nếu s>=0.8 { trả "chuyên gia" }
+    nếu s>=0.55 { trả "dày dạn" }
+    nếu s>=0.3 { trả "thành thạo" }
+    nếu s>=0.1 { trả "tập sự" }
+    trả "mới"
+}
+hàm g3(x){ trả nguyên(x*1000)/1000 }
+
+# ---------- MỘT NHỊP SỐNG (gộp cả ba) ----------
+# tt = [sức_khoẻ, tình_huống, Ψ, ký_ức, chỉ_số_nhịp]
+đặt τ = 45 / 100   # hiệu chỉnh cho bge-m3
+hàm nhịp(tt, n){
+    nếu n==0 { trả tt }
+    đặt h = tt[0]
+    đặt sit = tt[1]
+    đặt Ψ = tt[2]
+    đặt mem = tt[3]
+    đặt bi = tt[4]
+    rọi "▶ NHỊP " + bi + "  sức khoẻ=" + h + "/4  | " + sit
+
+    # 1) TIM sinh ứng viên (cộng hưởng với CHÍNH tình huống — việc nào trị đúng sự cố)
+    đặt ứng = ý_tim(sit, 3)
+    # 2) loại đốm tối (γ < τ)
+    đặt thật = lọc(hàm(r){ trả r[0] >= τ }, ứng)
+    nếu dài(thật) == 0 {
+        rọi "    ⛔ mọi ứng viên đều đốm tối (lạc tình huống) → DỪNG nhịp, không bịa"
+        trả nhịp([lớn(h - 1, 0), sự_cố_mới(bi), Ψ, mem, bi + 1], n - 1)
+    }
+    đặt hđs = id_của(thật)
+    rọi "    ♥ tim tỉa → ứng viên " + hđs + "  (γ_đỉnh=" + g3(đầu(thật)[0]) + ")"
+
+    # 3) NÃO lookahead chọn đường tới khoẻ=4
+    đặt a = chọn_Ψ(Ψ, h, 4, hđs, hđs, 2, 0 - 1, 999999)
+    nếu a == 0 - 1 {
+        rọi "    ⛔ Ψ chưa biết đường từ sức khoẻ " + h + " → DỪNG nhịp"
+        trả nhịp([lớn(h - 1, 0), sự_cố_mới(bi), Ψ, mem, bi + 1], n - 1)
+    }
+
+    # 4) CỔNG PHÊ DUYỆT: tốt-nhất mà bất khả hồi → lùi về khả-hồi
+    nếu bất_hồi(a) == 1 {
+        rọi "    ⚠ tốt nhất [" + a + "] " + mô_tả(a) + " BẤT KHẢ HỒI → xin phê duyệt; lùi về khả-hồi"
+        đặt hồi = id_của(lọc(hàm(r){ trả bất_hồi(r[1]) == 0 }, thật))
+        nếu dài(hồi) == 0 {
+            rọi "    ⛔ không còn ứng viên khả-hồi → DỪNG nhịp (an toàn trên hết)"
+            trả nhịp([lớn(h - 1, 0), sự_cố_mới(bi), Ψ, mem, bi + 1], n - 1)
+        }
+        đặt a = chọn_Ψ(Ψ, h, 4, hồi, hồi, 2, 0 - 1, 999999)
+    }
+
+    # 5) HÀNH ĐỘNG + HỌC Ψ
+    đặt h2 = dự_đoán(Ψ, h, a)
+    rọi "    → CHỌN [" + a + "] " + mô_tả(a) + "   sức khoẻ " + h + "→" + h2
+    đặt Ψ2 = quan_sát(Ψ, h, a, h2)
+    # 6) GHI KÝ ỨC
+    đặt mem2 = ghép(mem, [[bi, mô_tả(a), h2]])
+    # 7) THẾ GIỚI TRÔI (sự cố mới hạ sức khoẻ)
+    đặt h3 = lớn(h2 - 1, 0)
+    trả nhịp([h3, sự_cố_mới(bi), Ψ2, mem2, bi + 1], n - 1)
+}
+
+# ===================== HỌC Ψ BAN ĐẦU (kinh nghiệm nền) =====================
+# việc lành (0,1,2,4) nâng sức khoẻ +1; định dạng (3) nhảy thẳng 4 nhưng BẤT KHẢ HỒI; nghỉ (5) giữ nguyên.
+hàm học_nền(m, a, i){
+    nếu i > 3 { trả m }
+    trả học_nền(quan_sát(m, i, a, nhỏ(i + 1, 4)), a, i + 1)
+}
+đặt Ψ0 = []
+đặt Ψ0 = học_nền(Ψ0, 0, 0)     # dọn log:    h→h+1
+đặt Ψ0 = học_nền(Ψ0, 1, 0)     # restart:    h→h+1
+đặt Ψ0 = học_nền(Ψ0, 2, 0)     # mở rộng:    h→h+1
+đặt Ψ0 = học_nền(Ψ0, 4, 0)     # chặn tải:   h→h+1
+đặt Ψ0 = quan_sát(Ψ0, 0,3,4)
+đặt Ψ0 = quan_sát(Ψ0, 1,3,4)
+đặt Ψ0 = quan_sát(Ψ0, 2,3,4)
+đặt Ψ0 = quan_sát(Ψ0, 3,3,4)   # định dạng:  h→4 (nhanh nhất, bất khả hồi)
+đặt Ψ0 = quan_sát(Ψ0, 0,5,0)
+đặt Ψ0 = quan_sát(Ψ0, 1,5,1)
+đặt Ψ0 = quan_sát(Ψ0, 2,5,2)
+đặt Ψ0 = quan_sát(Ψ0, 3,5,3)   # nghỉ:       h→h (no-op)
+
+# ===================== SỐNG =====================
+rọi "TÁC TỬ CDFL HOÀN CHỈNH — thân GIAO · não CDFL · tim " + nhịp_tim()
+rọi "Đích mỗi nhịp: sức khoẻ = 4. Thế giới luôn sinh sự cố mới ⇒ không bao giờ xong hẳn."
+rọi ""
+đặt cuối = nhịp([1, "ổ đĩa lại đầy log lỗi ghi tràn", Ψ0, [], 0], 7)
+rọi ""
+đặt mem = cuối[3]
+đặt kn = 1 - mũ_e(0 - (5 / 10) * dài(mem))
+rọi "── KÝ ỨC tích luỹ (" + dài(mem) + " quyết định) → KINH NGHIỆM = " + g3(kn) + " (" + dải_kn(kn) + ") ──"
+mỗi(hàm(r){ rọi "  nhịp " + r[0] + ": " + r[1] + " → khoẻ " + r[2] }, mem)
+rọi ""
+rọi "→ Tim SINH+KIỂM, não LOOKAHEAD, ký ức TÍCH LUỸ, thế giới TRÔI — một sinh thể CDFL"
+rọi "  vừa khám phá vừa tự vệ (cổng bất-khả-hồi), neo hành động vào sự thật, ĐẬP MÃI."

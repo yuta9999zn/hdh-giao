@@ -1,0 +1,193 @@
+# ============================================================
+# hdh_full_may.giao — NHÂN HĐH-GIAO TÍCH-HỢP, viết trong TẬP-CON-MÁY (biên-dịch xuống GVM/silicon)
+# ------------------------------------------------------------
+# Bản máy của hdh_full.giao: chỉ dùng cấu-trúc BIÊN-DỊCH-ĐƯỢC (bản/ghép/closure/lặp/chuỗi+),
+# TRÁNH builtin thông-dịch-only (loại/nối/gom/tách/cộng_hưởng). 3 hệ-con tích-hợp:
+#   • namespace PHẲNG (khoá = đường-dẫn chuỗi)  • bảo-mật so-σ no-write-up  • dịch-vụ trạng-thái-số.
+# Ranh-giới máy: chỗ "chưa-biết" dùng NHỊ-NGUYÊN (sáng/tối) thay ba-trị 'ẩn' (kiểm-ẩn chưa là builtin máy).
+# ============================================================
+
+# ── OBJECT NAMESPACE phẳng: bản{đường: [loại_chuỗi, giá_trị]} ──
+hàm ns_gắn(KG, đường, loại_str, giá_trị) { đặt_khoá(KG, đường, [loại_str, giá_trị])  trả KG }
+hàm ns_trị(KG, đường) { nếu có_khoá(KG, đường) { trả lấy_khoá(KG, đường)[1] }  trả 0 }
+hàm ns_loại(KG, đường) { nếu có_khoá(KG, đường) { trả lấy_khoá(KG, đường)[0] }  trả "không" }
+
+# ── BẢO-MẬT γ-gated: so-σ no-write-up (nhị-nguyên) + σ học-được ──
+đặt MỨC_HỆ = 255
+đặt MỨC_VỪA = 128
+hàm bm_đăng_ký(MIỀN, ô, mức, giá_trị) { đặt_khoá(MIỀN, ô, [mức, giá_trị])  trả MIỀN }
+hàm bm_ghi(MIỀN, σ, ô, giá_trị) {
+    nếu có_khoá(MIỀN, ô) {
+        đặt mức = lấy_khoá(MIỀN, ô)[0]
+        nếu σ >= mức { đặt_khoá(MIỀN, ô, [mức, giá_trị])  trả sáng }
+        trả tối
+    }
+    trả tối
+}
+hàm bm_đọc(MIỀN, ô) { nếu có_khoá(MIỀN, ô) { trả lấy_khoá(MIỀN, ô)[1] }  trả 0 }
+hàm học_σ(σ, ρ) { trả σ + (ρ - σ) / 2 }
+
+# ── DỊCH-VỤ: bản{tên: [trạng_thái, lần_lỗi]}; trạng 0=dừng 1=chạy 2=lỗi ──
+hàm dv_đăng_ký(QL, tên) { đặt_khoá(QL, tên, [0, 0])  trả QL }
+hàm dv_khởi(QL, tên) {
+    nếu có_khoá(QL, tên) { đặt l = lấy_khoá(QL, tên)  đặt_khoá(QL, tên, [1, l[1]])  trả sáng }
+    trả tối
+}
+hàm dv_trạng(QL, tên) { nếu có_khoá(QL, tên) { trả lấy_khoá(QL, tên)[0] }  trả 0 }
+hàm dv_báo_lỗi(QL, tên, ngưỡng) {
+    nếu có_khoá(QL, tên) {
+        đặt l = lấy_khoá(QL, tên)  đặt n = l[1] + 1
+        nếu n < ngưỡng { đặt_khoá(QL, tên, [1, n])  trả sáng }
+        đặt_khoá(QL, tên, [2, n])  trả tối
+    }
+    trả tối
+}
+
+# ── NHÓM TÀI-NGUYÊN (Job Object/cgroup): bản{"tran","tong"} — quota γ-ĐỘNG bằng SỐ-HỌC THUẦN ──
+# trần HIỆU-DỤNG = trần·σ/255 ⇒ tác_vụ tin-cậy THẤP bị BÓP quota (Job Object Windows tĩnh KHÔNG làm nổi).
+hàm nh_đặt_hạn(NH, mức) { đặt_khoá(NH, "tran", mức)  đặt_khoá(NH, "tong", 0)  trả NH }
+hàm nh_trần(NH) { nếu có_khoá(NH, "tran") { trả lấy_khoá(NH, "tran") }  trả 0 }
+hàm nh_tổng(NH) { nếu có_khoá(NH, "tong") { trả lấy_khoá(NH, "tong") }  trả 0 }
+hàm nh_trần_dụng(NH, σ) { trả nh_trần(NH) * σ / 255 }     # trần·σ/255 — `/` = chia-NGUYÊN trong GVM máy (giaoc: CHIA), khớp gate-level (interpreter hiện float chỉ cosmetic)
+hàm nh_xin_cấp(NH, σ, lượng) {                            # cấp QUA cổng quota γ-động → sáng/tối (ghi nếu cấp)
+    nếu nh_tổng(NH) + lượng <= nh_trần_dụng(NH, σ) {
+        đặt_khoá(NH, "tong", nh_tổng(NH) + lượng)  trả sáng
+    }
+    trả tối
+}
+
+# ── TRẠNG THÁI NHÂN ──
+đặt KG = bản()
+đặt MIỀN = bản()
+đặt QL = bản()
+đặt NH = bản()
+đặt K = bản()
+đặt_khoá(K, "bảng", [])
+
+hàm in(x) { rọi x  trả ẩn }
+
+# ── BOOT ──
+hàm boot() {
+    rọi "=== HDH-GIAO TAP-CON-MAY: namespace + bao-mat + dich-vu ==="
+    ns_gắn(KG, "/tb/dia0", "thiet_bi", 512)
+    bm_đăng_ký(MIỀN, "nhat_ky_he", MỨC_HỆ, 1000)
+    bm_đăng_ký(MIỀN, "cau_hinh", MỨC_VỪA, 1)
+    dv_đăng_ký(QL, "o_dia")
+    dv_khởi(QL, "o_dia")
+    nh_đặt_hạn(NH, 100)
+    rọi "[boot] tb/dia0=" + ns_trị(KG, "/tb/dia0") + " · dv o_dia=" + dv_trạng(QL, "o_dia") + " · quota tran=" + nh_trần(NH) + "MB"
+}
+
+hàm báo_cấp(tên, σ, lượng) {
+    đặt r = nh_xin_cấp(NH, σ, lượng)
+    nếu r == sáng { rọi "  [" + tên + " cap OK] +" + lượng + "MB (tran-dung=" + nh_trần_dụng(NH, σ) + " tong=" + nh_tổng(NH) + ")" }
+    nếu r == tối { rọi "  [" + tên + " QUOTA CHAN] xin " + lượng + "MB (sigma=" + σ + " tran-dung=" + nh_trần_dụng(NH, σ) + " da-dung=" + nh_tổng(NH) + ")" }
+    trả r
+}
+
+# ── tiến-trình = closure máy-trạng-thái ──
+hàm sinh(tên, bước) {
+    đặt p = bản()  đặt_khoá(p, "tên", tên)  đặt_khoá(p, "sống", sáng)  đặt_khoá(p, "bước", bước)
+    đặt_khoá(K, "bảng", ghép(lấy_khoá(K, "bảng"), [p]))
+}
+hàm báo_ghi(tên, σ, ô, giá_trị) {
+    đặt r = bm_ghi(MIỀN, σ, ô, giá_trị)
+    nếu r == sáng { rọi "  [" + tên + " ghi OK] " + ô }
+    nếu r == tối { rọi "  [" + tên + " CHAN] ghi-vuot-cap " + ô + " (sigma=" + σ + ")" }
+    trả r
+}
+
+# tt_hệ (σ=255): ghi nhat_ky_he hợp-lệ
+hàm tt_hệ() {
+    đặt s = bản()  đặt_khoá(s, "i", 0)
+    trả hàm() {
+        đặt i = lấy_khoá(s, "i") + 1  đặt_khoá(s, "i", i)
+        báo_ghi("he", 255, "nhat_ky_he", 2000)
+        báo_cấp("he", 255, 25)
+        nếu i >= 1 { trả "xong" }
+        trả "chạy"
+    }
+}
+# tt_người (σ=150): ghi cau_hinh OK, ghi nhat_ky_he bị CHẶN
+hàm tt_người() {
+    đặt s = bản()  đặt_khoá(s, "i", 0)
+    trả hàm() {
+        đặt i = lấy_khoá(s, "i") + 1  đặt_khoá(s, "i", i)
+        nếu i == 1 { báo_ghi("nguoi", 150, "cau_hinh", 2) }
+        nếu i == 2 { báo_ghi("nguoi", 150, "nhat_ky_he", 9) }
+        nếu i >= 2 { trả "xong" }
+        trả "chạy"
+    }
+}
+# tt_xấu (σ=200→25): cư-xử-xấu → σ HỌC tụt → mất quyền
+hàm tt_xấu() {
+    đặt s = bản()  đặt_khoá(s, "i", 0)  đặt_khoá(s, "σ", 200)
+    trả hàm() {
+        đặt i = lấy_khoá(s, "i") + 1  đặt_khoá(s, "i", i)
+        đặt σ = lấy_khoá(s, "σ")
+        báo_ghi("xau", σ, "cau_hinh", i)
+        đặt_khoá(s, "σ", học_σ(σ, 0))
+        nếu i >= 3 { rọi "  [nhan] sigma(xau) con " + lấy_khoá(s, "σ") + " — bi tuoc quyen"  trả "xong" }
+        trả "chạy"
+    }
+}
+# tt_giám (σ): web sập → hồi-phục 2 lần → CÔ-LẬP
+hàm tt_giám() {
+    đặt s = bản()  đặt_khoá(s, "i", 0)
+    dv_đăng_ký(QL, "web")  dv_khởi(QL, "web")
+    trả hàm() {
+        đặt i = lấy_khoá(s, "i") + 1  đặt_khoá(s, "i", i)
+        đặt r = dv_báo_lỗi(QL, "web", 3)
+        nếu r == sáng { rọi "  [giam] web sap -> HOI-PHUC" }
+        nếu r == tối { rọi "  [giam] web qua nguong -> CO-LAP (he chay tiep); o_dia=" + dv_trạng(QL, "o_dia") }
+        nếu i >= 3 { trả "xong" }
+        trả "chạy"
+    }
+}
+
+# tt_ngốn (σ=200→25): NGỐN commit — cư-xử-ngốn → σ HỌC tụt → quota γ CO → bị CHẶN
+hàm tt_ngốn() {
+    đặt s = bản()  đặt_khoá(s, "i", 0)  đặt_khoá(s, "σ", 200)
+    trả hàm() {
+        đặt i = lấy_khoá(s, "i") + 1  đặt_khoá(s, "i", i)
+        đặt σ = lấy_khoá(s, "σ")
+        báo_cấp("ngon", σ, 30)
+        đặt_khoá(s, "σ", học_σ(σ, 0))
+        nếu i >= 3 { rọi "  [nhan] sigma(ngon) con " + lấy_khoá(s, "σ") + " — quota co theo tin-cay"  trả "xong" }
+        trả "chạy"
+    }
+}
+
+# ── BỘ LẬP LỊCH hợp-tác ──
+hàm lập_lịch() {
+    đặt vòng = 0
+    mãi {
+        đặt còn = tối
+        lặp p trong lấy_khoá(K, "bảng") {
+            nếu lấy_khoá(p, "sống") {
+                đặt kq = (lấy_khoá(p, "bước"))()
+                nếu kq == "xong" { đặt_khoá(p, "sống", tối) }
+                khác { đặt còn = sáng }
+            }
+        }
+        đặt vòng = vòng + 1
+        nếu còn == tối { dừng }
+        nếu vòng > 100 { dừng }
+    }
+    rọi "[nhan] DUNG sau " + vòng + " vong"
+}
+
+# ── CHẠY ──
+boot()
+rọi "--- lap lich ---"
+sinh("he", tt_hệ())
+sinh("nguoi", tt_người())
+sinh("xau", tt_xấu())
+sinh("giam", tt_giám())
+sinh("ngon", tt_ngốn())
+lập_lịch()
+rọi "=== TRANG THAI CUOI ==="
+rọi "[bao-mat] nhat_ky_he = " + bm_đọc(MIỀN, "nhat_ky_he") + " (KHONG bi gia-mao)"
+rọi "[bao-mat] cau_hinh = " + bm_đọc(MIỀN, "cau_hinh")
+rọi "[dich-vu] web trang = " + dv_trạng(QL, "web") + " (2=loi/co-lap) · o_dia = " + dv_trạng(QL, "o_dia")
+rọi "[nhom] commit toan-he = " + nh_tổng(NH) + "/" + nh_trần(NH) + "MB (ngon bi quota gamma-throttle khi sigma tut)"

@@ -1,0 +1,37 @@
+# ============================================================
+# hdh_bền_lịch.giao — NHÂN HĐH có PERSISTENCE TRỰC-GIAO (checkpoint/restore) dùng lib_lịch
+# ------------------------------------------------------------
+# Minh hoạ: chạy nhân một lúc → CHỤP toàn-bộ trạng-thái ra chuỗi JSON bền → (giả lập "SẬP", vứt
+# nhân cũ) → KHÔI PHỤC vào nhân MỚI từ chuỗi → chạy TIẾP y nguyên. Cả hàng-sẵn-sàng (ưu-tiên) LẪN
+# hộp-thư IPC đều sống sót. (Mỗi đơn-vị-việc = 1 mục hàng-đợi ⇒ trạng-thái nhân TỰ-ĐỦ, JSON-hoá được.)
+# Chạy: PYTHONIOENCODING=utf-8 PYTHONUTF8=1 python giao.py hdh_bền_lịch.giao
+# ============================================================
+nhập "lib_lịch.giao"
+
+rọi "=== NHÂN PERSISTENCE: chạy → snapshot → 'sập' → khôi phục → chạy tiếp ==="
+đặt l = tạo_lịch()
+nạp_tt(l, "lưu", 1)                       # 1 đơn-vị-việc, ưu-tiên cao nhất
+nạp_tt(l, "tính", 3)                      # 3 đơn-vị-việc "tính" (ưu-tiên 3)
+nạp_tt(l, "tính", 3)
+nạp_tt(l, "tính", 3)
+nạp_tt(l, "dọn", 9)                       # 1 đơn-vị, ưu-tiên thấp nhất
+gửi(l, "log", "khởi-động")                # IPC: 2 thông-điệp chờ
+gửi(l, "log", "nạp-xong")
+
+rọi "chạy: " + chọn_kế(l)                 # lưu  (ưu-tiên 1)
+rọi "chạy: " + chọn_kế(l)                 # tính (ưu-tiên 3)
+
+đặt ảnh = chụp(l)                          # ★ CHECKPOINT → chuỗi JSON bền
+rọi "— snapshot " + ("" + dài(ảnh)) + " ký-tự JSON; VỨT nhân cũ —"
+
+đặt l = phục_hồi(ảnh)                      # ★ RESTORE vào nhân MỚI (giả lập sập + khởi động lại)
+
+mãi {                                      # chạy tiếp tới hết — việc CÒN LẠI sống sót
+    nếu có_việc(l) { } khác { dừng }
+    rọi "chạy: " + chọn_kế(l)             # tính, tính, dọn
+}
+mãi {                                      # hộp-thư IPC cũng sống sót
+    nếu có_tin(l, "log") { } khác { dừng }
+    rọi "log: " + ("" + nhận(l, "log"))   # khởi-động, nạp-xong
+}
+rọi "KHÔI PHỤC ĐẦY ĐỦ — trạng-thái nhân sống sót qua 'sập'"

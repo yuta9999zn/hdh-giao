@@ -1,0 +1,69 @@
+# kiem_nhom_sudo.giao — nghiệm thu NHÓM NGƯỜI DÙNG (C2) + SỔ SUDO (C3)
+# Điểm mấu chốt C2 (đúng đề bài CÒN_THIẾU): hai người CÙNG NHÓM đọc được tệp 640 của nhau,
+# người NGOÀI NHÓM thì không. Kèm luật chgrp của Linux và thứ tự chủ>nhóm>khác.
+nhập "lib_người_dùng.giao"
+
+đặt M = khởi_máy()
+thêm_người(M, 0, "gốc")  thêm_người(M, 1000, "an")  thêm_người(M, 1001, "bình")  thêm_người(M, 2000, "bèo")
+đặt khởi = sinh_tt(M, "khởi", 0, 0, "/")
+gọi(M, khởi, GH_TẠO_THƯ, ["/hệ", 755])
+gọi(M, khởi, GH_TẠO_THƯ, ["/nhà", 755])
+gọi(M, khởi, GH_TẠO, ["/hệ/người_dùng", 644, "gốc:0:/\nan:1000:/nhà/an\nbình:1001:/nhà/bình\nbèo:2000:/nhà/bèo"])
+gọi(M, khởi, GH_TẠO, ["/hệ/nhóm", 644, "văn:100:an,bình\nmáy:200:bèo"])
+gọi(M, khởi, GH_TẠO, ["/hệ/sudo", 440, "an: xem liệt\nbình: *"])
+
+rọi "-- đồng bộ tư cách nhóm vào nhân (như lúc đăng nhập) --"
+rọi đồng_bộ_nhóm(M, khởi)
+rọi "nhóm của an (uid 1000): " + nhóm_uid_của(1000)
+rọi "nhóm của bèo (uid 2000): " + nhóm_uid_của(2000)
+
+# ba phiên người dùng
+đặt pa = gọi(M, khởi, GH_SINH, ["vỏ_an", 5])
+đặt_khoá(lấy_khoá(lấy_khoá(M, "cred"), pa), "uid", 1000)
+đặt pb = gọi(M, khởi, GH_SINH, ["vỏ_bình", 5])
+đặt_khoá(lấy_khoá(lấy_khoá(M, "cred"), pb), "uid", 1001)
+đặt pc = gọi(M, khởi, GH_SINH, ["vỏ_bèo", 5])
+đặt_khoá(lấy_khoá(lấy_khoá(M, "cred"), pc), "uid", 2000)
+
+rọi "-- an tạo tệp 640 rồi trao cho nhóm 'văn' (100) --"
+gọi(M, khởi, GH_TẠO_THƯ, ["/nhà/an", 755])
+gọi(M, khởi, GH_ĐỔI_CHỦ, ["/nhà/an", 1000])  duyệt(M)
+rọi gọi(M, pa, GH_TẠO, ["/nhà/an/bài", 640, "bản nháp chương một"])
+rọi gọi(M, pa, GH_ĐỔI_NHÓM, ["/nhà/an/bài", 100])          # sáng — an là chủ VÀ thuộc nhóm 100
+
+rọi "-- ★ hai người CÙNG NHÓM đọc được tệp 640 của nhau --"
+rọi gọi(M, pb, GH_ĐỌC, ["/nhà/an/bài"])                    # bình cùng nhóm văn → ĐỌC ĐƯỢC
+
+rọi "-- ★ người NGOÀI NHÓM thì không --"
+rọi gọi(M, pc, GH_ĐỌC, ["/nhà/an/bài"])                    # bèo ngoài nhóm → tối
+rọi lỗi_cuối(M)
+
+rọi "-- bit nhóm là ĐỌC thôi: bình GHI vẫn bị chặn (640 = rw-r-----) --"
+rọi gọi(M, pb, GH_GHI, ["/nhà/an/bài", "sửa trộm"])        # tối
+rọi lỗi_cuối(M)
+
+rọi "-- luật chgrp Linux: người thường CHỈ đổi sang nhóm MÌNH THUỘC --"
+rọi gọi(M, pa, GH_ĐỔI_NHÓM, ["/nhà/an/bài", 200])          # tối — an không thuộc nhóm 'máy'
+rọi lỗi_cuối(M)
+rọi gọi(M, pb, GH_ĐỔI_NHÓM, ["/nhà/an/bài", 100])          # tối — bình không phải CHỦ tệp
+rọi lỗi_cuối(M)
+rọi gọi(M, khởi, GH_ĐỔI_NHÓM, ["/nhà/an/bài", 200])        # sáng — gốc thì tuỳ ý
+rọi gọi(M, pb, GH_ĐỌC, ["/nhà/an/bài"])                    # giờ bình cũng bị tối (tệp đã sang nhóm máy)
+rọi lỗi_cuối(M)
+rọi gọi(M, khởi, GH_ĐỔI_NHÓM, ["/nhà/an/bài", 100])        # trả về nhóm văn
+
+rọi "-- thứ tự Unix: CHỦ thắng NHÓM (chủ bị 040 thì chính chủ KHÔNG đọc được dù cùng nhóm) --"
+rọi gọi(M, pa, GH_TẠO, ["/nhà/an/lạ", 40, "chủ tự khoá mình"])   # 040 = ---r-----
+rọi gọi(M, pa, GH_ĐỔI_NHÓM, ["/nhà/an/lạ", 100])
+rọi gọi(M, pa, GH_ĐỌC, ["/nhà/an/lạ"])                     # tối — bit CHỦ (0) quyết, không rơi xuống nhóm
+rọi lỗi_cuối(M)
+rọi gọi(M, pb, GH_ĐỌC, ["/nhà/an/lạ"])                     # sáng — bình đi bit NHÓM (4)
+
+rọi "-- sổ sudo (C3): ai được chạy lệnh gì --"
+rọi sudo_được(M, khởi, "an", "xem")        # sáng — có trong sổ
+rọi sudo_được(M, khởi, "an", "xoá")        # tối — có trong sổ nhưng lệnh không được cấp
+rọi sudo_được(M, khởi, "bình", "xoá")      # sáng — bình được '*'
+rọi sudo_được(M, khởi, "bèo", "xem")       # ẩn — không có trong sổ
+rọi "-- sổ sudo là tệp 440: người thường KHÔNG tự đọc được --"
+rọi gọi(M, pa, GH_ĐỌC, ["/hệ/sudo"])       # tối
+rọi lỗi_cuối(M)

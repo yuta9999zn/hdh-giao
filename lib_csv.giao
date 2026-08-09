@@ -1,0 +1,53 @@
+# ============================================================
+# lib_csv.giao — CSV cho GIAO (tham-chiếu module `csv` của Python / CSV của Ruby)
+# ------------------------------------------------------------
+# phân_tích_csv(chuỗi) → danh-sách HÀNG, mỗi hàng = danh-sách Ô (chuỗi). Xử lý ĐÚNG:
+#   ô bọc nháy "..." (cho phép dấu phẩy/xuống-dòng bên trong) · nháy-thoát "" · bỏ \r.
+# thành_csv(hàng) → chuỗi; tự BỌC NHÁY ô chứa , " hoặc xuống-dòng. Round-trip an-toàn.
+# GIỮ CỐT LÕI: tự-thân, idiom Việt. Nạp: nhập "lib_csv.giao".
+# ============================================================
+nhập "lib_chuoi.giao"
+
+hàm phân_tích_csv(s) {
+    nếu loại(s) == "ẩn" { trả ẩn }       # input ẩn → ẩn (không crash ở `dài`)
+    đặt hàng = []  đặt h = []  đặt ô = ""
+    đặt i = 0  đặt nháy = tối
+    mãi {
+        nếu i >= dài(s) { dừng }
+        đặt c = s[i]
+        nếu nháy {
+            nếu c == "\"" {
+                nếu i + 1 < dài(s) { nếu s[i + 1] == "\"" { đặt ô = ô + "\""  đặt i = i + 2 }
+                                     khác { đặt nháy = tối  đặt i = i + 1 } }
+                khác { đặt nháy = tối  đặt i = i + 1 }
+            } khác { đặt ô = ô + c  đặt i = i + 1 }
+        } khác {
+            nếu c == "\"" { đặt nháy = sáng  đặt i = i + 1 }
+            khác { nếu c == "," { gom(h, ô)  đặt ô = ""  đặt i = i + 1 }
+            khác { nếu c == "\n" { gom(h, ô)  gom(hàng, h)  đặt h = []  đặt ô = ""  đặt i = i + 1 }
+            khác { nếu c == "\r" { đặt i = i + 1 }
+            khác { đặt ô = ô + c  đặt i = i + 1 } } } }
+        }
+    }
+    gom(h, ô)  gom(hàng, h)   # hàng cuối (gom O(1) thay ghép-copy O(n²))
+    trả hàng
+}
+
+hàm _csv_ô(f) {                         # bọc nháy nếu cần
+    đặt cần = tối
+    nếu chứa_chuỗi(f, ",") { đặt cần = sáng }
+    nếu chứa_chuỗi(f, "\"") { đặt cần = sáng }
+    nếu chứa_chuỗi(f, "\n") { đặt cần = sáng }
+    nếu cần { trả "\"" + thay(f, "\"", "\"\"") + "\"" }
+    trả f
+}
+hàm thành_csv(hàng) {
+    nếu loại(hàng) == "ẩn" { trả ẩn }      # ẩn → ẩn (không trả "" SAI)
+    đặt dòng = []
+    lặp h trong hàng {
+        đặt ô = []
+        lặp f trong h { gom(ô, _csv_ô(f)) }            # gom O(1)
+        gom(dòng, nối(ô, ","))
+    }
+    trả nối(dòng, "\n")
+}

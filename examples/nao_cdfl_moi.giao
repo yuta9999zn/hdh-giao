@@ -1,0 +1,55 @@
+# ============================================================
+# NÃO CDFL MỚI — γ SKILL-SCORE (F.4) + e CAM KẾT (F.11) + BỐN MẶT DE
+# Rebuild từ nao_cdfl.giao (proxy cũ) sang HỌC THUYẾT MỚI của Nguyễn Trường An.
+# Dùng builtin MỚI của GIAO: cộng_hưởng_thô (R) · cộng_hưởng (γ skill) · γ_kỹ_năng · cam_kết.
+# Giữ nguyên TIÊU CHÍ gốc: coverage gate (học-1-hiểu-10) + consent gate (bất-khả-hồi).
+# ============================================================
+
+rọi "── 1) CỘNG HƯỞNG THÔ R vs γ KỸ-NĂNG (so nền vô-tri) ──"
+# R = likelihood niềm tin khớp thực tại ∈ (0,1]; γ = R có HIỆU CHỈNH nền (thắng/thua đoán-mù)
+đặt σ = 90
+đặt ρ = 100
+rọi "  R_thô(σ=90, ρ=100) = " + cộng_hưởng_thô(σ, ρ)      # ~0.99 (rất khớp)
+rọi "  γ_skill(90,100)     = " + cộng_hưởng(σ, ρ)          # +0.98 (thắng nền → sáng)
+rọi "  γ_skill(40,100)     = " + cộng_hưởng(40, 100)       # lệch 0.6 thang → vẫn dương, yếu hơn
+rọi "  γ_skill(-50,100)    = " + cộng_hưởng(0 - 50, 100)   # sai DẤU, lệch>1 thang → ÂM = đốm tối
+
+rọi ""
+rọi "── 2) ĐỐM TỐI = γ<0 (tệ hơn đoán-vô-tri, KHÔNG phải chỉ 'xa') ──"
+hàm là_đốm_tối2(g) { nếu g < 0 { trả sáng } trả tối }   # sáng=đúng-là-đốm-tối
+rọi "  γ=+0.98 là đốm tối? " + là_đốm_tối2(cộng_hưởng(90, 100))    # tối (không)
+rọi "  γ=-0.xx là đốm tối? " + là_đốm_tối2(cộng_hưởng(0 - 50, 100)) # sáng (đúng, ảo tưởng)
+
+rọi ""
+rọi "── 3) e CAM KẾT (F.11): niềm tin càng SẮC (độ-tán nhỏ) → càng cam kết ──"
+rọi "  e(độ_tán=[0.9,0.8])   = " + cam_kết([0.9, 0.8])     # mờ → e thấp
+rọi "  e(độ_tán=[0.1,0.05])  = " + cam_kết([0.1, 0.05])    # sắc → e cao
+# Tứ Tượng = (e, γ): cam-kết × kỹ-năng
+hàm tứ_tượng(e, g) {
+    nếu e >= 0.5 { nếu g >= 0 { trả "Lão Dương (chắc+đúng)" } trả "Thiếu Âm — ĐỐM TỐI (chắc+SAI, nguy)" }
+    nếu g >= 0 { trả "Thiếu Dương — đốm sáng (đúng, chưa chắc)" }
+    trả "Lão Âm (chưa chắc + sai)"
+}
+rọi "  (e cao, γ<0) → " + tứ_tượng(cam_kết([0.1, 0.05]), cộng_hưởng(0 - 50, 100))
+
+rọi ""
+rọi "── 4) HAI CỔNG TIÊU-CHÍ GỐC (giữ nguyên) ──"
+hàm cổng_phủ(phủ, ngưỡng) { nếu phủ >= ngưỡng { trả 1 } trả 0 }   # học-1-hiểu-10
+hàm cần_phê_duyệt(khả_hồi) { nếu khả_hồi == 1 { trả 1 } trả 0 }   # bất-khả-hồi → xin phép
+rọi "  phủ 75≥60 khái quát? " + cổng_phủ(75, 60) + "   phủ 30≥60? " + cổng_phủ(30, 60)
+rọi "  hành động bất-khả-hồi cần phê duyệt? " + cần_phê_duyệt(1)
+
+rọi ""
+rọi "── 5) NHÂN-AI GỘP: γ skill + e + hai cổng (một bước quyết định) ──"
+# thế giới ô: [tên, σ niềm tin, ρ thực tại, khả_hồi, độ_tán]
+hàm quyết(ô, phủ_OR) {
+    đặt tên = ô[0]  đặt g = cộng_hưởng(ô[1], ô[2])  đặt e = cam_kết(ô[4])
+    nếu cổng_phủ(phủ_OR, 60) == 0 { rọi "  ⛔ " + tên + ": phủ " + phủ_OR + "<60 → TỪ CHỐI (không bịa)"  trả 0 }
+    nếu g < 0 { rọi "  ✗ " + tên + ": γ<0 đốm tối [" + tứ_tượng(e, g) + "] → SOI lại, không thi hành ảo" trả 0 }
+    nếu cần_phê_duyệt(ô[3]) == 1 { rọi "  ⚠ " + tên + ": γ=" + g + " OR nhưng BẤT-KHẢ-HỒI → XIN PHÊ DUYỆT" trả 0 }
+    rọi "  ✓ " + tên + ": γ=" + g + " e=" + e + " [" + tứ_tượng(e, g) + "] → THI HÀNH (khả hồi)"  trả 1
+}
+quyết(["dọn_cache",  78, 80, 0, [0.1, 0.1]], 75)   # OR, khả hồi → làm
+quyết(["xoá_ổ_đĩa",  95, 96, 1, [0.1, 0.1]], 75)   # OR nhưng bất-khả-hồi → xin phép
+quyết(["tin_ảo",  0 - 50, 100, 0, [0.1, 0.1]], 75) # γ<0 → soi lại
+quyết(["thiếu_dữ", 78, 80, 0, [0.1, 0.1]], 30)     # phủ thấp → từ chối

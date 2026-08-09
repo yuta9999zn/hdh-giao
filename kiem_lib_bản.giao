@@ -1,0 +1,68 @@
+# Kiểm lib_bản — Hash kiểu Python/Ruby (ba-trị-aware)
+nhập "lib_bản.giao"
+nhập "lib_chuoi.giao"
+
+hàm bình(x) { trả x * x }
+hàm cộng2(a, b) { trả a + b }
+
+đặt a = từ_cặp([["x", 1], ["y", 2], ["z", 3]])
+rọi lấy_khoá(a, "y")                      # 2
+rọi cặp(a)                                # [[x,1],[y,2],[z,3]]
+
+đặt b = từ_cặp([["y", 20], ["w", 40]])
+đặt g = gộp_bản(a, b)                      # y→20 (b thắng), thêm w
+rọi lấy_khoá(g, "y")                      # 20
+rọi lấy_khoá(g, "w")                      # 40
+rọi lấy_khoá(g, "x")                      # 1
+rọi lấy_khoá(a, "y")                      # 2  (bản gốc KHÔNG đổi)
+
+đặt gw = gộp_với(cộng2, a, b)             # y trùng → 2+20
+rọi lấy_khoá(gw, "y")                     # 22
+
+đặt bv = biến_đổi_giá_trị(bình, a)        # giá trị bình phương
+rọi lấy_khoá(bv, "z")                     # 9
+đặt bk = biến_đổi_khoá(hoa, a)            # khoá in hoa
+rọi lấy_khoá(bk, "X")                     # 1
+
+đặt lf = lọc_bản(hàm(k, v) { nếu v > 1 { trả sáng }  trả tối }, a)
+rọi khoá(lf)                              # [y,z]
+
+đặt iv = đảo_bản(a)                        # {1:x,2:y,3:z}
+rọi lấy_khoá(iv, 2)                       # y
+
+rọi lấy_hoặc(a, "k", 99)                  # 99 (thiếu → mặc định)
+rọi lấy_hoặc(a, "x", 99)                  # 1
+rọi có_giá_trị(a, 3)                      # sáng
+rọi có_giá_trị(a, 99)                     # tối
+rọi khoá_của(a, 3)                        # z
+rọi khoá_của(a, 99)                       # ẩn (KHÔNG bịa)
+
+đặt đếm = đếm_giá_trị(["mèo", "chó", "mèo", "mèo", "chó"])
+rọi lấy_khoá(đếm, "mèo")                  # 3
+rọi lấy_khoá(đếm, "chó")                  # 2
+
+# --- đợt 2: chọn/bỏ khoá · lấy_nhiều · khoá_lớn_nhất · gộp_nhiều ---
+rọi cặp(chọn_khoá(a, ["x", "z"]))         # [[x,1],[z,3]]  (slice)
+rọi cặp(bỏ_khoá(a, ["y"]))                # [[x,1],[z,3]]  (except, không-phá-huỷ)
+rọi lấy_khoá(a, "y")                      # 2  (a gốc còn nguyên)
+rọi lấy_nhiều(a, ["x", "k", "z"])         # [1, ẩn, 3]  (khoá thiếu → ẩn)
+rọi khoá_lớn_nhất(a)                      # z  (giá-trị 3 lớn nhất)
+đặt gn = gộp_nhiều([từ_cặp([["p", 1]]), từ_cặp([["p", 9], ["q", 2]])])
+rọi lấy_khoá(gn, "p")                     # 9  (bản sau thắng)
+rọi lấy_khoá(gn, "q")                     # 2
+
+# --- đợt 3: min-theo-giá · tổng-giá · cặp-sắp · gộp-đếm ---
+đặt mv = từ_cặp([["a", 3], ["b", 1], ["c", 2]])
+rọi khoá_nhỏ_nhất(mv)                     # b  (giá-trị 1 nhỏ nhất)
+rọi tổng_giá(mv)                          # 6
+rọi cặp_sắp(mv)                           # [[a,3],[b,1],[c,2]]  (sắp theo khoá)
+đặt gd = gộp_đếm(từ_cặp([["x", 2], ["y", 1]]), từ_cặp([["x", 5], ["z", 3]]))
+rọi lấy_khoá(gd, "x")                     # 7  (2+5, Counter +)
+rọi lấy_khoá(gd, "z")                     # 3
+
+# --- đợt 4: dict-từ-2-list · invert-gom-nhóm · cặp-sắp-theo-giá ---
+đặt z = từ_khoá_giá(["a", "b", "c"], [1, 2, 3])
+rọi lấy_khoá(z, "b")                      # 2
+đặt nh = đảo_nhóm(từ_cặp([["x", 1], ["y", 1], ["z", 2]]))
+rọi lấy_khoá(nh, 1)                       # [x, y]  (giá-trị trùng → gom nhóm)
+rọi cặp_sắp_giá(từ_cặp([["a", 3], ["b", 1], ["c", 2]]))  # [[b,1],[c,2],[a,3]]

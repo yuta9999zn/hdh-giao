@@ -1,0 +1,89 @@
+# ============================================================
+# hdh_tiền_định.giao — ★ LẬP LỊCH γ (CDFL): nhân ĐO rồi QUYẾT, tiến trình không giành được CPU
+# ------------------------------------------------------------
+# Linux xếp hàng theo `nice` — con số NGƯỜI khai, máy tin. Kẻ tham lam chỉ cần khai ưu tiên cao.
+# HĐH-GIAO xếp theo γ — con số máy TỰ ĐO: lát vừa rồi tiến trình có LÀM VIỆC THẬT không (có gọi-hệ
+# nào không). Không hỏi ai cả, nên không ai khai man được.
+#     ρ = 255 nếu có làm việc · σ ← σ + ((ρ−σ)>>2) · credit ← credit + (σ>>2), chạy thì trả COST=128
+#     chọn kế = argmax(credit)
+# ★ Chính sách này TRÙNG TỪNG PHÉP với γ-scheduler ở tầng máy và trên SILICON (hw/gvm.v) —
+#   `python kiem_lich_gamma.py` đối chiếu 2000 ca ngẫu nhiên.
+# Chạy:  python giao.py hdh_tiền_định.giao
+# ============================================================
+nhập "lib_vỏ.giao"
+nhập "lib_chương_trình.giao"
+
+hàm dựng_máy(dùng_γ) {
+    đặt M = khởi_máy()
+    thêm_người(M, 0, "gốc")  thêm_người(M, 1000, "an")
+    đặt K = sinh_tt(M, "khởi", 0, 0, "/")
+    gọi(M, K, GH_TẠO_THƯ, ["/tạm", 777])   gọi(M, K, GH_TẠO_THƯ, ["/tt", 555])
+    nạp_chương_trình(M)
+    bật_lịch_γ(M, dùng_γ)
+    gọi(M, K, GH_SINH, ["tham", 5, []])                  # tt2 — kẻ tham lam, không làm gì
+    gọi(M, K, GH_SINH, ["đếm", 5, [99, "/tạm/a"]])       # tt3 — việc thật
+    gọi(M, K, GH_SINH, ["đếm", 5, [99, "/tạm/b"]])       # tt4 — việc thật
+    trả M
+}
+
+hàm phân_bổ(M) {                                          # đếm số lát mỗi tiến trình thật sự dùng
+    đặt t = 0  đặt a = 0  đặt b = 0
+    lặp x trong lấy_khoá(M, "vết") {
+        nếu x[1] == 2 { đặt t = t + 1 }
+        nếu x[1] == 3 { đặt a = a + 1 }
+        nếu x[1] == 4 { đặt b = b + 1 }
+    }
+    trả [t, a, b]
+}
+hàm phần_trăm(x, tổng) { nếu tổng == 0 { trả 0 }  trả nguyên(x * 100 / tổng) }
+
+rọi "┌───────────────────────────────────────────────────────────────┐"
+rọi "│  HĐH-GIAO — LẬP LỊCH γ: máy ĐO độ hữu ích, không nghe khai báo│"
+rọi "└───────────────────────────────────────────────────────────────┘"
+rọi ""
+rọi "Ba tiến trình CÙNG ưu tiên 5:"
+rọi "   tt2 `tham`  — quay vòng đốt CPU, KHÔNG một lời gọi-hệ nào (kẻ tham lam)"
+rọi "   tt3 `đếm`   — việc thật: mỗi lát ghi một số vào /tạm/a"
+rọi "   tt4 `đếm`   — việc thật: mỗi lát ghi một số vào /tạm/b"
+
+rọi ""
+rọi "════ 1. LỊCH CỔ ĐIỂN (ưu tiên tĩnh, như `nice`) — 30 lát ════"
+đặt M1 = dựng_máy(tối)
+vòng_nhân(M1, 30)
+đặt p1 = phân_bổ(M1)
+rọi "   tham = " + p1[0] + " lát (" + phần_trăm(p1[0], 30) + "%)   ·   A = " + p1[1] + "   ·   B = " + p1[2]
+rọi "   → kẻ tham lam chiếm " + phần_trăm(p1[0], 30) + "% CPU; tệ hơn nữa, một tiến trình THẬT bị BỎ ĐÓI hẳn."
+rọi "     (đống ưu-tiên xoay vòng giữa hai kẻ đầu hàng, tiến trình còn lại không tới lượt)"
+
+rọi ""
+rọi "════ 2. LỊCH γ (CDFL — đo rồi quyết) — cũng 30 lát, cùng ba tiến trình ════"
+đặt M2 = dựng_máy(sáng)
+đặt_khoá(M2, "kể", sáng)
+vòng_nhân(M2, 8)                                          # in 8 lát đầu cho thấy nhân HỌC
+đặt_khoá(M2, "kể", tối)
+vòng_nhân(M2, 22)
+đặt p2 = phân_bổ(M2)
+rọi ""
+rọi "   tham = " + p2[0] + " lát (" + phần_trăm(p2[0], 30) + "%)   ·   A = " + p2[1] + "   ·   B = " + p2[2]
+rọi "   σ (độ hữu ích HỌC ĐƯỢC, 0..255):  tham = " + γ_soi(M2, 2)[0] + "   ·   A = " + γ_soi(M2, 3)[0] + "   ·   B = " + γ_soi(M2, 4)[0]
+rọi "   γ tương ứng:  tham = " + γ_gamma(γ_soi(M2, 2)[0]) + "   ·   A = " + γ_gamma(γ_soi(M2, 3)[0])
+rọi "   → kẻ tham lam bị BÓP xuống " + phần_trăm(p2[0], 30) + "%, và KHÔNG tiến trình nào bị bỏ đói."
+
+rọi ""
+rọi "════ 3. VÌ SAO — nhân không hỏi, nhân đo ════"
+rọi "   `tham` chạy mà không gọi-hệ ⇒ ρ=0 ⇒ σ tụt (128→" + γ_soi(M2, 2)[0] + ") ⇒ credit gần như không lớn."
+rọi "   `đếm` mỗi lát đều ghi tệp ⇒ ρ=255 ⇒ σ leo tới " + γ_soi(M2, 3)[0] + " ⇒ credit lên nhanh, luôn thắng argmax."
+rọi "   Tiến trình KHÔNG khai được ưu tiên, KHÔNG xin được thêm lượt: nhân chỉ nhìn việc nó làm."
+
+rọi ""
+rọi "════ 4. CÙNG MỘT CHÍNH SÁCH TỪ VỎ LỆNH XUỐNG CỔNG LOGIC ════"
+rọi "   γ_bước (viết bằng GIAO, dùng ở đây) ≡ gvm_may.γ_cập_nhật (tầng máy) ≡ wire hw/gvm.v (silicon)."
+rọi "   Đối chiếu 2000 ca ngẫu nhiên:  python kiem_lich_gamma.py"
+
+rọi ""
+rọi "════ 5. TRUNG THỰC: 'tiền định' tới đâu ════"
+rọi "   Nhân QUYẾT ai chạy tiếp và bóp được kẻ tham lam — đó là phần thật, chạy được, đo được."
+rọi "   Nhưng ở tầng thông dịch, nhân KHÔNG cắt ngang được một closure đang chạy dở: tiến trình vẫn"
+rọi "   phải trả CPU sau mỗi lát. Cắt ngang THẬT (đếm đủ N lệnh là cướp) chỉ có ở TẦNG MÁY —"
+rọi "   `gvm_may.lập_lịch_học` với `timer_period`, đã chạy bit-exact trên Verilog. Muốn tiền định"
+rọi "   trọn vẹn ở tầng này thì phải biên dịch thân tiến trình xuống GVM — đó là việc kế tiếp."

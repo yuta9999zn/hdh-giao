@@ -1,0 +1,79 @@
+# ============================================================
+# lib_chacha20.giao — MÃ DÒNG ChaCha20 (RFC 8439) THUẦN GIAO
+# ------------------------------------------------------------
+# Mảnh cuối để phiên từ xa được MÃ HOÁ. Dựng được là nhờ hai thứ đã có:
+#   • phép BIT (A1) — ChaCha20 chỉ cần cộng-32-bit, xor, quay trái;
+#   • gán theo CHỈ MỤC (A2) — trạng thái là 16 từ, không có nó thì phải dựng lại danh sách mỗi vòng.
+# Không có phép nhân, không có bảng tra ⇒ không có kênh-phụ theo thời gian như AES bảng-tra.
+#
+# ⚠ TRUNG THỰC: đây là bản hiện thực cho dự án, **chưa qua thẩm định mật mã**, và chạy ở đường
+# thông dịch nên chậm (một khối 64 byte ~ vài ms). Nó đúng THUẬT TOÁN (đối chiếu vector RFC 8439),
+# nhưng đừng đem giữ bí mật thật ngoài đời.
+# ============================================================
+nhập "lib_sha256.giao"          # utf8_mã · và_bit/dịch — dùng chung tiện ích byte
+
+đặt CC_MASK = 4294967295
+
+hàm _cc_quay(x, n) { trả và_bit(hoặc_bit(dịch_trái(x, n), dịch_phải(x, 32 - n)), CC_MASK) }
+hàm _cc_cộng(a, b) { trả và_bit(a + b, CC_MASK) }
+
+# một VÒNG TƯ (quarter round) trên bốn chỉ số của trạng thái
+hàm _cc_tư(s, ia, ib, ic, id) {
+    đặt s[ia] = _cc_cộng(s[ia], s[ib])   đặt s[id] = _cc_quay(xor(s[id], s[ia]), 16)
+    đặt s[ic] = _cc_cộng(s[ic], s[id])   đặt s[ib] = _cc_quay(xor(s[ib], s[ic]), 12)
+    đặt s[ia] = _cc_cộng(s[ia], s[ib])   đặt s[id] = _cc_quay(xor(s[id], s[ia]), 8)
+    đặt s[ic] = _cc_cộng(s[ic], s[id])   đặt s[ib] = _cc_quay(xor(s[ib], s[ic]), 7)
+    trả s
+}
+
+hàm _cc_từ_le(bs, i) {          # 4 byte little-endian → một từ 32 bit
+    trả bs[i] + dịch_trái(bs[i + 1], 8) + dịch_trái(bs[i + 2], 16) + dịch_trái(bs[i + 3], 24)
+}
+
+# chacha20_khối(khoá 32 byte, nonce 12 byte, đếm) → 64 byte dòng khoá
+hàm chacha20_khối(khoá, nonce, đếm) {
+    đặt s = [1634760805, 857760878, 2036477234, 1797285236]      # "expand 32-byte k"
+    đặt i = 0
+    lặp 8 { gom(s, _cc_từ_le(khoá, i * 4))  đặt i = i + 1 }
+    gom(s, và_bit(đếm, CC_MASK))
+    gom(s, _cc_từ_le(nonce, 0))  gom(s, _cc_từ_le(nonce, 4))  gom(s, _cc_từ_le(nonce, 8))
+
+    đặt t = ghép(s, [])                                          # bản sao để cộng lại ở cuối
+    lặp 10 {                                                     # 10 vòng đôi = 20 vòng
+        _cc_tư(t, 0, 4, 8, 12)    _cc_tư(t, 1, 5, 9, 13)
+        _cc_tư(t, 2, 6, 10, 14)   _cc_tư(t, 3, 7, 11, 15)
+        _cc_tư(t, 0, 5, 10, 15)   _cc_tư(t, 1, 6, 11, 12)
+        _cc_tư(t, 2, 7, 8, 13)    _cc_tư(t, 3, 4, 9, 14)
+    }
+    đặt ra = []
+    đặt j = 0
+    mãi {
+        nếu j >= 16 { dừng }
+        đặt v = _cc_cộng(t[j], s[j])
+        gom(ra, và_bit(v, 255))               gom(ra, và_bit(dịch_phải(v, 8), 255))
+        gom(ra, và_bit(dịch_phải(v, 16), 255)) gom(ra, và_bit(dịch_phải(v, 24), 255))
+        đặt j = j + 1
+    }
+    trả ra
+}
+
+# chacha20_mã(khoá, nonce, đếm_đầu, byte) → byte đã XOR với dòng khoá (mã và giải là MỘT phép)
+hàm chacha20_mã(khoá, nonce, đếm_đầu, bs) {
+    đặt ra = []
+    đặt i = 0
+    đặt đ = đếm_đầu
+    mãi {
+        nếu i >= dài(bs) { dừng }
+        đặt kd = chacha20_khối(khoá, nonce, đ)
+        đặt j = 0
+        mãi {
+            nếu j >= 64 { dừng }
+            nếu i + j >= dài(bs) { dừng }
+            gom(ra, xor(bs[i + j], kd[j]))
+            đặt j = j + 1
+        }
+        đặt i = i + 64
+        đặt đ = đ + 1
+    }
+    trả ra
+}

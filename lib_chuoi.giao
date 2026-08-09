@@ -1,0 +1,333 @@
+# ============================================================
+# lib_chuoi.giao — CHUỖI (String kiểu Python/Ruby) cho GIAO
+# ------------------------------------------------------------
+# GIỮ CỐT LÕI GIAO: ba-trị (vị_trí không-thấy → 'ẩn' · bắt_đầu/kết_thúc/chứa → sáng/tối) ·
+#   idiom Việt · TỰ-THÂN (hoa/thường bằng TRA-BẢNG-CHỮ-CÁI, không cần builtin mã↔ký-tự;
+#   thay/số_lần dựng trên builtin tách+nối) · iterative.
+# Nạp: nhập "lib_chuoi.giao".  (tự kéo lib_duyet cho lát/chỉ_số/bỏ_khi/bản_đồ)
+# ============================================================
+nhập "lib_duyet.giao"
+
+đặt _THƯỜNG = "abcdefghijklmnopqrstuvwxyz"
+đặt _HOA    = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+# ---------------- chuyển đổi list ⟷ chuỗi ----------------
+hàm chuỗi_từ(ds) { nếu loại(ds) == "ẩn" { trả ẩn }  trả nối(ds, "") }              # list ký-tự → chuỗi
+hàm ký_tự_ds(s) { nếu loại(s) == "ẩn" { trả ẩn }  trả lát(s, 0, dài(s)) }         # chuỗi → list ký-tự
+hàm đảo_chuỗi(s) { nếu loại(s) == "ẩn" { trả ẩn }  trả chuỗi_từ(đảo(s)) }          # reverse
+hàm lát_chuỗi(s, a, b) { nếu loại(s) == "ẩn" { trả ẩn }  trả chuỗi_từ(lát(s, a, b)) }  # chuỗi-con s[a:b] → CHUỖI (qua lib_duyet.lát = O(b−a), chỉ-mục O(1))
+
+# ---------------- hoa / thường (tra bảng) ----------------
+hàm _đổi1(bảng_từ, bảng_tới, c) {
+    đặt i = chỉ_số(bảng_từ, c)
+    nếu loại(i) == "ẩn" { trả c }                  # không trong bảng → giữ NGUYÊN
+    trả bảng_tới[i]
+}
+hàm hoa(s)    { nếu loại(s) == "ẩn" { trả ẩn }  trả chuỗi_từ(bản_đồ(hàm(c) { trả _đổi1(_THƯỜNG, _HOA, c) }, s)) }
+hàm thường(s) { nếu loại(s) == "ẩn" { trả ẩn }  trả chuỗi_từ(bản_đồ(hàm(c) { trả _đổi1(_HOA, _THƯỜNG, c) }, s)) }
+hàm hoa_đầu(s) {                                   # capitalize
+    nếu loại(s) == "ẩn" { trả ẩn }
+    nếu dài(s) == 0 { trả s }
+    trả hoa(đầu(s)) + thường(chuỗi_từ(đuôi(s)))
+}
+
+# ---------------- thay / đếm / chứa / vị trí ----------------
+hàm thay(s, cũ, mới) { nếu loại(s) == "ẩn" { trả ẩn }  nếu loại(cũ) == "ẩn" { trả ẩn }  trả nối(tách_giữ(s, cũ), mới) } # replace ALL (tách_giữ GIỮ rỗng ⇒ thay("aa","a","b")="bb" đúng)
+hàm số_lần(s, con) { nếu loại(s) == "ẩn" { trả ẩn }  nếu loại(con) == "ẩn" { trả ẩn }  trả dài(tách_giữ(s, con)) - 1 }   # count (tách_giữ ⇒ đếm ĐÚNG kể cả khớp kề/đầu/cuối, vd "banana"/"a"=3)
+hàm chứa_chuỗi(s, con) {                            # contains substring
+    nếu loại(s) == "ẩn" { trả ẩn }
+    nếu loại(con) == "ẩn" { trả ẩn }
+    nếu số_lần(s, con) > 0 { trả sáng }
+    trả tối
+}
+hàm vị_trí(s, con) {                               # index of substring; KHÔNG có → ẩn (quét ĐÚNG kể cả khi s mở-đầu bằng con)
+    nếu loại(s) == "ẩn" { trả ẩn }
+    nếu loại(con) == "ẩn" { trả ẩn }
+    trả _vị_con(s, con)
+}
+
+# ---------------- bắt đầu / kết thúc ----------------
+hàm bắt_đầu(s, tiền) {
+    nếu loại(s) == "ẩn" { trả ẩn }
+    nếu loại(tiền) == "ẩn" { trả ẩn }
+    nếu dài(tiền) > dài(s) { trả tối }
+    nếu chuỗi_từ(lát(s, 0, dài(tiền))) == tiền { trả sáng }
+    trả tối
+}
+hàm kết_thúc(s, hậu) {
+    nếu loại(s) == "ẩn" { trả ẩn }
+    nếu loại(hậu) == "ẩn" { trả ẩn }
+    nếu dài(hậu) > dài(s) { trả tối }
+    nếu chuỗi_từ(lát(s, dài(s) - dài(hậu), dài(s))) == hậu { trả sáng }
+    trả tối
+}
+
+# ---------------- cắt lề (strip khoảng trắng) ----------------
+hàm _là_trắng(c) { nếu c == " " { trả sáng }  trả tối }
+hàm cắt_lề(s) {                                    # strip hai đầu (take/drop_while qua đảo)
+    nếu loại(s) == "ẩn" { trả ẩn }
+    đặt trái = bỏ_khi(_là_trắng, ký_tự_ds(s))
+    đặt cả = đảo(bỏ_khi(_là_trắng, đảo(trái)))
+    trả chuỗi_từ(cả)
+}
+
+# ---------------- chuỗi → số (int(str)) ----------------
+hàm số_chuỗi(s) {                                  # "123"/"-5" → số; ký-tự phi-số → ẩn (ba-trị)
+    nếu loại(s) == "ẩn" { trả ẩn }                 # input ẩn → ẩn (không crash ở `dài`)
+    đặt _D = "0123456789"
+    đặt âm = tối  đặt i = 0
+    nếu dài(s) > 0 { nếu s[0] == "-" { đặt âm = sáng  đặt i = 1 } }
+    đặt n = 0  đặt có = tối
+    mãi {
+        nếu i >= dài(s) { dừng }
+        đặt d = chỉ_số(_D, s[i])
+        nếu loại(d) == "ẩn" { trả ẩn }
+        đặt n = n * 10 + d  đặt có = sáng  đặt i = i + 1
+    }
+    nếu có { } khác { trả ẩn }
+    nếu âm { trả 0 - n }
+    trả n
+}
+
+# ---------------- số → chuỗi (str(int)) — tra-bảng, KHÔNG cần builtin ký_tự ----------------
+hàm chữ_số(d) { trả "0123456789"[d] }              # 0..9 → "0".."9"
+hàm chuỗi_số(n) {                                  # số nguyên → chuỗi ("123"/"-5"/"0"); thay các bản nội-bộ rải-rác
+    nếu loại(n) == "ẩn" { trả "ẩn" }               # n ẩn → "ẩn" (không lặp vô tận ở `m==0`)
+    nếu n == 0 { trả "0" }
+    đặt âm = tối  đặt m = n
+    nếu n < 0 { đặt âm = sáng  đặt m = 0 - n }
+    đặt kq = ""
+    mãi { nếu m == 0 { dừng }  đặt kq = chữ_số(m - m // 10 * 10) + kq  đặt m = m // 10 }
+    nếu âm { trả "-" + kq }
+    trả kq
+}
+
+# ---------------- lặp lại ----------------
+hàm lặp_lại(s, n) {
+    nếu loại(s) == "ẩn" { trả ẩn }
+    nếu loại(n) == "ẩn" { trả ẩn }       # n ẩn → ẩn (tránh lặp vô tận)
+    đặt kq = ""  đặt i = 0
+    mãi { nếu i >= n { dừng }  đặt kq = kq + s  đặt i = i + 1 }
+    trả kq
+}
+
+# ---------------- PHÂN LOẠI KÝ-TỰ (isdigit/isalpha… — so dải mã, như lib_regex) ----------------
+hàm _kt_số(c)     { nếu c >= "0" { nếu c <= "9" { trả sáng } }  trả tối }
+hàm _kt_thường(c) { nếu c >= "a" { nếu c <= "z" { trả sáng } }  trả tối }
+hàm _kt_hoa(c)    { nếu c >= "A" { nếu c <= "Z" { trả sáng } }  trả tối }
+hàm _kt_chữ(c)    { nếu _kt_thường(c) { trả sáng }  nếu _kt_hoa(c) { trả sáng }  trả tối }
+hàm _mọi_ký(p, s) {                   # MỌI ký-tự thoả p? chuỗi RỖNG → tối (như Python ""); ẩn → ẩn
+    nếu loại(s) == "ẩn" { trả ẩn }
+    nếu dài(s) == 0 { trả tối }
+    lặp c trong s { nếu p(c) { } khác { trả tối } }
+    trả sáng
+}
+hàm là_chữ_số(s)     { trả _mọi_ký(_kt_số, s) }        # isdigit
+hàm là_chữ(s)        { trả _mọi_ký(_kt_chữ, s) }       # isalpha
+hàm là_chữ_thường(s) { trả _mọi_ký(_kt_thường, s) }    # islower (mọi chữ-cái thường)
+hàm là_chữ_hoa(s)    { trả _mọi_ký(_kt_hoa, s) }       # isupper
+hàm là_trắng_hết(s)  { trả _mọi_ký(_là_trắng, s) }     # isspace (chỉ xét ' ')
+hàm là_chữ_và_số(s) {                                  # isalnum
+    nếu loại(s) == "ẩn" { trả ẩn }
+    nếu dài(s) == 0 { trả tối }
+    lặp c trong s { nếu _kt_chữ(c) { } khác { nếu _kt_số(c) { } khác { trả tối } } }
+    trả sáng
+}
+
+# ---------------- CẮT LỀ MỘT BÊN · CẮT KÝ-TỰ CHO-TRƯỚC ----------------
+hàm cắt_trái(s) {                                      # lstrip (khoảng-trắng đầu)
+    nếu loại(s) == "ẩn" { trả ẩn }
+    trả chuỗi_từ(bỏ_khi(_là_trắng, ký_tự_ds(s)))
+}
+hàm cắt_phải(s) {                                      # rstrip (khoảng-trắng cuối)
+    nếu loại(s) == "ẩn" { trả ẩn }
+    trả chuỗi_từ(đảo(bỏ_khi(_là_trắng, đảo(ký_tự_ds(s)))))
+}
+hàm _trong_ký(ký, c) {                                 # c ∈ tập ký-tự `ký`? (so từng ký-tự — KHÔNG qua tách/số_lần)
+    lặp k trong ký { nếu k == c { trả sáng } }
+    trả tối
+}
+hàm cắt_ký(s, ký) {                                    # strip(chars): bỏ mọi ký-tự ∈ `ký` ở HAI đầu
+    nếu loại(s) == "ẩn" { trả ẩn }
+    nếu loại(ký) == "ẩn" { trả ẩn }
+    đặt p = hàm(c) { trả _trong_ký(ký, c) }
+    đặt trái = bỏ_khi(p, ký_tự_ds(s))
+    trả chuỗi_từ(đảo(bỏ_khi(p, đảo(trái))))
+}
+
+# ---------------- TÁCH (GIỮ mảnh rỗng — đúng Python str.split) · TÌM con-chuỗi ĐÚNG ----------------
+# LƯU Ý: builtin `tách` BỎ mảnh rỗng ("a,b," → [a,b]); `tách_giữ` GIỮ ("a,b," → [a,b,""]) như Python.
+hàm tách_giữ(s, ngăn) {
+    nếu loại(s) == "ẩn" { trả ẩn }
+    nếu loại(ngăn) == "ẩn" { trả ẩn }
+    nếu dài(ngăn) == 0 { trả [s] }                     # ngăn rỗng → [s] (tránh lặp vô tận)
+    đặt kq = []  đặt phần = ""  đặt i = 0  đặt n = dài(s)  đặt m = dài(ngăn)
+    mãi {
+        nếu i > n - m { dừng }
+        nếu lát_chuỗi(s, i, i + m) == ngăn { gom(kq, phần)  đặt phần = ""  đặt i = i + m }
+        khác { đặt phần = phần + s[i]  đặt i = i + 1 }
+    }
+    mãi { nếu i >= n { dừng }  đặt phần = phần + s[i]  đặt i = i + 1 }
+    gom(kq, phần)
+    trả kq
+}
+hàm _vị_con(s, con) {                                  # tìm con-chuỗi ĐÚNG (kể cả khi s mở-đầu bằng con); không có → ẩn
+    đặt n = dài(s)  đặt m = dài(con)
+    nếu m == 0 { trả 0 }
+    đặt i = 0
+    mãi { nếu i + m > n { dừng }  nếu lát_chuỗi(s, i, i + m) == con { trả i }  đặt i = i + 1 }
+    trả ẩn
+}
+
+# ---------------- TÁCH DÒNG · PHÂN VÙNG · BỎ TIỀN/HẬU TỐ · TIÊU ĐỀ ----------------
+hàm tách_dòng(s) { trả tách_giữ(s, "\n") }             # splitlines (GIỮ dòng rỗng); ẩn → ẩn
+hàm phân_vùng(s, ngăn) {                               # partition → [trước, ngăn, sau]; KHÔNG thấy → [s, "", ""]
+    nếu loại(s) == "ẩn" { trả ẩn }
+    nếu loại(ngăn) == "ẩn" { trả ẩn }
+    đặt i = _vị_con(s, ngăn)
+    nếu loại(i) == "ẩn" { trả [s, "", ""] }
+    trả [lát_chuỗi(s, 0, i), ngăn, lát_chuỗi(s, i + dài(ngăn), dài(s))]
+}
+hàm bỏ_tiền_tố(s, t) {                                 # removeprefix; không khớp → s nguyên
+    nếu loại(s) == "ẩn" { trả ẩn }
+    nếu loại(t) == "ẩn" { trả ẩn }
+    nếu bắt_đầu(s, t) { trả lát_chuỗi(s, dài(t), dài(s)) }
+    trả s
+}
+hàm bỏ_hậu_tố(s, h) {                                  # removesuffix
+    nếu loại(s) == "ẩn" { trả ẩn }
+    nếu loại(h) == "ẩn" { trả ẩn }
+    nếu kết_thúc(s, h) { trả lát_chuỗi(s, 0, dài(s) - dài(h)) }
+    trả s
+}
+hàm tiêu_đề(s) {                                       # title: HOA chữ đầu mỗi từ, thường phần còn lại
+    nếu loại(s) == "ẩn" { trả ẩn }
+    đặt kq = []  đặt đầu_từ = sáng
+    lặp c trong s {
+        nếu _là_trắng(c) { gom(kq, c)  đặt đầu_từ = sáng }
+        khác { nếu đầu_từ { gom(kq, hoa(c)) } khác { gom(kq, thường(c)) }  đặt đầu_từ = tối }
+    }
+    trả chuỗi_từ(kq)
+}
+
+# ---------------- ĐỢT 2: rfind · translate · swapcase · common-prefix · wrap · all-indices ----------------
+hàm tìm_phải(s, con) {                                 # rfind: vị-trí con-chuỗi CUỐI-cùng; KHÔNG có → ẩn
+    nếu loại(s) == "ẩn" { trả ẩn }
+    nếu loại(con) == "ẩn" { trả ẩn }
+    đặt n = dài(s)  đặt m = dài(con)
+    nếu m == 0 { trả n }
+    đặt i = n - m
+    mãi { nếu i < 0 { dừng }  nếu lát_chuỗi(s, i, i + m) == con { trả i }  đặt i = i - 1 }
+    trả ẩn
+}
+hàm dịch(s, từ, tới) {                                 # translate (tr): ký-tự s[k] ∈ `từ` tại j → `tới`[j]; ngoài bảng → giữ nguyên
+    nếu loại(s) == "ẩn" { trả ẩn }
+    nếu loại(từ) == "ẩn" { trả ẩn }
+    nếu loại(tới) == "ẩn" { trả ẩn }
+    đặt kq = []
+    lặp c trong s {
+        đặt j = chỉ_số(từ, c)
+        nếu loại(j) == "ẩn" { gom(kq, c) }
+        khác { gom(kq, tới[j]) }
+    }
+    trả chuỗi_từ(kq)
+}
+hàm hoa_thường_đảo(s) {                                # swapcase
+    nếu loại(s) == "ẩn" { trả ẩn }
+    đặt kq = []
+    lặp c trong s {
+        nếu _kt_hoa(c) { gom(kq, thường(c)) }
+        khác { nếu _kt_thường(c) { gom(kq, hoa(c)) }  khác { gom(kq, c) } }
+    }
+    trả chuỗi_từ(kq)
+}
+hàm tiền_tố_chung(a, b) {                              # longest common prefix
+    nếu loại(a) == "ẩn" { trả ẩn }
+    nếu loại(b) == "ẩn" { trả ẩn }
+    đặt n = nhỏ(dài(a), dài(b))  đặt i = 0
+    mãi { nếu i >= n { dừng }  nếu a[i] == b[i] { đặt i = i + 1 } khác { dừng } }
+    trả lát_chuỗi(a, 0, i)
+}
+hàm bọc_dòng(s, rộng) {                                # word-wrap về danh-sách dòng ≤ `rộng` (gói theo từ; dùng builtin tách gọn khoảng-trắng); rộng≤0 → ẩn
+    nếu loại(s) == "ẩn" { trả ẩn }
+    nếu loại(rộng) == "ẩn" { trả ẩn }
+    nếu rộng <= 0 { trả ẩn }
+    đặt dòng = []  đặt cur = ""
+    lặp w trong tách(s, " ") {
+        nếu dài(cur) == 0 { đặt cur = w }
+        khác { nếu dài(cur) + 1 + dài(w) <= rộng { đặt cur = cur + " " + w }
+               khác { gom(dòng, cur)  đặt cur = w } }
+    }
+    nếu dài(cur) > 0 { gom(dòng, cur) }
+    trả dòng
+}
+hàm chỉ_mục_tất_cả(s, con) {                           # mọi vị-trí KHÔNG-chồng-lấn của con trong s
+    nếu loại(s) == "ẩn" { trả ẩn }
+    nếu loại(con) == "ẩn" { trả ẩn }
+    đặt m = dài(con)
+    nếu m == 0 { trả [] }
+    đặt kq = []  đặt i = 0  đặt n = dài(s)
+    mãi {
+        nếu i + m > n { dừng }
+        nếu lát_chuỗi(s, i, i + m) == con { gom(kq, i)  đặt i = i + m }
+        khác { đặt i = i + 1 }
+    }
+    trả kq
+}
+
+# ---------------- ĐỢT 3: split-maxsplit · squeeze-trắng · đảo-từ · viết-tắt ----------------
+hàm tách_n(s, sep, n) {                                # split TỐI-ĐA n lần (≤ n+1 phần); phần cuối GIỮ sep còn lại (như Python maxsplit)
+    nếu loại(s) == "ẩn" { trả ẩn }
+    nếu loại(sep) == "ẩn" { trả ẩn }
+    nếu loại(n) == "ẩn" { trả ẩn }
+    nếu dài(sep) == 0 { trả [s] }
+    đặt kq = []  đặt phần = ""  đặt i = 0  đặt N = dài(s)  đặt m = dài(sep)  đặt đã = 0
+    mãi {
+        nếu i > N - m { dừng }
+        nếu đã >= n { dừng }
+        nếu lát_chuỗi(s, i, i + m) == sep { gom(kq, phần)  đặt phần = ""  đặt i = i + m  đặt đã = đã + 1 }
+        khác { đặt phần = phần + s[i]  đặt i = i + 1 }
+    }
+    mãi { nếu i >= N { dừng }  đặt phần = phần + s[i]  đặt i = i + 1 }
+    gom(kq, phần)
+    trả kq
+}
+hàm xoá_lặp_trắng(s) {                                 # squeeze: gộp chuỗi khoảng-trắng thành 1 + cắt hai đầu (≈ " ".join(s.split()))
+    nếu loại(s) == "ẩn" { trả ẩn }
+    đặt từ = []
+    lặp w trong tách(s, " ") { nếu dài(w) > 0 { gom(từ, w) } }
+    trả nối(từ, " ")
+}
+hàm đảo_từ(s) {                                        # đảo THỨ-TỰ từ: "the quick fox" → "fox quick the"
+    nếu loại(s) == "ẩn" { trả ẩn }
+    đặt từ = []
+    lặp w trong tách(s, " ") { nếu dài(w) > 0 { gom(từ, w) } }
+    trả nối(đảo(từ), " ")
+}
+hàm viết_tắt(s, rộng) {                                # truncate về `rộng` ký-tự, thêm "…" nếu cắt; rộng<1 → ẩn
+    nếu loại(s) == "ẩn" { trả ẩn }
+    nếu loại(rộng) == "ẩn" { trả ẩn }
+    nếu rộng < 1 { trả ẩn }
+    nếu dài(s) <= rộng { trả s }
+    trả lát_chuỗi(s, 0, rộng - 1) + "…"
+}
+
+# ---------------- ĐỢT 4: split-nhiều-dấu · xoá-ký-tập ----------------
+hàm chia_ký(s, kýs) {                                  # split trên BẤT-KỲ ký-tự ∈ `kýs` (bỏ mảnh rỗng) — tokenize nhiều dấu
+    nếu loại(s) == "ẩn" { trả ẩn }
+    nếu loại(kýs) == "ẩn" { trả ẩn }
+    đặt kq = []  đặt phần = ""
+    lặp c trong s {
+        nếu chứa_chuỗi(kýs, c) { nếu dài(phần) > 0 { gom(kq, phần)  đặt phần = "" } }
+        khác { đặt phần = phần + c }
+    }
+    nếu dài(phần) > 0 { gom(kq, phần) }
+    trả kq
+}
+hàm bỏ_ký(s, kýs) {                                    # xoá MỌI ký-tự ∈ `kýs` khỏi s (delete)
+    nếu loại(s) == "ẩn" { trả ẩn }
+    nếu loại(kýs) == "ẩn" { trả ẩn }
+    đặt kq = []
+    lặp c trong s { nếu chứa_chuỗi(kýs, c) { } khác { gom(kq, c) } }
+    trả chuỗi_từ(kq)
+}

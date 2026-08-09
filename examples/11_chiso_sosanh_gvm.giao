@@ -1,0 +1,25 @@
+# LẬP CHỈ MỤC l[i] + SO SÁNH </>/== — biên dịch xuống GVM.
+# l[i] đi i bước cdr rồi car (qua hàm trợ giúp __lấy); so sánh đẩy 0/1.
+
+đặt l = [5, 15, 25, 35]
+rọi l[0]                          # 5
+rọi l[2]                          # 25
+
+hàm phân_loại(x) {                # dùng < và >
+    nếu x < 10 { trả 1 }
+    nếu x > 100 { trả 3 }
+    trả 2
+}
+rọi phân_loại(5)                  # 1  (nhỏ)
+rọi phân_loại(50)                 # 2  (vừa)
+rọi phân_loại(500)               # 3  (lớn)
+
+# Đếm phần tử ≥ 20 trong l, đệ quy 2 tham số (l, ngưỡng)
+hàm đếm_từ(l, ng) {
+    nếu l == 0 { trả 0 }
+    nếu đầu(l) >= ng {
+        trả 1 + đếm_từ(đuôi(l), ng)
+    }
+    trả đếm_từ(đuôi(l), ng)
+}
+rọi đếm_từ(l, 20)                 # 2  (25, 35)

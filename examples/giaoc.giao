@@ -1,0 +1,156 @@
+# ============================================================
+# TRÌNH BIÊN DỊCH GIAO → BYTECODE GVM, VIẾT BẰNG CHÍNH GIAO
+# (tự thân hoá mạch biên dịch — bản GIAO của giaoc.py)
+# ------------------------------------------------------------
+# Vào : chương trình GIAO-Core dạng danh sách (đồng hình)
+# Ra  : danh sách từ-lệnh GVM (số nguyên 16-bit = op*256 + toán_hạng)
+#
+# Trạng thái biên dịch st = [code, fmap, vmap, lc]:
+#   code = danh sách (số = từ-lệnh xong | ["L",nhãn] | ["J",op,nhãn] chờ rải)
+#   fmap = ánh xạ tên ô CDFL (vật/tâm) → địa chỉ      (vat[]/bank[])
+#   vmap = ánh xạ biến/biến-đếm → địa chỉ              (ram[])
+#   lc   = bộ đếm sinh nhãn
+# Opcode: NẠP=1 LƯU_TÂM=5 LƯU_VẬT=6 HỌC=7 GIAO=8 CỘNG=10 TRỪ=11 NHÂN=12
+#         RỌI=14 NHẢY=15 TẢI_Ô=24 LƯU_Ô=25 NHẢY_NẾU_0=28 DỪNG=0
+# ============================================================
+
+# --- ánh xạ tên → địa chỉ ---
+hàm tìm_map(map, tên) {
+    nếu dài(map) == 0 { trả 0 - 1 }
+    đặt e = đầu(map)
+    nếu e[0] == tên { trả e[1] }
+    trả tìm_map(đuôi(map), tên)
+}
+hàm cấp_ô(map, tên) {                 # trả [địa_chỉ, map_mới]
+    đặt a = tìm_map(map, tên)
+    nếu a < 0 { trả [dài(map), ghép(map, [[tên, dài(map)]])] }
+    trả [a, map]
+}
+
+# --- phát mã ---
+hàm phát(code, op, toán) { trả ghép(code, [op * 256 + toán]) }
+hàm phát_nhảy(code, op, nhãn) { trả ghép(code, [["J", op, nhãn]]) }
+hàm phát_nhãn(code, nhãn) { trả ghép(code, [["L", nhãn]]) }
+
+# --- biên dịch BIỂU THỨC (để lại 1 ô trên ngăn xếp) ---
+hàm c_bt(nút, st) {
+    nếu là_số(nút) { trả [phát(st[0], 1, nút), st[1], st[2], st[3]] }   # NẠP
+    đặt thẻ = nút[0]
+    nếu thẻ == "biến" {
+        đặt r = cấp_ô(st[2], nút[1])
+        trả [phát(st[0], 24, r[0]), st[1], r[1], st[3]]                  # TẢI_Ô
+    }
+    nếu thẻ == "+" { trả c_nhị(nút, st, 10) }
+    nếu thẻ == "-" { trả c_nhị(nút, st, 11) }
+    nếu thẻ == "*" { trả c_nhị(nút, st, 12) }
+    trả st
+}
+hàm c_nhị(nút, st, op) {
+    đặt s1 = c_bt(nút[1], st)
+    đặt s2 = c_bt(nút[2], s1)
+    trả [phát(s2[0], op, 0), s2[1], s2[2], s2[3]]
+}
+
+# --- biên dịch CÂU LỆNH (threading st) ---
+hàm c_lệnh(lệnh, st) {
+    đặt thẻ = lệnh[0]
+    nếu thẻ == "vật" {
+        đặt s1 = c_bt(lệnh[2], st)
+        đặt r = cấp_ô(s1[1], lệnh[1])
+        trả [phát(s1[0], 6, r[0]), r[1], s1[2], s1[3]]                   # LƯU_VẬT
+    }
+    nếu thẻ == "tâm" {
+        đặt s1 = c_bt(lệnh[2], st)
+        đặt r = cấp_ô(s1[1], lệnh[1])
+        trả [phát(s1[0], 5, r[0]), r[1], s1[2], s1[3]]                   # LƯU_TÂM
+    }
+    nếu thẻ == "học" {
+        đặt r = cấp_ô(st[1], lệnh[1])
+        trả [phát(st[0], 7, r[0]), r[1], st[2], st[3]]                   # HỌC
+    }
+    nếu thẻ == "soi" {                                                   # GIAO ; RỌI
+        đặt r = cấp_ô(st[1], lệnh[1])
+        đặt c1 = phát(st[0], 8, r[0])
+        trả [phát(c1, 14, 0), r[1], st[2], st[3]]
+    }
+    nếu thẻ == "đặt" {
+        đặt s1 = c_bt(lệnh[2], st)
+        đặt r = cấp_ô(s1[2], lệnh[1])
+        trả [phát(s1[0], 25, r[0]), s1[1], r[1], s1[3]]                  # LƯU_Ô
+    }
+    nếu thẻ == "rọi" {
+        đặt s1 = c_bt(lệnh[1], st)
+        trả [phát(s1[0], 14, 0), s1[1], s1[2], s1[3]]                    # RỌI
+    }
+    nếu thẻ == "lặp" { trả c_lặp(lệnh, st) }
+    trả st
+}
+hàm c_khối(khối, st) {
+    nếu dài(khối) == 0 { trả st }
+    trả c_khối(đuôi(khối), c_lệnh(đầu(khối), st))
+}
+hàm c_lặp(lệnh, st) {
+    đặt tên_đếm = "#c" + st[3]
+    đặt nL0 = "#A" + st[3]
+    đặt nL1 = "#B" + st[3]
+    đặt r = cấp_ô(st[2], tên_đếm)
+    đặt cnt = r[0]
+    đặt c = phát(st[0], 1, lệnh[1])         # NẠP n
+    đặt c = phát(c, 25, cnt)                # LƯU_Ô cnt
+    đặt c = phát_nhãn(c, nL0)               # L0:
+    đặt c = phát(c, 24, cnt)                # TẢI_Ô cnt
+    đặt c = phát_nhảy(c, 28, nL1)           # NHẢY_NẾU_0 L1
+    đặt sb = c_khối(lệnh[2], [c, st[1], r[1], st[3] + 1])
+    đặt c2 = phát(sb[0], 24, cnt)           # TẢI_Ô cnt
+    đặt c2 = phát(c2, 1, 1)                 # NẠP 1
+    đặt c2 = phát(c2, 11, 0)                # TRỪ
+    đặt c2 = phát(c2, 25, cnt)             # LƯU_Ô cnt
+    đặt c2 = phát_nhảy(c2, 15, nL0)         # NHẢY L0
+    đặt c2 = phát_nhãn(c2, nL1)            # L1:
+    trả [c2, sb[1], sb[2], sb[3]]
+}
+
+# --- rải nhãn: code (có ["L"]/["J"]) → danh sách số nguyên ---
+hàm địa_chỉ_nhãn(code, nhãn, addr) {
+    nếu dài(code) == 0 { trả 0 - 1 }
+    đặt e = đầu(code)
+    nếu là_ds(e) {
+        nếu e[0] == "L" {
+            nếu e[1] == nhãn { trả addr }
+            trả địa_chỉ_nhãn(đuôi(code), nhãn, addr)
+        }
+        trả địa_chỉ_nhãn(đuôi(code), nhãn, addr + 1)
+    }
+    trả địa_chỉ_nhãn(đuôi(code), nhãn, addr + 1)
+}
+hàm rải(code, gốc) {
+    nếu dài(code) == 0 { trả [] }
+    đặt e = đầu(code)
+    nếu là_ds(e) {
+        nếu e[0] == "L" { trả rải(đuôi(code), gốc) }
+        trả ghép([e[1] * 256 + địa_chỉ_nhãn(gốc, e[2], 0)], rải(đuôi(code), gốc))
+    }
+    trả ghép([e], rải(đuôi(code), gốc))
+}
+
+# --- chốt: biên dịch + chèn DỪNG + rải nhãn ---
+hàm biên_dịch(prog) {
+    đặt st = c_khối(prog, [[], [], [], 0])
+    đặt code = ghép(st[0], [0])            # DỪNG
+    trả rải(code, code)
+}
+
+# ================== CHƯƠNG TRÌNH NGUỒN (GIAO-Core) ==================
+# Vòng hội tụ CDFL — sẽ được TRÌNH BIÊN DỊCH VIẾT BẰNG GIAO hạ xuống bytecode
+đặt prog = [
+    ["vật", "mục_tiêu", 37],
+    ["tâm", "mục_tiêu", 0],
+    ["lặp", 7, [
+        ["học", "mục_tiêu"],
+        ["soi", "mục_tiêu"]
+    ]]
+]
+
+đặt mã = biên_dịch(prog)        # ← biến toàn cục 'mã' để harness lấy ra chạy trên GVM
+rọi "Bytecode do trình biên dịch (viết bằng GIAO) sinh ra:"
+rọi_ds(mã)                      # in từng từ-lệnh (chạy đúng trên CẢ thông dịch LẪN máy GVM)

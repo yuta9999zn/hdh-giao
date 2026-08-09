@@ -1,0 +1,16 @@
+# lib_ngày_host.giao — GIỜ THẬT từ host (capability) → ngày/giờ (soi datetime.now của Python)
+# Giờ là input BẤT-ĐỊNH → CHỈ qua capability (host cấp --cho-giờ). Chưa cấp → ẩn (ba-trị).
+nhập "lib_ngày.giao"
+đặt _JDN_1970 = 2440588
+hàm bây_giờ_epoch() { thử { trả giờ_hệ() } bắt (e) { trả ẩn } }
+hàm hôm_nay() {                              # [năm,tháng,ngày] UTC; chưa-cấp → ẩn
+    đặt e = bây_giờ_epoch()
+    nếu loại(e) == "ẩn" { trả ẩn }
+    trả từ_số_ngày(_JDN_1970 + e // 86400)
+}
+hàm giờ_phút_giây() {                         # [giờ,phút,giây] UTC; chưa-cấp → ẩn
+    đặt e = bây_giờ_epoch()
+    nếu loại(e) == "ẩn" { trả ẩn }
+    đặt d = dư(e, 86400)
+    trả [d // 3600, dư(d // 60, 60), dư(d, 60)]
+}

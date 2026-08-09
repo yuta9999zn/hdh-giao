@@ -1,0 +1,15 @@
+# LÕI HEAP 32-BIT (ABI THẺ) — chạy GATE-LEVEL trên gvm.v WORD=32.
+# ----------------------------------------------------------------------------------------
+# Lõi 16-bit cũ KHÔNG chạy được chương trình DÙNG THẺ (là_số/là_ds cần bit 30 → cần 32-bit).
+# Đây là chương trình HEAP đủ chất: danh sách cons-cell + duyệt heap + GỌI HÀM theo khung
+# (dài → __dài đệ quy) + phân biệt kiểu bằng THẺ — tất cả chạy trên Verilog 32-bit.
+# (dùng là_số/là_ds ⇒ tự bật ABI thẻ 32-bit; tránh +/== để khỏi gọi __cộng/__bằng cho gọn lõi.)
+
+đặt ds = [10, 20, 30]
+rọi đầu(ds)                  # 10  (car = ram[untag(ptr)])
+rọi đầu(đuôi(ds))            # 20  (car của cdr)
+rọi đầu(đuôi(đuôi(ds)))      # 30
+rọi dài(ds)                  # 3   (GỌI __dài: khung GỌI_N/THAM_I/TRẢ_VỀ_N + duyệt heap)
+rọi là_ds(ds)                # 1   (con trỏ ≥ TAG)
+rọi là_số(7)                 # 1   (số < TAG)
+rọi là_số(ds)                # 0   (ds là con trỏ, KHÔNG phải số)

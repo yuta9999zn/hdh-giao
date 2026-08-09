@@ -1,0 +1,387 @@
+# ============================================================
+# lib_duyet.giao — DUYỆT (Enumerable kiểu Python/Ruby) cho GIAO
+# ------------------------------------------------------------
+# GIỮ CỐT LÕI GIAO: ba-trị (predicate trả sáng/tối · KHÔNG-thấy trả 'ẩn' chứ không lỗi/bịa ·
+#   'gọn' bỏ ẩn) · idiom Việt (không bê tên Anh) · TỰ-THÂN (dựng trên builtin GIAO + chuẩn.giao) ·
+#   ITERATIVE (lặp-trong → không tràn ngăn xếp).
+# Bổ khuyết để GIAO có Enumerable trưởng thành ngang Python/Ruby. Nạp: nhập "lib_duyet.giao".
+# ============================================================
+
+# ---------------- TÌM / KIỂM (ba-trị) ----------------
+hàm tìm_thấy(p, ds) {                 # find/detect: phần tử ĐẦU thoả p; KHÔNG thấy → ẩn (chưa-biết)
+    lặp x trong ds { nếu p(x) { trả x } }
+    trả ẩn
+}
+hàm chỉ_số(ds, x) {                   # index_of: vị trí đầu của x; không có → ẩn
+    đặt i = 0
+    lặp e trong ds { nếu e == x { trả i }  đặt i = i + 1 }
+    trả ẩn
+}
+hàm bất_kỳ(p, ds) {                   # any?: có ÍT NHẤT một thoả p
+    lặp x trong ds { nếu p(x) { trả sáng } }
+    trả tối
+}
+hàm mọi(p, ds) {                      # all?: MỌI phần tử thoả p
+    lặp x trong ds { nếu p(x) { } khác { trả tối } }
+    trả sáng
+}
+hàm không_ai(p, ds) {                 # none?
+    nếu bất_kỳ(p, ds) { trả tối }
+    trả sáng
+}
+hàm đếm_thoả(p, ds) {                 # count(predicate) — iterative
+    đặt n = 0
+    lặp x trong ds { nếu p(x) { đặt n = n + 1 } }
+    trả n
+}
+
+# ---------------- LỌC / BIẾN ĐỔI ----------------
+hàm phân_đôi(p, ds) {                 # partition → [thoả, không-thoả]
+    đặt a = []  đặt b = []
+    lặp x trong ds { nếu p(x) { gom(a, x) } khác { gom(b, x) } }
+    trả [a, b]
+}
+hàm gọn(ds) {                         # compact: BỎ phần tử ẩn (ba-trị cốt lõi)
+    đặt kq = []
+    lặp x trong ds { nếu loại(x) == "ẩn" { } khác { gom(kq, x) } }
+    trả kq
+}
+hàm phẳng(ds) {                       # flatten 1 lớp
+    đặt kq = []
+    lặp x trong ds {
+        nếu là_ds(x) { lặp y trong x { gom(kq, y) } }
+        khác { gom(kq, x) }
+    }
+    trả kq
+}
+hàm gộp_bản_đồ(f, ds) { trả phẳng(bản_đồ(f, ds)) }   # flat_map
+hàm duy_nhất(ds) {                    # uniq: bỏ trùng, GIỮ thứ tự — O(n) qua `bản` (vô-hướng); list/bản/ẩn → `chứa` tuyến-tính (bản không key được)
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    đặt thấy = bản()  đặt kq = []
+    lặp x trong ds {
+        đặt lo = loại(x)
+        nếu lo == "danh_sách" { nếu chứa(kq, x) { } khác { gom(kq, x) } }
+        khác { nếu lo == "bản" { nếu chứa(kq, x) { } khác { gom(kq, x) } }
+        khác { nếu lo == "ẩn" { nếu chứa(kq, x) { } khác { gom(kq, x) } }
+        khác { nếu có_khoá(thấy, x) { } khác { đặt_khoá(thấy, x, sáng)  gom(kq, x) } } } }
+    }
+    trả kq
+}
+hàm khoá_kéo(a, b) {                  # zip → [[a0,b0],...] tới min độ dài
+    nếu loại(a) == "ẩn" { trả ẩn }
+    nếu loại(b) == "ẩn" { trả ẩn }
+    đặt kq = []  đặt i = 0
+    đặt n = nhỏ(dài(a), dài(b))
+    mãi { nếu i >= n { dừng }  gom(kq, [a[i], b[i]])  đặt i = i + 1 }
+    trả kq
+}
+hàm lấy_khi(p, ds) {                  # take_while
+    đặt kq = []
+    lặp x trong ds { nếu p(x) { gom(kq, x) } khác { trả kq } }
+    trả kq
+}
+hàm bỏ_n(ds, n) {                     # drop n đầu
+    đặt kq = []  đặt i = 0
+    lặp x trong ds { nếu i >= n { gom(kq, x) }  đặt i = i + 1 }
+    trả kq
+}
+hàm bỏ_khi(p, ds) {                   # drop_while
+    đặt bỏ = sáng  đặt kq = []
+    lặp x trong ds {
+        nếu bỏ { nếu p(x) { } khác { đặt bỏ = tối  gom(kq, x) } }
+        khác { gom(kq, x) }
+    }
+    trả kq
+}
+hàm lát(ds, i, j) {                   # slice [i, j) — chỉ-mục O(1), CHỈ duyệt đoạn [i,j) (không duyệt toàn-bộ ds → O(j−i) thay O(n); tránh O(n²) khi gọi lặp như scan regex)
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    đặt n = dài(ds)
+    đặt a = i  nếu a < 0 { đặt a = 0 }   # kẹp biên (giữ hệt ngữ-nghĩa cũ: i<0→từ 0, j>n→tới n, i≥j→rỗng)
+    đặt b = j  nếu b > n { đặt b = n }
+    đặt kq = []  đặt k = a
+    mãi { nếu k >= b { dừng }  gom(kq, ds[k])  đặt k = k + 1 }
+    trả kq
+}
+
+# ---------------- SẮP XẾP (merge sort — ổn định, đệ-quy log n) ----------------
+hàm trộn(a, b) {                      # merge hai danh-sách ĐÃ sắp tăng
+    nếu loại(a) == "ẩn" { trả ẩn }
+    nếu loại(b) == "ẩn" { trả ẩn }
+    đặt kq = []  đặt i = 0  đặt j = 0
+    mãi {
+        nếu i >= dài(a) { lặp x trong bỏ_n(b, j) { gom(kq, x) }  dừng }
+        nếu j >= dài(b) { lặp x trong bỏ_n(a, i) { gom(kq, x) }  dừng }
+        nếu a[i] <= b[j] { gom(kq, a[i])  đặt i = i + 1 }
+        khác { gom(kq, b[j])  đặt j = j + 1 }
+    }
+    trả kq
+}
+hàm sắp_xếp(ds) {                     # sort tăng dần
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    nếu dài(ds) <= 1 { trả ds }
+    đặt giữa = dài(ds) // 2
+    trả trộn(sắp_xếp(lấy_n(ds, giữa)), sắp_xếp(bỏ_n(ds, giữa)))
+}
+hàm trộn_theo(f, a, b) {              # merge theo khoá f
+    nếu loại(a) == "ẩn" { trả ẩn }
+    nếu loại(b) == "ẩn" { trả ẩn }
+    đặt kq = []  đặt i = 0  đặt j = 0
+    mãi {
+        nếu i >= dài(a) { lặp x trong bỏ_n(b, j) { gom(kq, x) }  dừng }
+        nếu j >= dài(b) { lặp x trong bỏ_n(a, i) { gom(kq, x) }  dừng }
+        nếu f(a[i]) <= f(b[j]) { gom(kq, a[i])  đặt i = i + 1 }
+        khác { gom(kq, b[j])  đặt j = j + 1 }
+    }
+    trả kq
+}
+hàm sắp_theo(f, ds) {                 # sort_by
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    nếu dài(ds) <= 1 { trả ds }
+    đặt giữa = dài(ds) // 2
+    trả trộn_theo(f, sắp_theo(f, lấy_n(ds, giữa)), sắp_theo(f, bỏ_n(ds, giữa)))
+}
+
+# ---------------- MIN/MAX THEO KHOÁ · TỔNG THEO · NHÓM ----------------
+hàm lớn_nhất_theo(f, ds) { trả argmax(f, ds) }                       # max_by
+hàm nhỏ_nhất_theo(f, ds) { trả argmax(hàm(x) { trả 0 - f(x) }, ds) } # min_by
+hàm tổng_theo(f, ds) { trả gộp(bản_đồ(f, ds)) }                      # sum_by
+hàm nhóm_theo(f, ds) {                # group_by → bản{khoá: [phần tử...]}
+    đặt m = bản()
+    lặp x trong ds {
+        đặt k = f(x)
+        nếu có_khoá(m, k) { gom(lấy_khoá(m, k), x) }     # gom TẠI-CHỖ vào list-nhóm (O(1)) thay ghép-copy (O(n²) khi nhóm lớn)
+        khác { đặt_khoá(m, k, [x]) }
+    }
+    trả m
+}
+hàm phổ_biến_nhất(ds, k) {            # most_common (Counter): k phần-tử HAY GẶP nhất → [[phần_tử, số_lần]...]
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    nếu loại(k) == "ẩn" { trả ẩn }
+    đặt cặp = []                       # ỔN ĐỊNH: trùng số_lần → giữ thứ-tự xuất-hiện (như Python ≥3.7)
+    lặp x trong duy_nhất(ds) {
+        gom(cặp, [x, đếm_thoả(hàm(y) { trả y == x }, ds)])
+    }
+    trả lấy_n(sắp_theo(hàm(p) { trả 0 - p[1] }, cặp), k)   # giảm dần theo số_lần (merge sort ổn-định)
+}
+
+# ---------------- ĐÁNH SỐ · CUỘN · KHỐI · CỬA-SỔ (idiom Python itertools / Ruby Enumerable) ----------------
+hàm liệt_kê(ds) {                     # enumerate → [[0,x0],[1,x1],...] ; ẩn → ẩn
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    đặt kq = []  đặt i = 0
+    lặp x trong ds { gom(kq, [i, x])  đặt i = i + 1 }
+    trả kq
+}
+hàm liệt_kê_từ(ds, khởi) {            # enumerate(start=khởi)
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    nếu loại(khởi) == "ẩn" { trả ẩn }
+    đặt kq = []  đặt i = khởi
+    lặp x trong ds { gom(kq, [i, x])  đặt i = i + 1 }
+    trả kq
+}
+hàm cuộn(f, z, ds) {                  # scanl (Haskell): [z, f(z,x0), f(f(z,x0),x1), ...] — GỒM z đầu
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    đặt acc = z  đặt kq = [z]
+    lặp x trong ds { đặt acc = f(acc, x)  gom(kq, acc) }
+    trả kq
+}
+hàm tích_lũy(ds) {                    # accumulate (cộng dồn KHÔNG seed): [1,2,3]→[1,3,6] ; rỗng → []
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    đặt acc = 0  đặt kq = []
+    lặp x trong ds { đặt acc = acc + x  gom(kq, acc) }
+    trả kq
+}
+hàm rút_gọn(f, ds) {                  # reduce/inject KHÔNG seed (dùng phần-tử đầu); rỗng → ẩn (không bịa)
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    nếu dài(ds) == 0 { trả ẩn }
+    đặt acc = đầu(ds)
+    lặp x trong đuôi(ds) { đặt acc = f(acc, x) }
+    trả acc
+}
+hàm min_max(ds) {                     # minmax 1-lượt → [min, max]; rỗng → ẩn
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    nếu dài(ds) == 0 { trả ẩn }
+    đặt lo = đầu(ds)  đặt hi = đầu(ds)
+    lặp x trong đuôi(ds) { nếu x < lo { đặt lo = x }  nếu x > hi { đặt hi = x } }
+    trả [lo, hi]
+}
+hàm theo_khối(ds, n) {                # each_slice(n): chia thành khối n phần-tử (khối cuối có thể ngắn hơn); n≤0 → ẩn
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    nếu loại(n) == "ẩn" { trả ẩn }
+    nếu n <= 0 { trả ẩn }
+    đặt kq = []  đặt khối = []
+    lặp x trong ds { gom(khối, x)  nếu dài(khối) >= n { gom(kq, khối)  đặt khối = [] } }
+    nếu dài(khối) > 0 { gom(kq, khối) }
+    trả kq
+}
+hàm cửa_sổ(ds, n) {                   # each_cons(n): cửa-sổ trượt cỡ n → [[x0..x_{n-1}], [x1..], ...]; n≤0 → ẩn
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    nếu loại(n) == "ẩn" { trả ẩn }
+    nếu n <= 0 { trả ẩn }
+    đặt kq = []  đặt i = 0  đặt m = dài(ds)
+    mãi { nếu i + n > m { dừng }  gom(kq, lát(ds, i, i + n))  đặt i = i + 1 }
+    trả kq
+}
+hàm xen_kẽ(ds, ngăn) {                # intersperse: chèn `ngăn` GIỮA các phần-tử (join cho list)
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    đặt kq = []  đặt đầu_tiên = sáng
+    lặp x trong ds {
+        nếu đầu_tiên { đặt đầu_tiên = tối } khác { gom(kq, ngăn) }
+        gom(kq, x)
+    }
+    trả kq
+}
+
+# ---------------- ĐỢT 2: unzip · rotate · chunk-runs · slice_when · step · deep-flatten · product ----------------
+hàm giải_nén(ds) {                    # unzip: [[a0,b0],[a1,b1],…] → [[a0,a1,…],[b0,b1,…]] (theo số cột phần-tử đầu)
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    nếu dài(ds) == 0 { trả [] }
+    đặt k = dài(đầu(ds))  đặt cột = []  đặt j = 0
+    mãi { nếu j >= k { dừng }  gom(cột, [])  đặt j = j + 1 }
+    lặp hàng trong ds {
+        đặt j = 0
+        mãi { nếu j >= k { dừng }  gom(cột[j], hàng[j])  đặt j = j + 1 }
+    }
+    trả cột
+}
+hàm xoay_ds(ds, n) {                  # rotate TRÁI n (Ruby Array#rotate): xoay_ds([1,2,3,4,5],2)→[3,4,5,1,2]; n<0 = xoay phải; n bất-kỳ (dư)
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    nếu loại(n) == "ẩn" { trả ẩn }
+    đặt m = dài(ds)
+    nếu m == 0 { trả ds }
+    đặt k = dư(n, m)                   # dư xử-lý n âm/lớn: dư(-1,5)=4
+    trả ghép(lát(ds, k, m), lát(ds, 0, k))
+}
+hàm gom_kề(ds) {                      # chunk (gom phần-tử KỀ bằng nhau): [1,1,2,3,3,1]→[[1,1],[2],[3,3],[1]]
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    nếu dài(ds) == 0 { trả [] }
+    đặt kq = []  đặt nhóm = [đầu(ds)]  đặt trước = đầu(ds)
+    lặp x trong đuôi(ds) {
+        nếu x == trước { gom(nhóm, x) }
+        khác { gom(kq, nhóm)  đặt nhóm = [x]  đặt trước = x }
+    }
+    gom(kq, nhóm)
+    trả kq
+}
+hàm chia_khi(p, ds) {                 # slice_when: MỞ nhóm mới khi p(trước, sau) sáng
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    nếu dài(ds) == 0 { trả [] }
+    đặt kq = []  đặt nhóm = [đầu(ds)]  đặt trước = đầu(ds)
+    lặp x trong đuôi(ds) {
+        nếu p(trước, x) { gom(kq, nhóm)  đặt nhóm = [x] }
+        khác { gom(nhóm, x) }
+        đặt trước = x
+    }
+    gom(kq, nhóm)
+    trả kq
+}
+hàm lấy_mỗi(ds, n) {                  # step: lấy phần-tử thứ 0, n, 2n,… (every-nth); n≤0 → ẩn
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    nếu loại(n) == "ẩn" { trả ẩn }
+    nếu n <= 0 { trả ẩn }
+    đặt kq = []  đặt i = 0
+    lặp x trong ds { nếu dư(i, n) == 0 { gom(kq, x) }  đặt i = i + 1 }
+    trả kq
+}
+hàm phẳng_sâu(ds) {                   # deep flatten (đệ-quy mọi tầng list); ẩn → ẩn
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    đặt kq = []
+    lặp x trong ds {
+        nếu là_ds(x) { lặp y trong phẳng_sâu(x) { gom(kq, y) } }
+        khác { gom(kq, x) }
+    }
+    trả kq
+}
+hàm tích(ds) {                        # product ∏ (rỗng → 1, quy-ước toán); ẩn → ẩn
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    đặt p = 1
+    lặp x trong ds { đặt p = p * x }
+    trả p
+}
+
+# ---------------- ĐỢT 3: zip-nhiều · foldr · split_at · last/drop-last · deltas · sort-desc ----------------
+hàm khoá_kéo_nhiều(dss) {             # zip N danh-sách → [[a0,b0,c0,…],…] tới ĐỘ-DÀI NHỎ NHẤT; ẩn → ẩn
+    nếu loại(dss) == "ẩn" { trả ẩn }
+    nếu dài(dss) == 0 { trả [] }
+    đặt n = dài(đầu(dss))
+    lặp d trong dss { đặt n = nhỏ(n, dài(d)) }
+    đặt kq = []  đặt i = 0
+    mãi { nếu i >= n { dừng }
+        đặt hàng = []
+        lặp d trong dss { gom(hàng, d[i]) }
+        gom(kq, hàng)  đặt i = i + 1
+    }
+    trả kq
+}
+hàm gấp_phải(f, z, ds) {              # foldr: f(x0, f(x1, … f(x_{n-1}, z))) — lặp qua đảo (acc bên PHẢI)
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    đặt acc = z
+    lặp x trong đảo(ds) { đặt acc = f(x, acc) }
+    trả acc
+}
+hàm chia_đôi(ds, n) {                 # split_at → [n phần-tử đầu, phần còn lại]; ẩn → ẩn
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    trả [lấy_n(ds, n), bỏ_n(ds, n)]
+}
+hàm lấy_cuối(ds, n) {                 # n phần-tử CUỐI (last n)
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    nếu loại(n) == "ẩn" { trả ẩn }
+    đặt m = dài(ds)  đặt k = m - n
+    nếu k < 0 { đặt k = 0 }
+    trả lát(ds, k, m)
+}
+hàm bỏ_cuối(ds, n) {                  # bỏ n phần-tử cuối (drop last n)
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    nếu loại(n) == "ẩn" { trả ẩn }
+    đặt m = dài(ds)  đặt k = m - n
+    nếu k < 0 { đặt k = 0 }
+    trả lát(ds, 0, k)
+}
+hàm khác_biệt(ds) {                   # deltas kề: [x1−x0, x2−x1, …]; ≤1 phần-tử → []
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    nếu dài(ds) <= 1 { trả [] }
+    đặt kq = []  đặt trước = đầu(ds)
+    lặp x trong đuôi(ds) { gom(kq, x - trước)  đặt trước = x }
+    trả kq
+}
+hàm sắp_giảm(ds) {                    # sort GIẢM dần (= đảo của sắp tăng)
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    trả đảo(sắp_xếp(ds))
+}
+
+# ---------------- ĐỢT 4: interleave · map/each-with-index · top-k · shuffle-tất-định ----------------
+hàm đan(a, b) {                       # interleave: [a0,b0,a1,b1,…] (xen 2 danh-sách; thừa thì nối tiếp)
+    nếu loại(a) == "ẩn" { trả ẩn }
+    nếu loại(b) == "ẩn" { trả ẩn }
+    đặt kq = []  đặt i = 0  đặt na = dài(a)  đặt nb = dài(b)
+    mãi {
+        nếu i >= na { nếu i >= nb { dừng } }
+        nếu i < na { gom(kq, a[i]) }
+        nếu i < nb { gom(kq, b[i]) }
+        đặt i = i + 1
+    }
+    trả kq
+}
+hàm bản_đồ_chỉ_số(f, ds) {            # map_with_index: f(i, x) cho mỗi phần-tử
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    đặt kq = []  đặt i = 0
+    lặp x trong ds { gom(kq, f(i, x))  đặt i = i + 1 }
+    trả kq
+}
+hàm mỗi_với_chỉ_số(f, ds) {           # each_with_index (tác dụng phụ)
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    đặt i = 0
+    lặp x trong ds { f(i, x)  đặt i = i + 1 }
+    trả ẩn
+}
+hàm đỉnh_k(ds, k) {                   # k phần-tử LỚN nhất (sắp giảm rồi lấy k)
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    trả lấy_n(sắp_giảm(ds), k)
+}
+hàm xáo(ds, hạt) {                    # shuffle TẤT-ĐỊNH (cùng hạt → cùng thứ-tự): gán khoá ngẫu (LCG) rồi sắp. KHÔNG cần randomness hệ-thống.
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    đặt s = hạt  đặt cặp = []
+    lặp x trong ds { đặt s = ngẫu(s)  gom(cặp, [s, x]) }
+    đặt kq = []
+    lặp p trong sắp_theo(hàm(q) { trả q[0] }, cặp) { gom(kq, p[1]) }
+    trả kq
+}

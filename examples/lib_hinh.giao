@@ -1,0 +1,5 @@
+# MODULE thư viện hình học — nạp bằng `nhập`
+hàm vuông(c) { trả c * c }
+hàm chữ_nhật(d, r) { trả d * r }
+đặt PI100 = 314                     # π×100 (số nguyên)
+hàm tròn(bán_kính) { trả PI100 * bán_kính * bán_kính / 100 }

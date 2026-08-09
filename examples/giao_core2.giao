@@ -1,0 +1,124 @@
+# ============================================================
+# TỰ DIỄN GIẢI TOÀN BỘ GIAO — metacircular mở rộng
+# (hàm + đệ quy + gọi, lặp, trường tâm/vật + học + giao thoa)
+# ------------------------------------------------------------
+# Chương trình = DANH SÁCH CÂU LỆNH (đồng hình). 'store' = danh sách các bộ ba
+# [tên, loại, giá_trị] với loại ∈ {"biến","tâm","vật","hàm"}. Cập nhật = THÊM bộ ba
+# mới che bộ ba cũ (tra cứu lấy cái mới nhất) ⇒ "biến đổi" mà vẫn thuần danh sách.
+# Mỗi câu lệnh nhận store và TRẢ store mới (threading).
+#
+# CÂU LỆNH:  ["vật",t,bt] ["tâm",t,bt] ["đặt",t,bt] ["hàm",t,[ts],thân_bt]
+#            ["học",t]    ["soi",t]    ["rọi",bt]   ["lặp",n,khối] ["nếu",c,khối,khối]
+# BIỂU THỨC: số | ["biến",t] | ["+"/"-"/"*",a,b] | ["nếu",c,t,e] | ["gọi",tên,[đối]]
+# ============================================================
+
+# --- tra cứu theo tên + loại (mới nhất trước) ---
+hàm tìm(store, tên, loại) {
+    nếu dài(store) == 0 { trả ẩn }
+    đặt e = đầu(store)
+    nếu e[0] == tên {
+        nếu e[1] == loại { trả e[2] }
+    }
+    trả tìm(đuôi(store), tên, loại)
+}
+
+# --- trị tuyệt đối ---
+hàm trị_tuyệt(x) {
+    nếu x < 0 { trả 0 - x }
+    trả x
+}
+
+# --- buộc tham số vào store (gọi hàm) ---
+hàm buộc(ts, đối, es, store) {
+    nếu dài(ts) == 0 { trả store }
+    đặt v = ev(đầu(đối), es)
+    trả buộc(đuôi(ts), đuôi(đối), es, ghép([[đầu(ts), "biến", v]], store))
+}
+
+# --- DIỄN GIẢI BIỂU THỨC (đọc store, thuần) ---
+hàm ev(nút, store) {
+    nếu là_số(nút) { trả nút }
+    đặt thẻ = nút[0]
+    nếu thẻ == "biến" { trả tìm(store, nút[1], "biến") }
+    nếu thẻ == "+" { trả ev(nút[1], store) + ev(nút[2], store) }
+    nếu thẻ == "-" { trả ev(nút[1], store) - ev(nút[2], store) }
+    nếu thẻ == "*" { trả ev(nút[1], store) * ev(nút[2], store) }
+    nếu thẻ == "nếu" {                                  # nếu-biểu-thức (cho đệ quy)
+        nếu ev(nút[1], store) { trả ev(nút[2], store) }
+        trả ev(nút[3], store)
+    }
+    nếu thẻ == "gọi" {                                  # gọi hàm
+        đặt đn = tìm(store, nút[1], "hàm")              # [tham_số, thân]
+        đặt store2 = buộc(đn[0], nút[2], store, store)
+        trả ev(đn[1], store2)
+    }
+    trả ẩn
+}
+
+# --- DIỄN GIẢI CÂU LỆNH (threading store) ---
+hàm thực(lệnh, store) {
+    đặt thẻ = lệnh[0]
+    nếu thẻ == "vật" { trả ghép([[lệnh[1], "vật", ev(lệnh[2], store)]], store) }
+    nếu thẻ == "tâm" { trả ghép([[lệnh[1], "tâm", ev(lệnh[2], store)]], store) }
+    nếu thẻ == "đặt" { trả ghép([[lệnh[1], "biến", ev(lệnh[2], store)]], store) }
+    nếu thẻ == "hàm" { trả ghép([[lệnh[1], "hàm", [lệnh[2], lệnh[3]]]], store) }
+    nếu thẻ == "học" {                                  # σ ← σ + (ρ−σ)/2
+        đặt tt = tìm(store, lệnh[1], "vật")
+        đặt nt = tìm(store, lệnh[1], "tâm")
+        trả ghép([[lệnh[1], "tâm", nt + (tt - nt) / 2]], store)
+    }
+    nếu thẻ == "soi" {                                  # in niềm tin & giao thoa
+        đặt tt = tìm(store, lệnh[1], "vật")
+        đặt nt = tìm(store, lệnh[1], "tâm")
+        đặt lệch = trị_tuyệt(tt - nt)
+        nếu lệch < 1 {
+            rọi "  σ=" + nt + "  → sáng (khớp thực tại, viên mãn cục bộ)"
+        } ngờ { } khác {
+            rọi "  σ=" + nt + "  → còn lệch " + lệch + " (DE chưa cạn)"
+        }
+        trả store
+    }
+    nếu thẻ == "rọi" { rọi ev(lệnh[1], store)  trả store }
+    nếu thẻ == "lặp" { trả lặp_chạy(ev(lệnh[1], store), lệnh[2], store) }
+    nếu thẻ == "nếu" {
+        nếu ev(lệnh[1], store) { trả chạy(lệnh[2], store) }
+        trả chạy(lệnh[3], store)
+    }
+    trả store
+}
+
+# --- chạy một khối câu lệnh ---
+hàm chạy(khối, store) {
+    nếu dài(khối) == 0 { trả store }
+    trả chạy(đuôi(khối), thực(đầu(khối), store))
+}
+
+# --- lặp N lần ---
+hàm lặp_chạy(n, khối, store) {
+    nếu n == 0 { trả store }
+    trả lặp_chạy(n - 1, khối, chạy(khối, store))
+}
+
+# ================== CHẠY THỬ TOÀN BỘ GIAO ==================
+rọi "— A) HÀM + ĐỆ QUY: cộng_dồn(5) = 1+2+3+4+5 (mong đợi 15) —"
+đặt prog_A = [
+    ["hàm", "cộng_dồn", ["n"],
+        ["nếu", ["biến","n"],
+            ["+", ["biến","n"], ["gọi","cộng_dồn",[["-",["biến","n"],1]]]],
+            0]],
+    ["rọi", ["gọi","cộng_dồn",[5]]]
+]
+đặt s = chạy(prog_A, [])
+
+rọi ""
+rọi "— B) TRƯỜNG tâm/vật + HỌC + LẶP: vòng hội tụ CDFL (vật=37) —"
+đặt prog_B = [
+    ["vật", "mục_tiêu", 37],
+    ["tâm", "mục_tiêu", 0],
+    ["lặp", 7, [
+        ["học", "mục_tiêu"],
+        ["soi", "mục_tiêu"]
+    ]]
+]
+đặt s2 = chạy(prog_B, [])
+rọi "→ Trình diễn giải GIAO (viết bằng GIAO) đã chạy CẢ hàm/đệ quy LẪN tâm/vật/học/lặp."

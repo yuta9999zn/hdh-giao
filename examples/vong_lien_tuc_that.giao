@@ -1,0 +1,29 @@
+# ============================================================
+# VÒNG LIÊN TỤC THẬT — `mãi` + THẾ GIỚI TỰ TRÔI — `trôi`
+# (v0.3: continual loop không phải `lặp N` hữu hạn; DE_T mọc lại mỗi nhịp)
+# ------------------------------------------------------------
+# Khác `vong_lien_tuc.giao` (lặp 6 + tự tay +15):
+#   • `mãi { }`     = vòng KHÔNG đếm trước — chạy tới khi `dừng` (như tác tử sống).
+#   • `trôi đích=…` = ĐĂNG KÝ động học riêng của thế giới (một lần). Sau đó `trôi`
+#                     (nhịp thời gian) tự áp luật ⇒ ρ_MF dịch mà tác tử KHÔNG ra lệnh.
+#   • Vì thế giới tự trôi, tri thức vừa học luôn hoá cũ ⇒ DE_T không bao giờ cạn
+#     (tiên đề 12: luôn còn sàn tối — không viên mãn TOÀN CỤC).
+# ============================================================
+
+vật đích = 100
+tâm đích = ẩn
+trôi đích = (vật đích) + 12        # luật trôi: mỗi nhịp, thế giới tiến 12 (tự thân)
+
+đặt nhịp = 0
+rọi "Tác tử sống: mỗi vòng = học → đo γ → để thế giới TỰ trôi một nhịp."
+mãi {
+    học đích                       # σ ← σ + ½(ρ − σ): kéo niềm tin về thực tại
+    giao kq = đích                 # OR = tâm ⋈ vật (kèm γ)
+    rọi kq
+    trôi                           # NHỊP THỜI GIAN: thế giới tự dịch (DE_T mọc lại)
+    đặt nhịp = nhịp + 1
+    nếu nhịp >= 8 { dừng }          # 'điều kiện ngoài' cắt vòng (mô phỏng tắt nguồn)
+}
+rọi de
+rọi "→ `mãi` chạy như tác tử liên tục; `trôi` cho thế giới động học riêng."
+rọi "  γ trồi rồi tụt theo nhịp trôi — hội tụ chỉ là CHÂN TRỜI tiệm cận."

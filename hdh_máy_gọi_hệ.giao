@@ -1,0 +1,92 @@
+# ============================================================
+# hdh_máy_gọi_hệ.giao — ★ OPCODE GỌI-HỆ: tiến trình MÁY xin việc của NHÂN (trap như CPU thật)
+# ------------------------------------------------------------
+# Trước: tiến trình MÁY chỉ tính toán thuần — bị cắt CPU được, nhưng không đụng được hệ-tệp.
+# Nay GVM có opcode **GỌI_HỆ (72)**: máy đẩy số hiệu + đối rồi TẠM DỪNG; nhân đọc, phục vụ bằng
+# CHÍNH `gọi(...)` — nên vẫn đủ uid, quyền rwx, cổng bất-khả-hồi, nhật ký audit — rồi đẩy kết quả
+# vào ngăn xếp cho máy chạy tiếp. Máy KHÔNG tự làm I/O bao giờ; nó chỉ biết xin.
+#   • đối kiểu CHUỖI là CON TRỎ heap của máy → nhân đọc bằng `máy_chuỗi`
+#   • kết quả CHUỖI được nhân CẤP TRÊN HEAP của máy rồi trả con trỏ ⇒ máy dùng tiếp được
+# Chạy:  python giao.py hdh_máy_gọi_hệ.giao --cho-máy
+# ============================================================
+nhập "lib_vỏ.giao"
+nhập "lib_chương_trình.giao"
+
+hàm trình_diễn() {
+
+đặt M = khởi_máy()
+thêm_người(M, 0, "gốc")  thêm_người(M, 1000, "an")
+đặt KHỞI = sinh_tt(M, "khởi", 0, 0, "/")
+gọi(M, KHỞI, GH_TẠO_THƯ, ["/hệ", 755])   gọi(M, KHỞI, GH_TẠO_THƯ, ["/tạm", 777])
+gọi(M, KHỞI, GH_TẠO_THƯ, ["/nhà", 755])
+gọi(M, KHỞI, GH_TẠO, ["/hệ/mật_khẩu", 600, "gốc:*"])
+gọi(M, KHỞI, GH_TẠO, ["/tạm/nguồn", 644, "dữ liệu do NGƯỜI tạo"])
+gọi(M, KHỞI, GH_TẠO, ["/tạm/rác", 666, "bỏ đi được"])
+nạp_chương_trình(M)
+bật_lịch_γ(M, sáng)
+đặt_lượng_tử(M, 200)
+đặt VỎ = sinh_tt(M, "vỏ", 5, 1000, "/tạm")          # phiên của 'an' (uid 1000)
+
+rọi "┌───────────────────────────────────────────────────────────────┐"
+rọi "│  HĐH-GIAO — opcode GỌI-HỆ: máy xin việc, nhân xét rồi phục vụ │"
+rọi "└───────────────────────────────────────────────────────────────┘"
+
+rọi ""
+rọi "════ 1. Tiến trình MÁY CHÉP TỆP — chuỗi chạy qua nhân, cả hai chiều ════"
+đăng_ký_ct_máy(M, "chép",
+    "đặt nội = gọi_hệ(0, \"/tạm/nguồn\")  gọi_hệ(2, \"/tạm/bản_sao\", 644, nội)  rọi 1")
+đặt_khoá(M, "kể", sáng)
+đặt C = gọi(M, KHỞI, GH_SINH, ["chép", 5])
+vòng_nhân(M, 6)
+đặt_khoá(M, "kể", tối)
+rọi "   /tạm/bản_sao = [" + gọi(M, KHỞI, GH_ĐỌC, ["/tạm/bản_sao"]) + "]"
+rọi "   → máy ĐỌC được chuỗi (nhân cấp lên heap của máy) rồi GHI lại — không hề tự chạm hệ-tệp."
+
+rọi ""
+rọi "════ 2. QUYỀN vẫn là quyền — mã đã biên dịch cũng không lách được ════"
+đăng_ký_ct_máy(M, "tọc_máy", "đặt a = gọi_hệ(0, \"/hệ/mật_khẩu\")  rọi a")
+đặt_khoá(M, "kể", sáng)
+đặt T = gọi(M, VỎ, GH_SINH, ["tọc_máy", 5])        # sinh TỪ VỎ ⇒ kế thừa uid 1000
+rọi "   sinh tt" + T + " từ vỏ của 'an' (uid 1000)"
+vòng_nhân(M, 4)
+đặt_khoá(M, "kể", tối)
+rọi "   nhân trả `tối` (0) cho lời xin đọc /hệ/mật_khẩu — " + lỗi_cuối(M)
+
+rọi ""
+rọi "════ 3. CỔNG BẤT-KHẢ-HỒI cũng giữ nguyên với tiến trình máy ════"
+đăng_ký_ct_máy(M, "xoá_máy", "đặt r = gọi_hệ(6, \"/tạm/rác\")  rọi r")
+đặt_khoá(M, "kể", sáng)
+đặt X = gọi(M, VỎ, GH_SINH, ["xoá_máy", 5])
+vòng_nhân(M, 4)
+đặt_khoá(M, "kể", tối)
+rọi "   " + lỗi_cuối(M)
+đặt còn = gọi(M, KHỞI, GH_SOI, ["/tạm/rác"])
+nếu loại(còn) == "ẩn" { rọi "   /tạm/rác: ĐÃ MẤT — cổng hỏng!" }
+khác { rọi "   /tạm/rác vẫn còn nguyên: " + còn[1] + " — cổng giữ được cả mã máy." }
+
+rọi ""
+rọi "════ 4. Vẫn CẮT được CPU: kẻ tham lam gọi-hệ hay không cũng thế ════"
+đăng_ký_ct_máy(M, "tham_máy", "đặt t = 0  lặp 1000000 { đặt t = t + 1 }  rọi t")
+đặt G = gọi(M, KHỞI, GH_SINH, ["tham_máy", 5])
+đăng_ký_ct_máy(M, "chăm_máy",
+    "hàm ghi(n) { nếu n == 0 { trả 0 }  gọi_hệ(3, \"/tạm/bản_sao\", \" +\")  trả ghi(n - 1) }  rọi ghi(6)")
+đặt H = gọi(M, KHỞI, GH_SINH, ["chăm_máy", 5])
+vòng_nhân(M, 16)
+rọi "   tham_máy (tt" + G + "): " + lệnh_đã_chạy(M, G) + " lệnh · " + γ_soi(M, G)[2] + " lát · σ=" + γ_soi(M, G)[0]
+rọi "   chăm_máy (tt" + H + "): " + lệnh_đã_chạy(M, H) + " lệnh · " + γ_soi(M, H)[2] + " lát · σ=" + γ_soi(M, H)[0]
+rọi "   /tạm/bản_sao giờ là: [" + gọi(M, KHỞI, GH_ĐỌC, ["/tạm/bản_sao"]) + "]"
+
+rọi ""
+rọi "════ 5. NHẬT KÝ AUDIT ghi cả lời xin của tiến trình MÁY ════"
+lặp d trong nhật_ký_gần(M, 8) { rọi "   nhịp " + d[0] + "  tt" + d[1] + "  " + d[2] + "  " + d[3] }
+
+rọi ""
+rọi "→ Mã đã biên dịch xuống bytecode vẫn phải xin phép nhân từng việc một, và vẫn bị chính những"
+rọi "  cái cổng ấy chặn: uid, quyền rwx, bất-khả-hồi, audit. Cắt được CPU mà không mất an toàn."
+trả ẩn
+}
+
+nếu có_máy() == sáng { trình_diễn() }
+khác {
+    rọi "⚠ Chưa cấp năng lực `máy`. Chạy:  python giao.py hdh_máy_gọi_hệ.giao --cho-máy"
+}

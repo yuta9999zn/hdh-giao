@@ -1,0 +1,9 @@
+việc
+chạy đếm_máy
+chạy chép_máy
+xem /nhà/an/tên_máy_chép
+lịch γ
+chạy tham_máy
+nhịp 6
+tt
+thoát

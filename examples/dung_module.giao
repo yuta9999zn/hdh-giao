@@ -1,0 +1,7 @@
+# Dùng module qua `nhập` — định nghĩa của module thành sẵn dùng ở đây
+nhập "lib_hinh.giao"
+
+rọi "Diện tích vuông cạnh 5:    " + vuông(5)           # 25
+rọi "Diện tích chữ nhật 4×6:    " + chữ_nhật(4, 6)     # 24
+rọi "Diện tích tròn bán kính 10: " + tròn(10)           # 314
+rọi "Hằng PI100 từ module:       " + PI100              # 314

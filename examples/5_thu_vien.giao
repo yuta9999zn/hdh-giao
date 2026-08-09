@@ -1,0 +1,31 @@
+# ============================================================
+# VÍ DỤ 5: DÙNG THƯ VIỆN CHUẨN (bản_đồ/lọc/gấp + số học + chuỗi)
+# Các hàm này nạp tự động từ chuẩn.giao — không cần khai báo.
+# ============================================================
+
+hàm đôi(x) { trả x * 2 }
+rọi "bản_đồ đôi [1,2,3,4]:"
+rọi bản_đồ(đôi, [1, 2, 3, 4])               # [2, 4, 6, 8]
+
+rọi "lọc số chẵn trong 0..9:"
+rọi lọc(chẵn, dải(10))                       # [0, 2, 4, 6, 8]
+
+rọi "gộp (tổng) 1..5:"
+rọi gộp(dải_từ(1, 6))                        # 15
+
+rọi "đảo [1,2,3] & chứa 2?:"
+rọi đảo([1, 2, 3])                           # [3, 2, 1]
+rọi chứa([1, 2, 3], 2)                       # sáng
+
+rọi "luỹ_thừa 2^10, giai_thừa 5, dư 17 mod 5:"
+rọi luỹ_thừa(2, 10)                          # 1024
+rọi giai_thừa(5)                             # 120
+rọi dư(17, 5)                                # 2
+
+rọi "nối chuỗi với '-':"
+rọi nối(["giao", "thoa", "hội", "tụ"], "-")  # giao-thoa-hội-tụ
+
+rọi "KẾT HỢP — tổng bình phương các số lẻ 1..6:"
+hàm lẻ(x) { nếu chẵn(x) { trả tối } trả sáng }
+hàm bình_phương(x) { trả x * x }
+rọi gộp(bản_đồ(bình_phương, lọc(lẻ, dải_từ(1, 7))))   # 1 + 9 + 25 = 35

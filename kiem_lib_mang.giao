@@ -1,0 +1,73 @@
+# kiem_lib_mang.giao — nghiệm thu TẦNG MẠNG (CÒN_THIẾU B1)
+# Điểm mấu chốt cần chứng minh: hai tiến trình nói chuyện được QUA MẠNG, và QUYỀN VẪN CHẶN ĐƯỢC
+# (cổng đặc quyền <1024 · quyền trên ổ nghe · chỉ đầu mối được dùng kết nối).
+nhập "lib_gọi_hệ.giao"
+
+đặt M = khởi_máy()
+thêm_người(M, 0, "gốc")  thêm_người(M, 1000, "an")  thêm_người(M, 2000, "bèo")
+đặt khởi = sinh_tt(M, "khởi", 0, 0, "/")
+gọi(M, khởi, GH_TẠO_THƯ, ["/tb", 755])
+gọi(M, khởi, GH_GẮN_TB, ["/tb/mạng", 444, "mạng"])
+
+# sv = dịch vụ của 'an' (uid 1000) · kh = khách của 'bèo' (uid 2000) · kẻ_lạ = tiến trình thứ ba
+đặt sv = gọi(M, khởi, GH_SINH, ["dịch_vụ", 5])
+đặt_khoá(lấy_khoá(lấy_khoá(M, "cred"), sv), "uid", 1000)
+đặt kh = gọi(M, khởi, GH_SINH, ["khách", 5])
+đặt_khoá(lấy_khoá(lấy_khoá(M, "cred"), kh), "uid", 2000)
+đặt kẻ_lạ = gọi(M, khởi, GH_SINH, ["tò_mò", 5])
+đặt_khoá(lấy_khoá(lấy_khoá(M, "cred"), kẻ_lạ), "uid", 2000)
+
+rọi "-- cổng đặc quyền: dưới 1024 CHỈ gốc-quyền được nghe --"
+rọi gọi(M, sv, GH_NGHE, [80])                 # tối
+rọi lỗi_cuối(M)
+rọi gọi(M, khởi, GH_NGHE, [80])               # sáng — gốc thì được
+
+rọi "-- hai tiến trình nói chuyện qua mạng --"
+rọi gọi(M, sv, GH_NGHE, [5000])               # sáng — ổ 666, ai nối cũng được
+đặt mã = gọi(M, kh, GH_NỐI, [5000])
+rọi "khách nối cổng 5000 → mã " + mã
+rọi gọi(M, sv, GH_NHẬN_GÓI, [5000])           # ["nối", 1] — chủ nghe biết có khách mới
+rọi gọi(M, kh, GH_GỬI_GÓI, [mã, "chào dịch vụ, mấy giờ rồi"])
+rọi gọi(M, sv, GH_NHẬN_GÓI, [5000])           # [1, "chào dịch vụ, mấy giờ rồi"]
+rọi gọi(M, sv, GH_GỬI_GÓI, [mã, "nhịp máy đang là " + lấy_khoá(M, "nhịp")])
+rọi gọi(M, kh, GH_NHẬN_GÓI, [mã])             # câu trả lời về tới khách
+
+rọi "-- quyền trên Ổ NGHE: 600 = chỉ chính chủ nối được --"
+rọi gọi(M, sv, GH_NGHE, [6000, 600])          # sáng — ổ riêng của an
+rọi gọi(M, kh, GH_NỐI, [6000])                # tối — bèo bị CẤM
+rọi lỗi_cuối(M)
+
+rọi "-- kẻ thứ ba KHÔNG chen được vào kết nối của người khác --"
+rọi gọi(M, kẻ_lạ, GH_GỬI_GÓI, [mã, "nghe lén"])   # tối
+rọi lỗi_cuối(M)
+rọi gọi(M, kẻ_lạ, GH_NHẬN_GÓI, [mã])              # tối
+rọi lỗi_cuối(M)
+
+rọi "-- ba-trị đúng chỗ: không ai nghe → ẨN (không có), cấm → TỐI --"
+rọi gọi(M, kh, GH_NỐI, [7777])                # ẩn
+rọi lỗi_cuối(M)
+rọi gọi(M, kh, GH_NHẬN_GÓI, [mã])             # ẩn — chưa có gói, khách chờ
+rọi lỗi_cuối(M)
+
+rọi "-- phản áp: hàng gói có sức chứa, đầy thì bên gửi phải chờ --"
+đặt i = 0
+mãi {
+    nếu i >= 8 { dừng }
+    gọi(M, kh, GH_GỬI_GÓI, [mã, "gói " + i])
+    đặt i = i + 1
+}
+rọi gọi(M, kh, GH_GỬI_GÓI, [mã, "gói 9"])     # ẩn — đầy, phản áp
+rọi lỗi_cuối(M)
+
+rọi "-- mọi thứ soi được: đọc /tb/mạng --"
+rọi gọi(M, khởi, GH_ĐỌC, ["/tb/mạng"])
+
+rọi "-- audit ghi cả lời gọi mạng --"
+đặt nk = nhật_ký_gần(M, 300)
+đặt thấy_nối = tối
+đặt thấy_gói = tối
+lặp d trong nk {
+    nếu d[2] == "nối" { đặt thấy_nối = sáng }
+    nếu d[2] == "gửi_gói" { đặt thấy_gói = sáng }
+}
+rọi "nhật ký có 'nối': " + thấy_nối + " · có 'gửi_gói': " + thấy_gói

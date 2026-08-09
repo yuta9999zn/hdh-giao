@@ -1,0 +1,49 @@
+# ============================================================
+# trợ_lý_máy.giao — LÕI QUYẾT ĐỊNH CỦA TRỢ LÝ, CHẠY BẰNG BYTECODE trên GVM
+# ------------------------------------------------------------
+# Trái tim (mạng nơ-ron) KHÔNG BAO GIỜ là bytecode được — nên nó được phơi ra như một THIẾT BỊ:
+#     gọi_hệ(27, "chữ")      → SỐ HIỆU vector (vector nằm ở nhân, máy không cần thấy)
+#     gọi_hệ(28, sh_a, sh_b) → γ × 1000  (số nguyên, hợp máy)
+# Nhờ vậy PHẦN QUYẾT ĐỊNH xuống được máy: máy tự chấm điểm từng kỹ năng bằng γ, tự chọn cái cao
+# nhất, tự áp ngưỡng, tự TỪ CHỐI khi không đủ hiểu — mà không cần biết vector là gì.
+#   tim CẢM  ·  máy XÉT  ·  nhân LÀM (và vẫn chặn bằng quyền + cổng bất-khả-hồi)
+# CHỈ DÀNH CHO MÁY (chuỗi = danh sách mã ký tự).
+# ============================================================
+
+đặt NGƯỠNG = 450                            # γ×1000; dưới ngưỡng ⇒ TỪ CHỐI, không đoán bừa
+
+# ---------------- chấm điểm một kỹ năng ----------------
+hàm điểm(sh_việc, mô_tả) {
+    trả gọi_hệ(28, sh_việc, gọi_hệ(27, mô_tả))
+}
+
+hàm quyết(lời) {
+    đặt v = gọi_hệ(27, lời)                 # nhúng LỜI NHỜ (một lần)
+
+    đặt g0 = điểm(v, "xem nhật ký hệ thống, kiểm tra máy có bất thường gì không")
+    đặt g1 = điểm(v, "liệt kê các tệp đang có trong thư mục")
+    đặt g2 = điểm(v, "xem tôi là ai, danh tính người dùng hiện tại")
+
+    rọi g0  rọi g1  rọi g2                  # in điểm γ×1000 để soi (minh bạch)
+
+    đặt tốt = g0  đặt chọn = 0
+    nếu g1 > tốt { đặt tốt = g1  đặt chọn = 1 }
+    nếu g2 > tốt { đặt tốt = g2  đặt chọn = 2 }
+
+    nếu tốt < NGƯỠNG { rọi 0 - 1  trả 0 - 1 }   # −1 = KHÔNG ĐỦ HIỂU ⇒ từ chối
+
+    nếu chọn == 0 { rọi gọi_hệ(0, "/hệ/nhật_ký")  trả 0 }
+    nếu chọn == 1 { rọi gọi_hệ(4, "/tạm")  trả 1 }
+    rọi gọi_hệ(12)
+    trả 2
+}
+
+hàm vòng(còn) {
+    nếu còn == 0 { trả 0 }
+    đặt dòng = gọi_hệ(25)                   # lấy lời nhờ (nguyên dòng)
+    nếu dòng == 0 { trả 0 }
+    quyết(dòng)
+    trả vòng(còn - 1)
+}
+
+rọi vòng(6)

@@ -1,0 +1,98 @@
+# kiem_kho.giao — nghiệm thu KHO PHẦN MỀM (học apt/Kali, vá 5 chỗ yếu của nó)
+# Quan sát gốc: Kali 2026.2 trên WSL — deb822 `Signed-By:`, InRelease ký PGP mang băm mọi tệp,
+# siêu-gói kali-linux-headless chỉ toàn `Depends:`, chạy uid 1000 trong nhóm sudo.
+nhập "lib_vỏ.giao"
+
+đặt M = khởi_máy()
+thêm_người(M, 0, "gốc")  thêm_người(M, 1000, "an")
+đặt khởi = sinh_tt(M, "khởi", 0, 0, "/")
+gọi(M, khởi, GH_TẠO_THƯ, ["/hệ", 755])
+gọi(M, khởi, GH_TẠO_THƯ, ["/nhà", 755])
+gọi(M, khởi, GH_TẠO_THƯ, ["/thùng_rác", 777])
+gọi(M, khởi, GH_TẠO_THƯ, ["/lệnh", 755])
+gọi(M, khởi, GH_TẠO_THƯ, ["/hệ/kho", 755])
+gọi(M, khởi, GH_TẠO_THƯ, ["/hệ/kho/gói", 755])
+gọi(M, khởi, GH_TẠO_THƯ, ["/nhà/an", 755])
+gọi(M, khởi, GH_TẠO_THƯ, ["/nhà/an/lệnh", 755])
+gọi(M, khởi, GH_ĐỔI_CHỦ, ["/nhà/an", 1000])  duyệt(M)
+gọi(M, khởi, GH_ĐỔI_CHỦ, ["/nhà/an/lệnh", 1000])  duyệt(M)
+
+# ---- dựng kho: thân gói + mục lục (băm TỰ TÍNH bằng SHA-256 của chính GIAO) ----
+đặt T_NỀN = "# nền\nnói \"nền\""
+đặt T_TRÊN = "# trên — cần nền\nnền"
+đặt T_XOÁ = "# công cụ đòi năng lực xoá\nnói \"xoá\""
+gọi(M, khởi, GH_TẠO, ["/hệ/kho/gói/nền", 644, T_NỀN])
+gọi(M, khởi, GH_TẠO, ["/hệ/kho/gói/trên", 644, T_TRÊN])
+gọi(M, khởi, GH_TẠO, ["/hệ/kho/gói/dao", 644, T_XOÁ])
+đặt MỤC = "nền|1.0|Nền|||" + sha256_hex(T_NỀN) + "|gói nền"
+đặt MỤC = MỤC + "\ntrên|1.0|Ứng dụng|nền||" + sha256_hex(T_TRÊN) + "|cần nền"
+đặt MỤC = MỤC + "\ndao|1.0|Tệp||xoá|" + sha256_hex(T_XOÁ) + "|đòi năng lực xoá"
+gọi(M, khởi, GH_TẠO, ["/hệ/kho/mục_lục", 644, MỤC])
+gọi(M, khởi, GH_TẠO, ["/hệ/gói_đã_cài", 644, ""])
+gọi(M, khởi, GH_TẠO, ["/hệ/đường_lệnh", 644, "/lệnh:/nhà/an/lệnh"])   # $PATH có cả thư mục riêng
+
+đặt V = gọi(M, khởi, GH_SINH, ["vỏ", 5])
+đặt_khoá(lấy_khoá(lấy_khoá(M, "cred"), V), "uid", 1000)
+đặt_khoá(lấy_khoá(lấy_khoá(M, "cred"), V), "thư", "/nhà/an")
+
+rọi "══ MỤC LỤC + KẾ HOẠCH có VÌ SAO ══"
+rọi dài(kho_mục_lục(M, V))
+đặt kế = kho_kế_hoạch(M, V, "trên")
+lặp m trong kế { rọi "  · " + m[0] + m[1] }
+
+rọi "══ ⑤ NĂNG LỰC: hỏi TRƯỚC, không cài rồi mới biết ══"
+đặt r = kho_cài(M, V, "dao", tối)
+rọi r[1]
+đặt r = kho_cài(M, V, "dao", sáng)
+rọi r[0]
+
+rọi "══ CÀI: phụ thuộc trước, KHÔNG cần quyền gốc ══"
+đặt r = kho_cài(M, V, "trên", tối)
+rọi r[0]
+lặp d trong r[1] { rọi d }
+rọi "-- lệnh cài xong CHẠY được thật --"
+rọi chạy_dòng_im(M, V, "trên")[1]
+rọi "-- sổ ĐÃ CÀI của riêng người dùng --"
+rọi kho_đã_cài(M, V)
+
+rọi "══ ③ GÓI BỊ SỬA ĐỔI → TỪ CHỐI TOÀN BỘ, không ghi gì ══"
+gọi(M, khởi, GH_GHI, ["/hệ/kho/gói/nền", "# ĐÃ BỊ TRÁO\nnói \"mã lạ\""])
+đặt r2 = kho_gỡ(M, V, "trên")
+đặt r2 = kho_gỡ(M, V, "nền")
+rọi "gỡ sạch rồi cài lại: " + dài(kho_đã_cài(M, V))
+đặt r = kho_cài(M, V, "trên", tối)
+rọi r[0]
+rọi r[1]
+rọi "-- và KHÔNG ghi gì cả: sổ vẫn rỗng --"
+rọi dài(kho_đã_cài(M, V))
+gọi(M, khởi, GH_GHI, ["/hệ/kho/gói/nền", T_NỀN])          # trả lại bản thật
+
+rọi "══ PHỤ THUỘC được bảo vệ khi gỡ ══"
+đặt r = kho_cài(M, V, "trên", tối)
+đặt r2 = kho_gỡ(M, V, "nền")
+rọi r2[1]
+
+rọi "══ ② GỠ vào thùng rác, HOÀN TÁC lấy lại được ══"
+đặt r2 = kho_gỡ(M, V, "trên")
+rọi r2[1]
+rọi gọi(M, V, GH_ĐỌC, ["/nhà/an/lệnh/trên"])              # ẩn — đã đi khỏi chỗ cũ
+rọi gọi(M, V, GH_HOÀN_TÁC, [])
+rọi gọi(M, V, GH_ĐỌC, ["/nhà/an/lệnh/trên"])
+
+rọi "══ NÂNG CẤP rồi LÙI ══"
+đặt T_NỀN2 = "# nền — bản mới\nnói \"nền 2.0\""
+gọi(M, khởi, GH_TẠO, ["/hệ/kho/gói/nền", 644, T_NỀN2])
+đặt MỤC2 = "nền|2.0|Nền|||" + sha256_hex(T_NỀN2) + "|gói nền bản mới"
+đặt MỤC2 = MỤC2 + "\ntrên|1.0|Ứng dụng|nền||" + sha256_hex(T_TRÊN) + "|cần nền"
+đặt MỤC2 = MỤC2 + "\ndao|1.0|Tệp||xoá|" + sha256_hex(T_XOÁ) + "|đòi năng lực xoá"
+gọi(M, khởi, GH_GHI, ["/hệ/kho/mục_lục", MỤC2])
+rọi "cần nâng: " + kho_cần_nâng(M, V)
+đặt r = kho_nâng_cấp(M, V)
+lặp d trong r[1] { rọi d }
+rọi gọi(M, V, GH_ĐỌC, ["/nhà/an/lệnh/nền"])
+rọi "-- lùi: thân lệnh VỀ BẢN CŨ, phiên trong sổ cũng lùi theo --"
+đặt r = kho_lùi(M, V)
+rọi r[0]
+nếu r[0] == sáng { lặp d trong r[1] { rọi d } } khác { rọi r[1] }
+rọi gọi(M, V, GH_ĐỌC, ["/nhà/an/lệnh/nền"])
+rọi kho_đã_cài(M, V)

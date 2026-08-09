@@ -1,0 +1,8 @@
+nhập "lib_băm.giao"
+nhập "lib_mẫu.giao"
+rọi băm("hello")               # djb2(hello) = 261238937
+rọi băm("hello") == băm("hello")   # sáng (tất định)
+rọi băm("hello") == băm("world")   # tối
+đặt d = bản()  đặt_khoá(d, "tên", "An")  đặt_khoá(d, "tuổi", 25)
+rọi điền("Chào {tên}, {tuổi} tuổi!", d)   # Chào An, 25 tuổi!
+rọi điền("{thiếu} ở lại", d)              # {thiếu} ở lại

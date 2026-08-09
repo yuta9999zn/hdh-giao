@@ -1,0 +1,37 @@
+# ============================================================
+# VÍ DỤ 6: TẦNG HỌC THUYẾT CDFL
+# chọn (hành động + nhân quả ngược IF→MF) · DE bốn mặt · OR tập thể đa tác tử
+# ============================================================
+
+rọi "=== A) chọn: hành động mở rộng OR thật + nhân quả ngược IF→MF ==="
+# Mỗi hành động dự đoán (σ, ρ) sau khi thực hiện. Tác tử chọn hành động OR lớn nhất.
+đặt hành_động = [
+    ["thăm dò A", 40, 100],
+    ["thăm dò B", 90, 100],
+    ["thăm dò C", 20, 100]
+]
+đặt tốt = chọn(hành_động)
+rọi "  chọn: " + đầu(tốt) + "   (γ dự đoán = " + γ_hành_động(tốt) + ")"
+# IF→MF: hành động của tác tử ĐẶT trạng thái thế giới (nhân quả ngược)
+vật trạng_thái = tốt[2]            # thế giới sinh ra bởi hành động
+tâm trạng_thái = tốt[1]            # niềm tin sau hành động
+giao kết = trạng_thái
+rọi kết
+
+rọi ""
+rọi "=== B) DE BỐN MẶT ==="
+vật phòng_A = 50
+vật phòng_B = 70                   # vật có nhưng tâm chưa tới + chưa quan sát
+tâm phòng_A = ẩn
+học phòng_A                        # quan sát phòng_A
+vật phòng_A = 90                   # thế giới TRÔI sau khi học ⇒ tri thức cũ
+giao soi_A = phòng_A               # niềm tin cũ lệch thực tại mới ⇒ γ<0 (ảo tưởng)
+rọi de
+
+rọi ""
+rọi "=== C) ĐA TÁC TỬ — OR TẬP THỂ (tiên đề 11) ==="
+đặt thực_tại = 100
+đặt tác_tử = [["An", 90], ["Bình", 115], ["Châu", 70]]
+đặt kq = or_tập_thể(tác_tử, thực_tại)
+rọi "  OR tập thể (γ tốt nhất trong tập thể): " + kq[0]
+rọi "  Đa dạng niềm tin (giàu OR → nền an toàn AI): " + kq[1]

@@ -1,0 +1,8 @@
+# lib_băm.giao — BĂM chuỗi (hash djb2 của D.J.Bernstein; tham-chiếu hash table std)
+# Không-mã-hoá (cho hash-table/checksum). djb2: h=5381; h=h*33+byte; mod 2^32. Tự-thân (mã/dư).
+hàm băm(s) {
+    nếu loại(s) == "ẩn" { trả ẩn }         # s ẩn → ẩn (không trả seed 5381 SAI)
+    đặt h = 5381
+    lặp c trong s { đặt h = dư(h * 33 + mã(c), 4294967296) }
+    trả h
+}

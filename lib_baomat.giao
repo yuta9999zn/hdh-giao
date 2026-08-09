@@ -1,0 +1,55 @@
+# ============================================================
+# lib_baomat.giao — LỚP BẢO-MẬT γ-GATED cho HĐH-GIAO (học từ Windows MIC, vượt bằng CDFL)
+# ------------------------------------------------------------
+# Windows MIC: 5 mức tin-cậy CỐ-ĐỊNH (Untrusted0/Low/Medium/High/System) + "no-write-up" (chủ-thể
+#   thấp KHÔNG ghi được ô cao). Allow/deny NHỊ-PHÂN, mức TĨNH.
+# GIAO vượt: mức tin-cậy σ ∈ [0..255] LIÊN-TỤC (≡ σ γ-scheduler) · quyết-định BA-TRỊ
+#   (sáng=cho · tối=chặn-write-up · ẩn=tin-cậy CHƯA-SOI → fail-safe) · σ HỌC-ĐƯỢC → tác_vụ cư-xử
+#   xấu (σ tụt) TỰ mất quyền ghi ô-cao (Windows tĩnh không làm nổi). GIỮ ba-trị + tự-thân.
+# Mức tham chiếu (map MIC): Untrusted=0 · Thấp=64 · Vừa=128 · Cao=192 · Hệ=255.
+# Nạp: nhập "lib_baomat.giao".
+# ============================================================
+
+đặt MỨC_KHÔNG_TIN = 0
+đặt MỨC_THẤP = 64
+đặt MỨC_VỪA = 128
+đặt MỨC_CAO = 192
+đặt MỨC_HỆ = 255
+
+# ---------------- miền bảo-mật = bản{tên_ô: [mức, giá_trị]} ----------------
+hàm tạo_miền() { trả bản() }
+hàm đăng_ký(miền, tên, mức, giá_trị) {     # ghi-danh tài-nguyên ở MỨC tin-cậy
+    đặt_khoá(miền, tên, [mức, giá_trị])
+    trả miền
+}
+hàm mức_của(miền, tên) {                   # mức tin-cậy ô; chưa đăng-ký → ẩn
+    nếu có_khoá(miền, tên) { trả lấy_khoá(miền, tên)[0] }
+    trả ẩn
+}
+
+# ---------------- CHÍNH SÁCH LÕI: no-write-up theo σ LIÊN-TỤC, BA-TRỊ ----------------
+hàm có_thể_ghi(σ_chủ, mức_ô) {
+    nếu loại(σ_chủ) == "ẩn" { trả ẩn }      # tin-cậy chủ-thể CHƯA-SOI → KHÔNG quyết (fail-safe deny)
+    nếu loại(mức_ô) == "ẩn" { trả ẩn }      # ô chưa biết mức → ẩn
+    nếu σ_chủ >= mức_ô { trả sáng }          # đủ tin-cậy → no-write-up THOẢ → cho ghi
+    trả tối                                   # chủ THẤP ghi ô CAO = write-UP → CHẶN (ảo-tưởng quyền)
+}
+hàm γ_truy_cập(σ_chủ, mức_ô) {             # cộng-hưởng tin-cậy chủ vs yêu-cầu ô (audit)
+    trả cộng_hưởng(σ_chủ, mức_ô)
+}
+
+# ---------------- thao tác có CỔNG ----------------
+hàm ghi(miền, σ_chủ, tên, giá_trị) {       # ghi nếu chính-sách cho; trả sáng/tối/ẩn
+    đặt mức = mức_của(miền, tên)
+    đặt qđ = có_thể_ghi(σ_chủ, mức)
+    nếu qđ == sáng { đặt_khoá(miền, tên, [mức, giá_trị])  trả sáng }
+    trả qđ                                    # tối (chặn write-up) | ẩn (chủ/ô chưa-soi)
+}
+hàm đọc(miền, tên) {                       # ĐỌC cho phép (mô hình toàn-vẹn MIC); không có → ẩn
+    nếu có_khoá(miền, tên) { trả lấy_khoá(miền, tên)[1] }
+    trả ẩn
+}
+
+# ---------------- σ HỌC-ĐƯỢC: tin-cậy theo HÀNH-VI (thống nhất với γ-scheduler) ----------------
+# ρ = độ-hữu-ích quan sát (255 nếu làm việc tốt · 0 nếu spin/cư-xử-xấu). σ ← σ + (ρ−σ)/2.
+hàm học_σ(σ_cũ, ρ) { trả σ_cũ + (ρ - σ_cũ) / 2 }

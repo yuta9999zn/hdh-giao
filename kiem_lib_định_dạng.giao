@@ -1,0 +1,30 @@
+# ============================================================
+# kiem_lib_định_dạng.giao — kiểm lib_định_dạng (string-format)
+# Chạy: PYTHONIOENCODING=utf-8 PYTHONUTF8=1 python giao.py kiem_lib_định_dạng.giao
+# ============================================================
+nhập "lib_định_dạng.giao"
+
+# 1) căn-lề
+rọi "[" + căn_phải("ab", 5) + "]"        # [   ab]
+rọi "[" + căn_trái("ab", 5) + "]"        # [ab   ]
+rọi "[" + căn_giữa("ab", 6) + "]"        # [  ab  ]
+rọi "[" + căn_phải("quá-dài-rồi", 3) + "]"   # [quá-dài-rồi]  (rộng < dài → giữ nguyên)
+
+# 2) số: đệm-0 + nhóm-phẩy
+rọi số_đệm0(7, 3)                         # 007
+rọi số_đệm0(-7, 3)                        # -07
+rọi số_đệm0(12345, 3)                     # 12345  (dài hơn rộng → giữ)
+rọi nhóm_phẩy(1234567)                    # 1,234,567
+rọi nhóm_phẩy(-12)                        # -12
+rọi nhóm_phẩy(0)                          # 0
+
+# 3) mini-printf định_dạng
+rọi định_dạng("Xin chào {}, {} tuổi", ["An", 25])   # Xin chào An, 25 tuổi
+rọi định_dạng("|{:>6}|{:<6}|", ["hi", "hi"])        # |    hi|hi    |
+rọi định_dạng("[{:^7}]", ["mid"])                   # [  mid  ]
+rọi định_dạng("ID={:05}", [42])                     # ID=00042
+rọi định_dạng("{:,} đồng", [1000000])               # 1,000,000 đồng
+
+# 4) escape + ba-trị (thiếu đối → ẩn, KHÔNG crash/nuốt-chuỗi)
+rọi định_dạng("{{x}}={}", [9])                       # {x}=9
+rọi định_dạng("thiếu {} {}", ["a"])                  # thiếu a ẩn

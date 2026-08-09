@@ -1,0 +1,106 @@
+# ============================================================
+# hdh_tiến_trình.giao — ★ `sinh` CHẠY CHƯƠNG TRÌNH THẬT: đa nhiệm dưới bộ lập lịch của nhân
+# ------------------------------------------------------------
+# Trước: `sinh` chỉ ghi một dòng vào bảng tiến-trình (bản-ghi thụ động).
+# Nay:   `sinh` nạp THÂN chương trình → nhân quay bánh xe `vòng_nhân` → các tiến-trình
+#        CHẠY XEN KẼ THẬT, mỗi lát một tiến-trình, ai xong thì chết, ai chờ tin thì ngủ.
+# Xem được đủ vòng đời của Linux:  sẵn-sàng → chạy → (chặn ↔ đánh-thức) → chết.
+# Chạy:  python giao.py hdh_tiến_trình.giao
+# ============================================================
+nhập "lib_trợ_lý.giao"
+nhập "lib_chương_trình.giao"
+
+đặt M = khởi_máy()
+
+hàm boot() {
+    thêm_người(M, 0, "gốc")  thêm_người(M, 1000, "an")
+    đặt k = sinh_tt(M, "khởi", 0, 0, "/")
+    gọi(M, k, GH_TẠO_THƯ, ["/hệ", 755])   gọi(M, k, GH_TẠO_THƯ, ["/nhà", 755])
+    gọi(M, k, GH_TẠO_THƯ, ["/tb", 755])   gọi(M, k, GH_TẠO_THƯ, ["/tt", 555])
+    gọi(M, k, GH_TẠO_THƯ, ["/tạm", 777])
+    gọi(M, k, GH_TẠO, ["/hệ/nhật_ký", 644, "nhịp 0  khởi: nhân lên"])
+    gọi(M, k, GH_TẠO, ["/hệ/mật_khẩu", 600, "gốc:*"])
+    gọi(M, k, GH_GẮN_TB, ["/tb/màn", 666, "màn_hình"])
+    gọi(M, k, GH_TẠO_THƯ, ["/nhà/an", 700])
+    gọi(M, k, GH_ĐỔI_CHỦ, ["/nhà/an", 1000])  duyệt(M)
+    gọi(M, k, GH_TẠO, ["/tạm/rác1", 666, "x"])  gọi(M, k, GH_TẠO, ["/tạm/rác2", 666, "y"])
+    nạp_chương_trình(M)
+    trả k
+}
+
+hàm bảng_tt_gọn(tid_xem) {                      # ps rút gọn, đọc QUA procfs (mọi thứ là tệp)
+    đặt ds = gọi(M, tid_xem, GH_LIỆT, ["/tt"])
+    nếu loại(ds) == "danh_sách" { } khác { trả "(không đọc được /tt: " + lỗi_cuối(M) + ")" }
+    đặt kq = []
+    lặp t trong ds {
+        đặt tên_t = gọi(M, tid_xem, GH_ĐỌC, ["/tt/" + t + "/tên"])
+        đặt trạng_t = gọi(M, tid_xem, GH_ĐỌC, ["/tt/" + t + "/trạng"])
+        gom(kq, "tt" + t + " " + tên_t + "=" + trạng_t)
+    }
+    trả nối(kq, " · ")
+}
+
+đặt KHỞI = boot()
+rọi "┌───────────────────────────────────────────────────────────────┐"
+rọi "│  HĐH-GIAO — TIẾN TRÌNH THẬT chạy dưới bộ lập lịch của nhân    │"
+rọi "└───────────────────────────────────────────────────────────────┘"
+
+rọi ""
+rọi "════ 1. Dịch vụ nền NGỦ CHỜ VIỆC (chặn — không đốt CPU) ════"
+đặt NK = gọi(M, KHỞI, GH_SINH, ["nhật_ký_hệ", 3])          # daemon, uid 0
+rọi "sinh dịch vụ nhật_ký_hệ → tt" + NK
+vòng_nhân(M, 2)                                             # nó chạy 1 lát rồi tự chặn
+rọi "sau 2 lát: " + bảng_tt_gọn(KHỞI)
+rọi "→ tt" + NK + " đã vào trạng 'chặn': hộp thư rỗng nên nó NGỦ, nhân không gọi nữa."
+
+rọi ""
+rọi "════ 2. HAI tiến trình người dùng chạy XEN KẼ (đa nhiệm thật) ════"
+đặt V = sinh_tt(M, "vỏ", 5, 1000, "/nhà/an")               # phiên của 'an'
+đặt A = gọi(M, V, GH_SINH, ["đếm", 5, [4, "/nhà/an/đếm_A"]])
+đặt B = gọi(M, V, GH_SINH, ["đếm", 5, [3, "/nhà/an/đếm_B"]])
+rọi "sinh đếm-A → tt" + A + " · đếm-B → tt" + B + "  (cùng ưu tiên 5, cùng uid 1000)"
+đặt_khoá(M, "kể", sáng)                                     # in vết từng lát
+vòng_nhân(M, 9)
+đặt_khoá(M, "kể", tối)
+rọi "tệp A: [" + gọi(M, V, GH_ĐỌC, ["/nhà/an/đếm_A"]) + "]   tệp B: [" + gọi(M, V, GH_ĐỌC, ["/nhà/an/đếm_B"]) + "]"
+rọi "→ hai tiến trình THAY PHIÊN nhau chạy, mỗi lát ghi một số; xong thì chết."
+rọi "trạng thái: " + bảng_tt_gọn(KHỞI)
+
+rọi ""
+rọi "════ 3. IPC: gửi tin ĐÁNH THỨC dịch vụ đang ngủ ════"
+đặt BÁO = gọi(M, KHỞI, GH_SINH, ["báo", 4, [NK, ["đĩa /tạm sắp đầy", "mạng chập chờn"]]])
+rọi "sinh báo → tt" + BÁO + " (gửi tin cho tt" + NK + ")"
+đặt_khoá(M, "kể", sáng)
+vòng_nhân(M, 8)
+đặt_khoá(M, "kể", tối)
+rọi "nhật ký hệ giờ là:"
+lặp d trong tách(gọi(M, KHỞI, GH_ĐỌC, ["/hệ/nhật_ký"]), "\n") { rọi "   " + d }
+rọi "→ `gửi` đưa tt" + NK + " từ 'chặn' về hàng sẵn-sàng; ghi xong nó lại ngủ tiếp."
+
+rọi ""
+rọi "════ 4. Chương trình chạm THIẾT BỊ + đi hỏi HỆ-TỆP ════"
+gọi(M, V, GH_SINH, ["chào", 6, ["xin chào từ tiến trình"]])
+gọi(M, V, GH_SINH, ["soi_rác", 6, []])
+chạy_tới_hết(M, 40)
+rọi "báo cáo rác: " + gọi(M, V, GH_ĐỌC, ["/tạm/báo_cáo_rác"])
+
+rọi ""
+rọi "════ 5. TIẾN TRÌNH KHÔNG VƯỢT ĐƯỢC QUYỀN CỦA NGƯỜI SINH RA NÓ ════"
+đặt TM = gọi(M, V, GH_SINH, ["tọc_mạch", 6, []])           # sinh từ vỏ của 'an' ⇒ uid 1000
+rọi "sinh tọc_mạch → tt" + TM + " (uid kế thừa từ vỏ = 1000, KHÔNG phải 0)"
+chạy_tới_hết(M, 10)
+rọi "nó thử đọc /hệ/mật_khẩu và tạo /hệ/cửa_sau — kết quả:"
+đặt soi_cửa = gọi(M, KHỞI, GH_SOI, ["/hệ/cửa_sau"])
+nếu loại(soi_cửa) == "ẩn" { rọi "   /hệ/cửa_sau: KHÔNG tồn tại (ẩn) — nhân đã chặn việc tạo cửa hậu" }
+khác { rọi "   /hệ/cửa_sau: " + soi_cửa + "  ← ĐÁNG LO: lọt quyền!" }
+gọi(M, V, GH_ĐỌC, ["/hệ/mật_khẩu"])          # cùng uid 1000 như tt tọc_mạch
+rọi "   đọc /hệ/mật_khẩu bằng uid 1000: " + lỗi_cuối(M)
+
+rọi ""
+rọi "════ 6. VÒNG ĐỜI ĐẦY ĐỦ (đọc từ /tt — procfs) ════"
+rọi bảng_tt_gọn(KHỞI)
+rọi "còn việc sẵn-sàng? " + còn_việc(M) + "   · số tiến trình còn sống: " + số_sống(lấy_khoá(M, "nhân"))
+rọi "tổng số lát lập-lịch đã chạy: " + dài(lấy_khoá(M, "vết")) + " · nhịp máy: " + lấy_khoá(M, "nhịp")
+rọi ""
+rọi "→ `sinh` giờ SINH RA SỰ SỐNG THẬT: mỗi tiến trình có thân, có lượt CPU, có vùng nhớ riêng,"
+rọi "  có uid riêng, ngủ được, dậy được, chết được — và cả đời nó nằm trong bảng gọi-hệ."

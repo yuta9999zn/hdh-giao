@@ -1,0 +1,28 @@
+# BẢN (map/record) trên MÁY GVM — kiểu THAM CHIẾU mutable (mốc 3b)
+# bản = con trỏ tới ô-đầu (mutable) → alist các node [khoá, giá, kế].
+# đặt_khoá CHÈN-ĐẦU O(1); sửa khoá cũ vá tại chỗ; thiếu khoá → ẩn (ba-trị).
+# (dùng khoá SỐ để khoá()/giá_trị() in được bằng rọi_ds; khoá chuỗi vẫn chạy — xem RANH_GIOI)
+
+đặt đ = bản()
+đặt_khoá(đ, 1, 11)
+đặt_khoá(đ, 2, 22)
+đặt_khoá(đ, 3, 33)
+
+rọi đ[1]                 # 11   (index bằng khoá)
+rọi đ[2]                 # 22
+rọi lấy_khoá(đ, 3)       # 33
+rọi có_khoá(đ, 2)        # 1
+rọi có_khoá(đ, 9)        # 0
+rọi lấy_khoá(đ, 9)       # ẩn  (thiếu khoá — KHÔNG crash, KHÔNG bịa)
+rọi dài(đ)               # 3
+
+đặt_khoá(đ, 2, 99)       # cập nhật tại chỗ
+rọi đ[2]                 # 99
+rọi dài(đ)               # 3   (không phình)
+
+xoá_khoá(đ, 1)           # gỡ khoá
+rọi dài(đ)               # 2
+rọi có_khoá(đ, 1)        # 0
+
+rọi_ds(khoá(đ))          # [2, 3]    (thứ tự chèn, đã bỏ 1)
+rọi_ds(giá_trị(đ))       # [99, 33]

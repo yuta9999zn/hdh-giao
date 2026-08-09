@@ -1,0 +1,158 @@
+# ============================================================
+# lib_kenh.giao — KÊNH KÍN cho phiên từ xa: ChaCha20 + HMAC-SHA256 + RSA chuyển khoá
+# ------------------------------------------------------------
+# Trước bản này phiên từ xa đi TRẦN — mật khẩu phơi trên dây, nên năng lực `mạng_host` phải kẹp
+# 127.0.0.1. Đây là lớp bọc kín nó lại.
+#
+# Cách xếp (theo lối đã được kiểm chứng, không tự chế giao thức):
+#   ① CHUYỂN KHOÁ bằng RSA — khách sinh 96 byte ngẫu nhiên, mã bằng KHOÁ CÔNG của máy chủ.
+#      Chỉ máy chủ (giữ khoá riêng ở /hệ/khoá_máy, 600) giải nổi. Khách xem VÂN TAY khoá máy để
+#      biết mình đang nói với ai — tin-lần-đầu (TOFU) như `known_hosts` của SSH.
+#   ② MÃ bằng ChaCha20, MỖI CHIỀU MỘT KHOÁ RIÊNG ⇒ không bao giờ dùng lại cặp (khoá, nonce).
+#   ③ XÁC THỰC bằng HMAC-SHA256 theo lối MÃ-RỒI-XÁC-THỰC (encrypt-then-MAC), MAC phủ cả SỐ ĐẾM
+#      nên vừa chống sửa vừa chống phát lại/đảo thứ tự trong một phiên.
+#
+# ⚠ TRUNG THỰC — đọc kỹ trước khi tin:
+#   • CHƯA có bí mật chuyển tiếp (forward secrecy): lộ khoá riêng của máy là giải được mọi phiên
+#     đã ghi. SSH thật dùng Diffie-Hellman cho việc này; GIAO **đã có `mũ_mod`** nên làm được,
+#     chỉ là chưa làm.
+#   • Bản hiện thực này **chưa qua thẩm định mật mã**, chạy ở đường thông dịch (chậm), và không
+#     chống kênh-phụ theo thời gian. Nó đúng THUẬT TOÁN (ChaCha20 khớp vector RFC 8439), nhưng
+#     đừng đem giữ bí mật thật ngoài đời.
+# ============================================================
+nhập "lib_chacha20.giao"
+nhập "lib_so_lon.giao"
+
+đặt KN_HEX = "0123456789abcdef"
+
+# ---------------- byte ⟷ hex ----------------
+hàm byte_sang_hex(bs) {
+    đặt s = ""
+    lặp b trong bs {
+        đặt s = s + lát_chuỗi(KN_HEX, dịch_phải(b, 4), dịch_phải(b, 4) + 1)
+        đặt s = s + lát_chuỗi(KN_HEX, và_bit(b, 15), và_bit(b, 15) + 1)
+    }
+    trả s
+}
+hàm hex_sang_byte(h) {
+    nếu dư(dài(h), 2) == 0 { } khác { trả ẩn }
+    đặt ra = []
+    đặt i = 0
+    mãi {
+        nếu i >= dài(h) { dừng }
+        đặt a = _hex_giá(h[i])
+        đặt b = _hex_giá(h[i + 1])
+        nếu loại(a) == "ẩn" { trả ẩn }
+        nếu loại(b) == "ẩn" { trả ẩn }
+        gom(ra, a * 16 + b)
+        đặt i = i + 2
+    }
+    trả ra
+}
+hàm số_sang_byte(n, rộng) {
+    đặt ra = []
+    đặt v = n
+    lặp rộng { gom(ra, và_bit(v, 255))  đặt v = dịch_phải(v, 8) }
+    trả đảo(ra)
+}
+hàm _băm_byte(bs) {                       # sha256 của DÃY BYTE → 32 byte
+    đặt H = sha256_bytes(bs)
+    đặt ra = []
+    lặp w trong H {
+        gom(ra, và_bit(dịch_phải(w, 24), 255))  gom(ra, và_bit(dịch_phải(w, 16), 255))
+        gom(ra, và_bit(dịch_phải(w, 8), 255))   gom(ra, và_bit(w, 255))
+    }
+    trả ra
+}
+
+# ---------------- HMAC-SHA256 ----------------
+hàm hmac_sha256(khoá, tin) {
+    "khoá/tin là DÃY BYTE → 32 byte thẻ xác thực."
+    đặt k = khoá
+    nếu dài(k) > 64 { đặt k = _băm_byte(k) }
+    đặt kp = ghép(k, [])
+    mãi { nếu dài(kp) >= 64 { dừng }  gom(kp, 0) }
+    đặt tr = []   đặt ng = []
+    đặt i = 0
+    mãi {
+        nếu i >= 64 { dừng }
+        gom(tr, xor(kp[i], 54))          # ipad 0x36
+        gom(ng, xor(kp[i], 92))          # opad 0x5c
+        đặt i = i + 1
+    }
+    trả _băm_byte(ghép(ng, _băm_byte(ghép(tr, tin))))
+}
+
+# ---------------- khoá phiên: 96 byte → ba phần ----------------
+# 0..31  khoá mã KHÁCH→CHỦ · 32..63 khoá mã CHỦ→KHÁCH · 64..95 khoá HMAC (dùng chung)
+hàm kn_phần(kp, từ, đến) {
+    đặt ra = []
+    đặt i = từ
+    mãi { nếu i >= đến { dừng }  gom(ra, kp[i])  đặt i = i + 1 }
+    trả ra
+}
+hàm kn_khoá_lên(kp)  { trả kn_phần(kp, 0, 32) }
+hàm kn_khoá_xuống(kp){ trả kn_phần(kp, 32, 64) }
+hàm kn_khoá_mac(kp)  { trả kn_phần(kp, 64, 96) }
+
+hàm _nonce(đếm) {                          # 12 byte: 8 byte 0 rồi 4 byte số đếm
+    đặt ra = [0, 0, 0, 0, 0, 0, 0, 0]
+    trả ghép(ra, số_sang_byte(đếm, 4))
+}
+
+# ---------------- đóng / mở khung ----------------
+# khung = "<đếm>:<hex bản mã>:<hex thẻ>"  — MAC phủ CẢ số đếm (chống phát lại, đảo thứ tự)
+hàm đóng_khung(khoá_mã, khoá_mac, đếm, chữ) {
+    đặt bs = utf8_mã(chữ)
+    đặt ct = chacha20_mã(khoá_mã, _nonce(đếm), 1, bs)
+    đặt hct = byte_sang_hex(ct)
+    đặt thẻ = hmac_sha256(khoá_mac, utf8_mã("" + đếm + ":" + hct))
+    trả "" + đếm + ":" + hct + ":" + byte_sang_hex(thẻ)
+}
+
+hàm mở_khung(khoá_mã, khoá_mac, khung) {
+    "→ [sáng, chữ, đếm] · [tối, lý do]. Sai thẻ thì KHÔNG giải, cũng không kể gì thêm."
+    đặt p = tách_giữ(cắt_lề(khung), ":")
+    nếu dài(p) == 3 { } khác { trả [tối, "khung hỏng"] }
+    đặt đếm = số_chuỗi(p[0])
+    nếu loại(đếm) == "ẩn" { trả [tối, "số đếm hỏng"] }
+    đặt mong = byte_sang_hex(hmac_sha256(khoá_mac, utf8_mã(p[0] + ":" + p[1])))
+    nếu mong == p[2] { } khác { trả [tối, "THẺ XÁC THỰC SAI — gói đã bị sửa, hoặc không phải của phiên này"] }
+    đặt ct = hex_sang_byte(p[1])
+    nếu loại(ct) == "ẩn" { trả [tối, "bản mã hỏng"] }
+    đặt bs = chacha20_mã(khoá_mã, _nonce(đếm), 1, ct)
+    trả [sáng, utf8_giải(bs), đếm]                  # giải UTF-8 — lệnh vỏ có tiếng Việt
+}
+
+# ---------------- RSA: giải khoá phiên khách gửi lên ----------------
+hàm mở_khoá_phiên(gói_hex, d_hex, n_hex) {
+    "Giải PKCS#1 v1.5 kiểu-2 → 96 byte khoá phiên · ẩn nếu hỏng."
+    đặt c = hex_sang_số(gói_hex)
+    nếu loại(c) == "ẩn" { trả ẩn }
+    đặt n = hex_sang_số(n_hex)
+    đặt d = hex_sang_số(d_hex)
+    nếu c >= n { trả ẩn }
+    đặt m = mũ_mod(c, d, n)
+    đặt k = dài(n_hex) // 2
+    đặt bs = số_sang_byte(m, k)
+    nếu bs[0] == 0 { } khác { trả ẩn }
+    nếu bs[1] == 2 { } khác { trả ẩn }
+    đặt i = 2                                    # bỏ qua đệm ngẫu nhiên tới byte 0
+    mãi {
+        nếu i >= dài(bs) { trả ẩn }
+        nếu bs[i] == 0 { dừng }
+        đặt i = i + 1
+    }
+    đặt ra = kn_phần(bs, i + 1, dài(bs))
+    nếu dài(ra) == 96 { trả ra }
+    trả ẩn
+}
+
+hàm đọc_khoá_máy(dòng) {
+    "'rsa|<d hex>|<n hex>' → [d_hex, n_hex] · ẩn nếu hỏng."
+    nếu loại(dòng) == "chuỗi" { } khác { trả ẩn }
+    đặt p = tách_giữ(cắt_lề(dòng), "|")
+    nếu dài(p) >= 3 { } khác { trả ẩn }
+    nếu p[0] == "rsa" { } khác { trả ẩn }
+    trả [cắt_lề(p[1]), cắt_lề(p[2])]
+}

@@ -1,0 +1,78 @@
+# kiem_dung_em.giao — nghiệm thu HAI CHỖ NỮA GIAO LÀM HƠN LINUX
+#   #3 XIN THOÁT CÓ HẠN — dọn ở ĐIỂM AN TOÀN (Linux: SIGKILL không dọn, SIGTERM chen ngang)
+#   #4 HẾT BỘ NHỚ — chọn theo σ HỌC ĐƯỢC rồi HỎI (Linux: heuristic thô + SIGKILL im lặng)
+nhập "lib_gọi_hệ.giao"
+
+đặt M = khởi_máy()
+thêm_người(M, 0, "gốc")  thêm_người(M, 1000, "an")
+đặt khởi = sinh_tt(M, "khởi", 0, 0, "/")
+gọi(M, khởi, GH_TẠO_THƯ, ["/tạm", 777])
+bật_lịch_γ(M, sáng)
+
+rọi "══ #3 XIN THOÁT: cho tiến trình TỰ DỌN, không cắt ngang ══"
+
+# một tiến trình "ghi sổ" có việc dọn thật: phải ghi nốt phần dở dang
+đặt SỔ = []
+đặt T = sinh_tt(M, "ghi_sổ", 5, 1000, "/")
+đặt_khoá(lấy_khoá(M, "thân"), T, hàm() { gom(SỔ, "làm việc")  trả "tiếp" })
+đăng_ký_dọn(M, T, hàm() {
+    gom(SỔ, "dọn: ghi nốt phần dở dang")
+    nếu dài(SỔ) >= 4 { trả "xong" }
+    trả "tiếp"
+})
+
+đặt _ = vòng_nhân(M, 2)
+rọi "làm việc được: " + dài(SỔ) + " bước"
+
+rọi "-- xin_thoát vẫn phải HỎI NGƯỜI (dừng hẳn là bất-khả-hồi) --"
+rọi gọi(M, khởi, GH_XIN_THOÁT, [T, 5])
+rọi lỗi_cuối(M)
+rọi duyệt(M)
+
+rọi "-- rồi nó DỌN ở lát của chính nó, xong mới thoát --"
+đặt _ = vòng_nhân(M, 6)
+rọi SỔ
+rọi "trạng thái sau khi dọn xong: " + trạng(lấy_khoá(M, "nhân"), T)
+lặp d trong vết_dọn(M) { rọi "  · " + d[2] }
+
+rọi "-- kẻ CHÂY Ì không chịu dọn: quá hạn thì nhân MỚI cắt, và NÓI RÕ là đã cắt --"
+đặt T2 = sinh_tt(M, "chây_ì", 5, 1000, "/")
+đặt_khoá(lấy_khoá(M, "thân"), T2, hàm() { trả "tiếp" })
+đăng_ký_dọn(M, T2, hàm() { trả "tiếp" })          # dọn mãi không xong
+gọi(M, khởi, GH_XIN_THOÁT, [T2, 2])  duyệt(M)
+đặt _ = vòng_nhân(M, 8)
+rọi "trạng thái kẻ chây ì: " + trạng(lấy_khoá(M, "nhân"), T2)
+đặt v = vết_dọn(M)
+rọi "  · " + v[dài(v) - 1][2]
+
+rọi "-- không xin tiến-trình 1 thoát được (nhân sẽ sụp) --"
+rọi gọi(M, khởi, GH_XIN_THOÁT, [1, 3])
+rọi lỗi_cuối(M)
+
+rọi "══ #4 HẾT BỘ NHỚ: chọn theo σ rồi HỎI ══"
+đặt A = sinh_tt(M, "quan_trọng", 5, 1000, "/")
+đặt B = sinh_tt(M, "ăn_hại", 5, 1000, "/")
+đặt_khoá(lấy_khoá(M, "thân"), A, hàm() { trả "tiếp" })
+đặt_khoá(lấy_khoá(M, "thân"), B, hàm() { trả "tiếp" })
+# σ do lịch γ HỌC được; ở đây đặt thẳng để phép kiểm tất định
+đặt_khoá(lấy_khoá(M, "γσ"), A, 240)               # đóng góp nhiều
+đặt_khoá(lấy_khoá(M, "γσ"), B, 12)                # gần như chẳng làm gì
+gọi(M, A, GH_CẤP_Ô, [400])
+gọi(M, B, GH_CẤP_Ô, [500])
+rọi soi_bộ_nhớ(M)
+rọi "tổng đang dùng: " + tổng_ô(M) + " / trần " + lấy_khoá(M, "trần_ô")
+
+rọi "-- xin thêm quá trần: nhân KHÔNG tự bắn ai, mà nêu lý do và HỎI --"
+rọi gọi(M, A, GH_CẤP_Ô, [300])
+rọi lỗi_cuối(M)
+rọi "nạn nhân được đề nghị: tt" + lấy_khoá(M, "đề_nghị_oom")[0] + " (σ=" + lấy_khoá(M, "đề_nghị_oom")[1] + ")"
+
+rọi "-- người đồng ý → nó bị XIN THOÁT (êm, có hạn), KHÔNG phải cắt ngang --"
+rọi duyệt(M)
+đặt _ = vòng_nhân(M, 4)
+rọi "trạng thái kẻ ăn hại: " + trạng(lấy_khoá(M, "nhân"), B)
+rọi "trạng thái kẻ quan trọng: " + trạng(lấy_khoá(M, "nhân"), A)
+rọi "-- bộ nhớ được trả lại (chết là tự trả) --"
+rọi "tổng đang dùng: " + tổng_ô(M)
+rọi "-- giờ xin lại thì được --"
+rọi gọi(M, A, GH_CẤP_Ô, [300])

@@ -1,0 +1,22 @@
+# DISPATCH THEO THẺ SỐ (không cần là_ds) — biên dịch xuống GVM.
+# Cây biểu thức = danh-sách có THẺ ở đầu (số), phân loại bằng node[0] == thẻ:
+#   [0, v]      số v
+#   [1, a, b]   a + b
+#   [2, a, b]   a * b
+# Đây là khuôn dispatch của giaoc.giao nhưng KHÔNG dùng là_ds, KHÔNG dùng chuỗi
+# ⇒ biên dịch thẳng xuống máy trit/γ. Bước tiến tới compiler tự thân trên máy.
+
+hàm ev(n) {
+    nếu n[0] == 0 { trả n[1] }                  # số
+    nếu n[0] == 1 { trả ev(n[1]) + ev(n[2]) }   # cộng
+    nếu n[0] == 2 { trả ev(n[1]) * ev(n[2]) }   # nhân
+    trả 0
+}
+
+# (1 + 2) * (3 + 4) = 21
+đặt prog = [2, [1, [0, 1], [0, 2]], [1, [0, 3], [0, 4]]]
+rọi ev(prog)        # 21
+
+# 5 * 5 + 100 = 125
+đặt p2 = [1, [2, [0, 5], [0, 5]], [0, 100]]
+rọi ev(p2)          # 125

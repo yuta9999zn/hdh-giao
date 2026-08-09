@@ -1,0 +1,81 @@
+# ============================================================
+# lib_phân_số.giao — PHÂN SỐ (Fraction/Rational kiểu Python `fractions`/Ruby) cho GIAO
+# ------------------------------------------------------------
+# Biểu diễn: phân số = danh-sách [tử, mẫu], LUÔN rút-gọn + dấu nằm ở TỬ (mẫu > 0).
+# GIỮ CỐT LÕI GIAO: ba-trị (mẫu=0 → 'ẩn' = không xác định · chia cho 0 → ẩn ·
+#   nghịch_đảo của 0 → ẩn · phép toán gặp ẩn → lan-truyền ẩn) · idiom Việt ·
+#   rút gọn bằng `ưcln` của lib_toan; số→chuỗi bằng `chuỗi_số` của lib_chuoi.
+# Nạp: nhập "lib_phân_số.giao".
+# ============================================================
+nhập "lib_toan.giao"      # ưcln (Euclid)
+nhập "lib_chuoi.giao"     # chuỗi_số (số nguyên → chuỗi)
+
+# ---------------- dựng / truy cập ----------------
+hàm phân_số(t, m) {                      # tạo phân số rút-gọn; mẫu = 0 → ẩn ; tử/mẫu ẩn → ẩn
+    nếu loại(t) == "ẩn" { trả ẩn }
+    nếu loại(m) == "ẩn" { trả ẩn }
+    nếu m == 0 { trả ẩn }
+    đặt g = ưcln(t, m)
+    nếu g == 0 { đặt g = 1 }
+    đặt tt = t // g  đặt mm = m // g
+    nếu mm < 0 { đặt tt = 0 - tt  đặt mm = 0 - mm }   # đưa dấu lên tử (mẫu > 0)
+    trả [tt, mm]
+}
+hàm tử_số(p) { trả p[0] }
+hàm mẫu_số(p) { trả p[1] }
+hàm là_ẩn(p) { nếu loại(p) == "ẩn" { trả sáng }  trả tối }   # nội bộ
+
+# ---------------- số học (lan-truyền ẩn) ----------------
+hàm cộng_ps(p, q) {
+    nếu loại(p) == "ẩn" { trả ẩn }
+    nếu loại(q) == "ẩn" { trả ẩn }
+    trả phân_số(p[0] * q[1] + q[0] * p[1], p[1] * q[1])
+}
+hàm trừ_ps(p, q) {
+    nếu loại(p) == "ẩn" { trả ẩn }
+    nếu loại(q) == "ẩn" { trả ẩn }
+    trả phân_số(p[0] * q[1] - q[0] * p[1], p[1] * q[1])
+}
+hàm nhân_ps(p, q) {
+    nếu loại(p) == "ẩn" { trả ẩn }
+    nếu loại(q) == "ẩn" { trả ẩn }
+    trả phân_số(p[0] * q[0], p[1] * q[1])
+}
+hàm chia_ps(p, q) {
+    nếu loại(p) == "ẩn" { trả ẩn }
+    nếu loại(q) == "ẩn" { trả ẩn }
+    nếu q[0] == 0 { trả ẩn }              # chia cho 0 → ẩn
+    trả phân_số(p[0] * q[1], p[1] * q[0])
+}
+hàm nghịch_đảo(p) {
+    nếu loại(p) == "ẩn" { trả ẩn }
+    nếu p[0] == 0 { trả ẩn }              # 0 không có nghịch đảo
+    trả phân_số(p[1], p[0])
+}
+
+# ---------------- so sánh (ba-trị) ----------------
+hàm so_ps(p, q) {                        # -1 / 0 / 1 ; gặp ẩn → ẩn
+    nếu loại(p) == "ẩn" { trả ẩn }
+    nếu loại(q) == "ẩn" { trả ẩn }
+    đặt l = p[0] * q[1]  đặt r = q[0] * p[1]   # mẫu > 0 nên giữ chiều bất đẳng thức
+    nếu l < r { trả 0 - 1 }
+    nếu l > r { trả 1 }
+    trả 0
+}
+hàm bằng_ps(p, q) {                      # → sáng/tối ; gặp ẩn → ẩn (không bịa "tối")
+    đặt s = so_ps(p, q)
+    nếu loại(s) == "ẩn" { trả ẩn }
+    nếu s == 0 { trả sáng }
+    trả tối
+}
+
+# ---------------- chuyển đổi ----------------
+hàm ps_thành_thực(p) {                   # → số thực (điểm-cố-định)
+    nếu loại(p) == "ẩn" { trả ẩn }
+    trả p[0] / p[1]
+}
+hàm chuỗi_ps(p) {                        # → "t/m"  (hoặc "t" nếu mẫu = 1) ; ẩn → "ẩn"  (số→chuỗi = lib_chuoi.chuỗi_số)
+    nếu loại(p) == "ẩn" { trả "ẩn" }
+    nếu p[1] == 1 { trả chuỗi_số(p[0]) }
+    trả chuỗi_số(p[0]) + "/" + chuỗi_số(p[1])
+}

@@ -1,0 +1,52 @@
+# ============================================================
+# app_baocao.giao — PHẦN-MỀM GIAO THẬT: pipeline báo-cáo, GHÉP nhiều thư-viện stdlib.
+# ------------------------------------------------------------
+# Chứng minh stdlib GIAO DÙNG ĐƯỢC (không chỉ test rời): CSV → bản-ghi → lọc/sắp (Duyệt) →
+# thống-kê (Toán) → JSON + báo-cáo (Mẫu). Dùng: lib_csv · lib_chuoi · lib_duyet · lib_toan ·
+# lib_json · lib_mẫu. (Có thể đọc CSV từ TỆP qua capability lib_io; đây nhúng sẵn để chạy mọi nơi.)
+# ============================================================
+nhập "lib_csv.giao"
+nhập "lib_toan.giao"
+nhập "lib_json.giao"
+nhập "lib_mẫu.giao"
+
+đặt csv = "tên,tuổi,điểm
+An,20,85
+Bình,17,92
+Cường,22,78
+Dung,19,95
+Em,16,60"
+
+# 1) CSV → bản-ghi (header làm khoá)
+đặt hàng = phân_tích_csv(csv)
+đặt đầu_đề = hàng[0]
+đặt bản_ghi = []
+lặp h trong bỏ_n(hàng, 1) {
+    đặt r = bản()
+    đặt i = 0
+    lặp cột trong đầu_đề { đặt_khoá(r, cột, h[i])  đặt i = i + 1 }
+    đặt bản_ghi = ghép(bản_ghi, [r])
+}
+
+# 2) LỌC tuổi >= 18 (Duyệt + số_chuỗi)
+hàm trưởng_thành(r) { nếu số_chuỗi(lấy_khoá(r, "tuổi")) >= 18 { trả sáng }  trả tối }
+đặt đủ = lọc(trưởng_thành, bản_ghi)
+
+# 3) SẮP theo điểm GIẢM (Duyệt)
+hàm điểm_của(r) { trả số_chuỗi(lấy_khoá(r, "điểm")) }
+đặt xếp = đảo(sắp_theo(điểm_của, đủ))
+
+# 4) THỐNG-KÊ (Toán)
+đặt tb = trung_bình(bản_đồ(điểm_của, đủ))
+
+# 5) Xuất JSON
+rọi "=== JSON: người đủ tuổi, theo điểm giảm ==="
+lặp r trong xếp { rọi thành_json(r) }
+
+# 6) BÁO-CÁO (Mẫu)
+đặt tt = bản()
+đặt_khoá(tt, "n", dài(đủ))
+đặt_khoá(tt, "tb", tb)
+đặt_khoá(tt, "đầu", lấy_khoá(xếp[0], "tên"))
+rọi "=== BÁO CÁO ==="
+rọi điền("Đủ tuổi: {n} người · điểm TB: {tb} · đầu bảng: {đầu}", tt)

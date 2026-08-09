@@ -1,0 +1,38 @@
+# ============================================================
+# σ/Φ ENSEMBLE — IF tách HAI NHÁNH (chuẩn hoá vào thư viện)
+# (v0.3: qua_Φ / ensemble_γ / Φ_tốt_nhất / de_if_Φ là HÀM CHUẨN, luôn sẵn dùng)
+# ------------------------------------------------------------
+#   σ = niềm tin (một con số). Φ = THẤU KÍNH biểu diễn (hàm ρ→ρ').
+#   Cùng σ, đổi Φ → đổi γ. Tri thức = γ tốt nhất qua cả ENSEMBLE thấu kính.
+#   Không Φ nào đủ khớp ⇒ DE_IF (tâm chưa hình dung nổi thực tại).
+# ============================================================
+
+hàm Φ_thẳng(x) { trả x }            # nhìn thẳng
+hàm Φ_nửa(x)   { trả x / 2 }        # qua tỉ lệ ½
+hàm Φ_log(x)   { trả ln(x) * 14 }   # qua "thấu kính" log (nén thang lớn)
+
+đặt σ = 50
+đặt ρ = 100
+đặt kính = [Φ_thẳng, Φ_nửa, Φ_log]
+
+rọi "Niềm tin σ=50, thực tại ρ=100. Ba thấu kính Φ trong ensemble:"
+rọi "  γ qua Φ_thẳng       : " + qua_Φ(σ, Φ_thẳng, ρ)   # cộng_hưởng(50,100)=0   lệch
+rọi "  γ qua Φ_nửa         : " + qua_Φ(σ, Φ_nửa, ρ)     # cộng_hưởng(50,50)=1    KHỚP
+rọi "  Đa-Φ ensemble (γ tốt nhất): " + ensemble_γ(σ, kính, ρ)   # 1
+
+# Thấu kính nào đắc địa nhất? (argmax Φ)
+đặt tốt = Φ_tốt_nhất(σ, kính, ρ)
+rọi "  Φ đắc địa nhất biến ρ=100 thành: " + tốt(ρ)       # 50 (Φ_nửa)
+
+rọi "→ CÙNG σ, khác Φ → khác γ. Có Φ đúng mới cộng hưởng."
+
+# --- Khi thực tại VƯỢT mọi thấu kính ⇒ DE_IF bật sáng ---
+đặt ρ_lạ = 999999
+rọi ""
+rọi "Thực tại lạ ρ=999999 — không thấu kính nào trong ensemble khớp σ=50:"
+rọi "  γ tốt nhất = " + ensemble_γ(σ, kính, ρ_lạ)
+nếu de_if_Φ(σ, kính, ρ_lạ, 0.5) {
+    rọi "  ⇒ DE_IF SÁNG: tâm CHƯA hình dung nổi — cần thấu kính Φ MỚI (mở rộng ensemble)."
+} khác {
+    rọi "  ⇒ đã có Φ biểu diễn được."
+}

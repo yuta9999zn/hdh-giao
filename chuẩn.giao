@@ -1,0 +1,221 @@
+# ============================================================
+# THƯ VIỆN CHUẨN GIAO  (prelude — tự nạp trước mọi chương trình)
+# Viết bằng CHÍNH GIAO, dựng trên builtin gốc:
+#   đầu đuôi dài ghép thêm là_ds là_số loại nguyên
+# Hàm bậc cao tận dụng hàm-hạng-nhất của GIAO (truyền hàm làm đối số).
+# ============================================================
+
+# ---------------- DANH SÁCH BẬC CAO (ITERATIVE — không đệ quy theo độ dài) ----------------
+# Dùng `lặp x trong ds` ⇒ duyệt dữ liệu lớn KHÔNG tràn ngăn xếp (gỡ trần MAX_DEPTH).
+hàm bản_đồ(f, ds) {                     # map: áp f lên từng phần tử (O(n) — gom tại chỗ)
+    đặt kq = []
+    lặp x trong ds { gom(kq, f(x)) }
+    trả kq
+}
+hàm lọc(p, ds) {                        # filter: giữ phần tử p(x) là sáng (O(n))
+    đặt kq = []
+    lặp x trong ds { nếu p(x) { gom(kq, x) } }
+    trả kq
+}
+hàm gấp(f, z, ds) {                     # fold trái: f(...f(f(z,x0),x1)...) — acc vô hướng, O(n)
+    đặt acc = z
+    lặp x trong ds { đặt acc = f(acc, x) }
+    trả acc
+}
+hàm mỗi(f, ds) {                        # for-each (tác dụng phụ)
+    lặp x trong ds { f(x) }
+    trả ẩn
+}
+hàm dải_từ(i, n) {                      # [i, i+1, ..., n-1] (O(n) — gom)
+    nếu loại(i) == "ẩn" { trả ẩn }       # ẩn → ẩn (không lặp vô tận ở `k >= n`)
+    nếu loại(n) == "ẩn" { trả ẩn }
+    đặt kq = []
+    đặt k = i
+    mãi { nếu k >= n { dừng }  gom(kq, k)  đặt k = k + 1 }
+    trả kq
+}
+hàm dải(n) { trả dải_từ(0, n) }         # [0 .. n-1]
+# đảo / nối / tách: builtin gốc (Python) — O(n), không đệ quy, không O(n²)
+hàm chứa(ds, x) {
+    lặp e trong ds { nếu e == x { trả sáng } }
+    trả tối
+}
+hàm lấy_n(ds, n) {                      # n phần tử đầu (O(n) — gom)
+    đặt kq = []
+    đặt i = 0
+    lặp x trong ds { nếu i >= n { trả kq }  gom(kq, x)  đặt i = i + 1 }
+    trả kq
+}
+
+# ---------------- SỐ HỌC ----------------
+hàm cộng2(a, b) { trả a + b }
+hàm gộp(ds) { trả gấp(cộng2, 0, ds) }           # tổng danh sách
+hàm tuyệt(x) { nếu x < 0 { trả 0 - x } trả x }   # trị tuyệt đối
+hàm lớn(a, b) { nếu a > b { trả a } trả b }
+hàm nhỏ(a, b) { nếu a < b { trả a } trả b }
+hàm luỹ_thừa(a, n) {
+    nếu loại(a) == "ẩn" { trả ẩn }
+    nếu loại(n) == "ẩn" { trả ẩn }       # ẩn → ẩn (không đệ-quy vô tận)
+    nếu n == 0 { trả 1 }
+    trả a * luỹ_thừa(a, n - 1)
+}
+hàm chia_nguyên(a, b) { trả a // b }             # chia lấy nguyên CHÍNH XÁC (số lớn)
+hàm dư(a, b) { trả a - a // b * b }              # a mod b (chính xác mọi cỡ, dùng //)
+hàm chẵn(x) { nếu loại(x) == "ẩn" { trả ẩn }  nếu dư(x, 2) == 0 { trả sáng } trả tối }
+hàm giai_thừa(n) {
+    nếu loại(n) == "ẩn" { trả ẩn }       # ẩn → ẩn (không đệ-quy vô tận)
+    nếu n == 0 { trả 1 }
+    trả n * giai_thừa(n - 1)
+}
+
+# ---------------- CHUỖI ----------------
+# `nối` (join) và `tách` (split) nay là BUILTIN GỐC (Python) — O(n), tránh O(n²) nối/duyệt chuỗi.
+
+# ============================================================
+# TẦNG HỌC THUYẾT CDFL — chọn (hành động), OR tập thể đa tác tử
+# Dựa trên builtin: cộng_hưởng(σ, ρ) → γ ∈ [-1,1]
+# ============================================================
+
+hàm max_ds(ds) { nếu loại(ds) == "ẩn" { trả ẩn }  đặt m = đầu(ds)  lặp x trong đuôi(ds) { nếu x > m { đặt m = x } }  trả m }
+hàm min_ds(ds) { nếu loại(ds) == "ẩn" { trả ẩn }  đặt m = đầu(ds)  lặp x trong đuôi(ds) { nếu x < m { đặt m = x } }  trả m }
+
+# --- argmax: phần tử có f(x) lớn nhất (ITERATIVE) ---
+hàm argmax(f, ds) {
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    nếu dài(ds) == 0 { trả ẩn }
+    đặt tốt = đầu(ds)
+    đặt điểm = f(đầu(ds))
+    lặp x trong đuôi(ds) {
+        đặt e = f(x)
+        nếu e > điểm { đặt tốt = x  đặt điểm = e }
+    }
+    trả tốt
+}
+
+# --- chọn: hành động mở rộng OR THẬT lớn nhất (tiên đề mục 10) ---
+# Hành động = [tên, σ_dự_đoán, ρ_dự_đoán]; γ = OR nếu thực hiện hành động đó.
+hàm γ_hành_động(hđ) { trả cộng_hưởng(hđ[1], hđ[2]) }
+hàm chọn(hành_động) { trả argmax(γ_hành_động, hành_động) }
+
+# --- Đa tác tử: OR TẬP THỂ (tiên đề 11), bảo tồn đa dạng ---
+# tác_tử = [tên, σ]; cùng quan sát một thực tại ρ.
+hàm γ_các_tác_tử(tác_tử, ρ) {                 # O(n) VÒNG gom (thay đệ-quy-đuôi ghép → O(n²) + tràn-stack>900)
+    nếu loại(tác_tử) == "ẩn" { trả ẩn }
+    đặt kq = []
+    lặp t trong tác_tử { gom(kq, cộng_hưởng(t[1], ρ)) }
+    trả kq
+}
+hàm các_σ(tác_tử) {
+    nếu loại(tác_tử) == "ẩn" { trả ẩn }
+    đặt kq = []
+    lặp t trong tác_tử { gom(kq, t[1]) }
+    trả kq
+}
+# trả [γ_tốt_nhất, đa_dạng_niềm_tin] — đa dạng GIÀU OR → nền an toàn AI (empowerment)
+hàm or_tập_thể(tác_tử, ρ) {
+    nếu loại(tác_tử) == "ẩn" { trả ẩn }
+    đặt γs = γ_các_tác_tử(tác_tử, ρ)
+    đặt σs = các_σ(tác_tử)
+    trả [max_ds(γs), max_ds(σs) - min_ds(σs)]
+}
+
+# ============================================================
+# TOÁN cho GIAO — PRNG (ngẫu-nhiên TẤT ĐỊNH) + hàm mũ e^x
+# RNG không cần 'randomness hệ thống': là toán thuần (LCG). Dùng 16-bit để
+# tích < 2^53 nên 'dư' (chia số thực) vẫn chính xác.
+# ============================================================
+hàm ngẫu(seed) { trả dư(seed * 1103515245 + 12345, 2147483648) }  # LCG 31-bit (chuẩn glibc) — nhờ // chính xác
+hàm ngẫu_mod(seed, n) {                                    # [giá_trị trong 0..n-1, seed_mới]
+    đặt s = ngẫu(seed)
+    trả [dư(s, n), s]
+}
+hàm taylor_e(x, tổng, hạng, n) {                           # e^x ≈ Σ x^k/k! (8 số hạng, x NHỎ)
+    nếu n > 8 { trả tổng }
+    đặt h = hạng * x / n
+    trả taylor_e(x, tổng + h, h, n + 1)
+}
+# e^x = (e^(x/16))^16 — thu nhỏ để Taylor chính xác rồi bình phương 4 lần (|x| tới ~20)
+hàm mũ_e(x) {
+    đặt nhỏ = taylor_e(x / 16, 1, 1, 1)
+    đặt b2 = nhỏ * nhỏ
+    đặt b4 = b2 * b2
+    đặt b8 = b4 * b4
+    trả b8 * b8
+}
+# ln(x) qua chuỗi atanh: ln(x) = 2·Σ y^(2k+1)/(2k+1), y=(x−1)/(x+1) — hội tụ mọi x>0
+hàm ln_q(y2, ymũ, mẫu, tổng, n) {
+    nếu n > 24 { trả tổng }
+    trả ln_q(y2, ymũ * y2, mẫu + 2, tổng + ymũ / mẫu, n + 1)
+}
+hàm ln(x) {
+    đặt y = (x - 1) / (x + 1)
+    trả 2 * ln_q(y * y, y, 1, 0, 0)
+}
+
+# ============================================================
+# CDFL SÂU — HAI CÁI CHẤM (âm–dương) + empowerment
+# Ô tri thức = [σ, ρ] (niềm tin, thực tại). γ = cộng_hưởng(σ, ρ).
+# ============================================================
+hàm γ_ô(ô) { trả cộng_hưởng(ô[0], ô[1]) }
+
+# ĐỐM TỐI (ảo tưởng / giả dương): ĐANG-TIN nhưng γ<0 → phải soi lại (lõi an toàn AI)
+hàm là_đốm_tối(ô) {
+    nếu loại(ô[0]) == "ẩn" { trả tối }
+    nếu γ_ô(ô) < 0 { trả sáng }
+    trả tối
+}
+# ĐỐM SÁNG (trực giác / giả âm): còn trong DE (σ=ẩn) — tiềm năng mở OR nếu soi tới
+hàm là_đốm_sáng(ô) {
+    nếu loại(ô[0]) == "ẩn" { trả sáng }
+    trả tối
+}
+# OR THẬT: ô có γ>0 (cộng hưởng dương)
+hàm là_or_thật(ô) {
+    nếu loại(ô[0]) == "ẩn" { trả tối }
+    nếu γ_ô(ô) > 0 { trả sáng }
+    trả tối
+}
+hàm đếm_nếu(p, ds) {                          # đếm phần tử thoả p — O(n) VÒNG (thay đệ-quy-đuôi O(n²)+stack)
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    đặt c = 0
+    lặp x trong ds { nếu p(x) { đặt c = c + 1 } }
+    trả c
+}
+hàm đếm_or_thật(ds)  { trả đếm_nếu(là_or_thật, ds) }
+hàm đếm_đốm_tối(ds)  { trả đếm_nếu(là_đốm_tối, ds) }
+hàm đếm_đốm_sáng(ds) { trả đếm_nếu(là_đốm_sáng, ds) }
+
+# Học một ô: kéo σ về ρ (xoá đốm tối / khai mở đốm sáng) → ô mới
+hàm học_ô(ô) {
+    nếu loại(ô[0]) == "ẩn" { trả [ô[1], ô[1]] }      # khai mở: ẩn → quan sát ρ
+    trả [ô[0] + (ô[1] - ô[0]) / 2, ô[1]]              # kéo niềm tin về thực tại
+}
+
+# ============================================================
+# IF HAI NHÁNH: σ (niềm tin) ⟂ Φ (biểu diễn). ĐA-Φ = ENSEMBLE.
+# Cùng một σ, soi qua các "thấu kính" Φ khác nhau → γ khác nhau.
+# Tri thức = γ TỐT NHẤT qua mọi Φ. Khi KHÔNG Φ nào đủ khớp ⇒ DE_IF
+# (tâm chưa hình dung nổi thực tại — một mặt của Vùng Tối).
+# Φ là HÀM ρ→biểu_diễn (hàm hạng nhất); danh_Φ là ENSEMBLE thấu kính.
+# ============================================================
+hàm qua_Φ(σ, Φ, ρ) { trả cộng_hưởng(σ, Φ(ρ)) }          # γ của σ khi soi qua Φ
+# γ tốt nhất của σ trên ρ qua cả ensemble thấu kính:
+hàm ensemble_γ(σ, danh_Φ, ρ) {                # max qua mọi Φ — O(n) VÒNG (thay đệ-quy O(n²)+stack); GIỮ fold `lớn`
+    nếu loại(danh_Φ) == "ẩn" { trả ẩn }
+    đặt tốt = ẩn  đặt đầu_tiên = sáng
+    lặp Φ trong danh_Φ {
+        đặt g = qua_Φ(σ, Φ, ρ)
+        nếu đầu_tiên { đặt tốt = g  đặt đầu_tiên = tối } khác { đặt tốt = lớn(tốt, g) }
+    }
+    trả tốt
+}
+# Thấu kính Φ ĐẮC ĐỊA nhất (đạt γ cao nhất) — argmax trên danh_Φ:
+hàm Φ_tốt_nhất(σ, danh_Φ, ρ) {
+    trả argmax(hàm(Φ) { trả qua_Φ(σ, Φ, ρ) }, danh_Φ)
+}
+# DE_IF Φ: sáng nếu KHÔNG thấu kính nào đạt ngưỡng ⇒ thực tại vượt mọi biểu diễn.
+hàm de_if_Φ(σ, danh_Φ, ρ, ngưỡng) {
+    nếu loại(danh_Φ) == "ẩn" { trả ẩn }
+    nếu ensemble_γ(σ, danh_Φ, ρ) < ngưỡng { trả sáng }
+    trả tối
+}

@@ -1,0 +1,32 @@
+# ============================================================
+# ulx3s.lpf — ràng buộc chân cho bo ULX3S (ECP5). Theo tệp chân chính thức ULX3S v2.0/v3.x.
+# ============================================================
+LOCATE COMP "clk_25mhz" SITE "G2";
+IOBUF  PORT "clk_25mhz" IO_TYPE=LVCMOS33;
+FREQUENCY PORT "clk_25mhz" 25 MHZ;
+
+# nút bấm (btn[0] = PWR, nhả = 1)
+LOCATE COMP "btn[0]" SITE "D6";   IOBUF PORT "btn[0]" IO_TYPE=LVCMOS33 PULLMODE=DOWN;
+LOCATE COMP "btn[1]" SITE "R1";   IOBUF PORT "btn[1]" IO_TYPE=LVCMOS33 PULLMODE=DOWN;
+LOCATE COMP "btn[2]" SITE "T1";   IOBUF PORT "btn[2]" IO_TYPE=LVCMOS33 PULLMODE=DOWN;
+LOCATE COMP "btn[3]" SITE "R18";  IOBUF PORT "btn[3]" IO_TYPE=LVCMOS33 PULLMODE=DOWN;
+LOCATE COMP "btn[4]" SITE "V1";   IOBUF PORT "btn[4]" IO_TYPE=LVCMOS33 PULLMODE=DOWN;
+LOCATE COMP "btn[5]" SITE "U1";   IOBUF PORT "btn[5]" IO_TYPE=LVCMOS33 PULLMODE=DOWN;
+LOCATE COMP "btn[6]" SITE "H16";  IOBUF PORT "btn[6]" IO_TYPE=LVCMOS33 PULLMODE=DOWN;
+
+# đèn — soi được trạng thái cầu trap ngay trên bo
+LOCATE COMP "led[0]" SITE "B2";   IOBUF PORT "led[0]" IO_TYPE=LVCMOS33 DRIVE=4;
+LOCATE COMP "led[1]" SITE "C2";   IOBUF PORT "led[1]" IO_TYPE=LVCMOS33 DRIVE=4;
+LOCATE COMP "led[2]" SITE "C1";   IOBUF PORT "led[2]" IO_TYPE=LVCMOS33 DRIVE=4;
+LOCATE COMP "led[3]" SITE "D2";   IOBUF PORT "led[3]" IO_TYPE=LVCMOS33 DRIVE=4;
+LOCATE COMP "led[4]" SITE "D1";   IOBUF PORT "led[4]" IO_TYPE=LVCMOS33 DRIVE=4;
+LOCATE COMP "led[5]" SITE "E2";   IOBUF PORT "led[5]" IO_TYPE=LVCMOS33 DRIVE=4;
+LOCATE COMP "led[6]" SITE "E1";   IOBUF PORT "led[6]" IO_TYPE=LVCMOS33 DRIVE=4;
+LOCATE COMP "led[7]" SITE "H3";   IOBUF PORT "led[7]" IO_TYPE=LVCMOS33 DRIVE=4;
+
+# UART qua FTDI (chính là sợi dây nối bo tới NHÂN HĐH-GIAO ở máy chủ)
+LOCATE COMP "ftdi_rxd" SITE "L4"; IOBUF PORT "ftdi_rxd" IO_TYPE=LVCMOS33 PULLMODE=UP;
+LOCATE COMP "ftdi_txd" SITE "M1"; IOBUF PORT "ftdi_txd" IO_TYPE=LVCMOS33 PULLMODE=UP;
+
+# giữ ESP32 im, kẻo nó reset bo
+LOCATE COMP "wifi_gpio0" SITE "L2"; IOBUF PORT "wifi_gpio0" IO_TYPE=LVCMOS33 PULLMODE=UP;

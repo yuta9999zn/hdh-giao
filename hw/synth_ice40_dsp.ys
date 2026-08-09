@@ -1,0 +1,4 @@
+read_verilog gvm.v
+chparam -set MEM 64 gvm
+synth_ice40 -dsp -top gvm
+stat

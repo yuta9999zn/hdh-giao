@@ -1,0 +1,9 @@
+# synth_ice40_up5k.ys — CHỨNG GVM CDFL VỪA iCE40 UP5K (board iCEBreaker).
+# Chạy: yosys -s synth_ice40_up5k.ys  (cần oss-cad-suite/bin + /lib trên PATH)
+# Kết-quả 2026-06-19 (MEM=256, WORD=16): 4726 SB_LUT4 (< UP5K 5280) · 5 SB_RAM40_4K (< 30) · 1 SB_MAC16.
+#   ⇒ VỪA CHIP. Nhờ: ram/stack/rstk → BRAM đọc-đồng-bộ (prefetch operand + gộp đọc 1-cổng + reset đồng-bộ),
+#   nhân→DSP (-dsp), chia 64-bit F-op → tuần-tự. (MEM lớn hơn → thêm BRAM; UP5K có 30 BRAM.)
+read_verilog gvm.v
+chparam -set MEM 256 gvm
+synth_ice40 -dsp -top gvm
+stat

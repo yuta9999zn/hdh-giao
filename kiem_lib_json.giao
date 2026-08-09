@@ -1,0 +1,32 @@
+# Kiểm lib_json — JSON parse/serialize (ba-trị: null↔ẩn, true/false↔sáng/tối)
+nhập "lib_json.giao"
+
+# 1) parse đối-tượng + các kiểu
+đặt m = phân_tích_json("{\"tên\":\"An\",\"tuổi\":25,\"hoạt\":true,\"rảnh\":false,\"ghi\":null}")
+rọi lấy_khoá(m, "tên")         # An
+rọi lấy_khoá(m, "tuổi")        # 25
+rọi lấy_khoá(m, "hoạt")        # sáng  (true)
+rọi lấy_khoá(m, "rảnh")        # tối   (false)
+rọi loại(lấy_khoá(m, "ghi"))   # ẩn    (null → ẩn, KHÔNG bịa)
+
+# 2) mảng + lồng + số âm + thập phân
+đặt a = phân_tích_json("[1, -2, 3.5, [10, 20], {\"x\":7}]")
+rọi a[0]                       # 1
+rọi a[1]                       # -2
+rọi a[2]                       # 3.5
+rọi a[3][1]                    # 20
+rọi lấy_khoá(a[4], "x")        # 7
+
+# 3) serialize
+rọi thành_json(25)                              # 25
+rọi thành_json("xin chào")                      # "xin chào"
+rọi thành_json([1, 2, 3])                       # [1,2,3]
+rọi thành_json(ẩn)                              # null
+rọi thành_json(sáng)                            # true
+đặt b = bản()  đặt_khoá(b, "a", 1)  đặt_khoá(b, "b", [2, 3])
+rọi thành_json(b)                               # {"a":1,"b":[2,3]}
+
+# 4) ROUND-TRIP: parse → serialize → parse, khớp
+đặt gốc = "{\"k\":[1,2],\"c\":true,\"n\":null}"
+đặt lại = thành_json(phân_tích_json(gốc))
+rọi lại                                          # {"k":[1,2],"c":true,"n":null}

@@ -1,0 +1,104 @@
+# ============================================================
+# hdh_ống.giao — ★ ỐNG LIÊN-TIẾN-TRÌNH THẬT (pipe/FIFO của nhân)
+# ------------------------------------------------------------
+# Khác `|` của vỏ (chuyền VĂN BẢN trong MỘT tiến trình), ống ở đây là ĐỐI TƯỢNG CỦA NHÂN nối
+# hai tiến trình KHÁC NHAU, mỗi bên một đầu:
+#   • đọc ống rỗng   → NGỦ (trạng "chặn"), có gói thì nhân đánh thức  → không quay vòng bận
+#   • ghi ống ĐẦY    → NGỦ                                            → PHẢN ÁP (backpressure)
+#   • bên ghi `đóng` → bên đọc rút hết rồi thấy EOF và kết thúc       → không treo mãi
+#   • ống LÀ TỆP: có quyền rwx, `soi` thấy số gói đang đọng           → vẫn "mọi thứ là tệp"
+# Chạy:  python giao.py hdh_ống.giao
+# ============================================================
+nhập "lib_vỏ.giao"
+nhập "lib_chương_trình.giao"
+
+đặt M = khởi_máy()
+
+hàm boot() {
+    thêm_người(M, 0, "gốc")  thêm_người(M, 1000, "an")
+    đặt k = sinh_tt(M, "khởi", 0, 0, "/")
+    gọi(M, k, GH_TẠO_THƯ, ["/hệ", 755])   gọi(M, k, GH_TẠO_THƯ, ["/tạm", 777])
+    gọi(M, k, GH_TẠO_THƯ, ["/ống", 777])  gọi(M, k, GH_TẠO_THƯ, ["/tt", 555])
+    nạp_chương_trình(M)
+    trả k
+}
+
+hàm soi_ống(tid, đường) {
+    đặt s = gọi(M, tid, GH_SOI, [đường])
+    nếu loại(s) == "danh_sách" { trả đường + ": " + s[3] + " gói đọng (" + s[1] + ")" }
+    trả đường + ": " + lỗi_cuối(M)
+}
+hàm trạng_gọn(tid_xem) {
+    đặt ds = gọi(M, tid_xem, GH_TT, [])
+    đặt kq = []
+    lặp p trong ds { nếu p[1] == "khởi" { } khác { gom(kq, "tt" + p[0] + " " + p[1] + "=" + p[2]) } }
+    trả nối(kq, " · ")
+}
+
+đặt KHỞI = boot()
+đặt AN = sinh_tt(M, "vỏ", 5, 1000, "/tạm")
+rọi "┌───────────────────────────────────────────────────────────────┐"
+rọi "│  HĐH-GIAO — ỐNG LIÊN-TIẾN-TRÌNH (pipe thật của nhân)          │"
+rọi "└───────────────────────────────────────────────────────────────┘"
+
+rọi ""
+rọi "════ 1. ỐNG HẸP (sức chứa 1) ⇒ PHẢN ÁP: bên ghi phải NGỦ chờ bên đọc ════"
+gọi(M, AN, GH_ỐNG, ["/ống/hẹp", 1])
+rọi soi_ống(AN, "/ống/hẹp")
+đặt B = gọi(M, AN, GH_SINH, ["bơm", 5, ["", "/ống/hẹp", 5]])
+đặt H = gọi(M, AN, GH_SINH, ["hút", 9, ["/ống/hẹp", "", "/tạm/ra1"]])   # ưu 9 = ưu tiên THẤP hơn
+rọi "bơm → tt" + B + " (ưu 5, cao)   ·   hút → tt" + H + " (ưu 9, thấp — chậm hơn)"
+đặt_khoá(M, "kể", sáng)
+vòng_nhân(M, 10)
+đặt_khoá(M, "kể", tối)
+rọi "→ thấy `bơm → chặn`: ống đầy, nhân bắt bên ghi NGỦ tới khi bên đọc rút bớt. Đó là phản áp."
+rọi trạng_gọn(KHỞI)
+
+rọi ""
+rọi "════ 2. EOF: bên ghi ĐÓNG ⇒ bên đọc rút hết rồi tự kết thúc (không treo) ════"
+chạy_tới_hết(M, 60)
+rọi "nội dung tệp bên nhận:"
+lặp d trong tách(gọi(M, AN, GH_ĐỌC, ["/tạm/ra1"]), "\n") { nếu dài(d) > 0 { rọi "   " + d } }
+rọi trạng_gọn(KHỞI) + "   ← cả hai đã 'chết' đàng hoàng"
+rọi soi_ống(AN, "/ống/hẹp")
+
+rọi ""
+rọi "════ 3. BA CHẶNG: bơm → lọc → hút, ba tiến trình, hai ống ════"
+gọi(M, AN, GH_ỐNG, ["/ống/a", 3])
+gọi(M, AN, GH_ỐNG, ["/ống/b", 3])
+gọi(M, AN, GH_SINH, ["bơm", 5, ["", "/ống/a", 8]])
+gọi(M, AN, GH_SINH, ["lọc", 5, ["/ống/a", "/ống/b", "chẵn"]])
+gọi(M, AN, GH_SINH, ["hút", 5, ["/ống/b", "", "/tạm/ra2"]])
+đặt số_lát = chạy_tới_hết(M, 200)   # KHÔNG đặt tên `lát`: che hàm lát() của lib_chuoi
+rọi "chạy hết trong " + số_lát + " lát lập-lịch. Kết quả (chỉ gói CHẴN đi qua được):"
+lặp d trong tách(gọi(M, AN, GH_ĐỌC, ["/tạm/ra2"]), "\n") { nếu dài(d) > 0 { rọi "   " + d } }
+
+rọi ""
+rọi "════ 4. ỐNG CŨNG CÓ QUYỀN — tiến trình người thường không ghi bừa vào ống của gốc ════"
+gọi(M, KHỞI, GH_ỐNG, ["/ống/kín", 2])
+gọi(M, KHỞI, GH_ĐỔI_QUYỀN, ["/ống/kín", 600])
+rọi "gốc-quyền tạo /ống/kín quyền 600 (chỉ chủ đọc/ghi)"
+gọi(M, AN, GH_GHI, ["/ống/kín", "lén"])
+rọi "   'an' ghi vào: " + lỗi_cuối(M)
+gọi(M, KHỞI, GH_GHI, ["/ống/kín", "hợp lệ"])
+rọi "   gốc-quyền ghi vào: " + soi_ống(KHỞI, "/ống/kín")
+
+rọi ""
+rọi "════ 5. TRUNG THỰC: đọc ống KHÔNG AI GHI ⇒ ngủ MÃI (bế tắc thật, như Linux) ════"
+gọi(M, AN, GH_ỐNG, ["/ống/mồ_côi", 2])
+đặt C = gọi(M, AN, GH_SINH, ["hút", 5, ["/ống/mồ_côi", "", "/tạm/ra3"]])
+vòng_nhân(M, 4)
+rọi "tt" + C + " (hút trên ống không có ai bơm): trạng = " + trạng(lấy_khoá(M, "nhân"), C)
+rọi "còn việc sẵn-sàng? " + còn_việc(M) + "  ⇒ nhân KHÔNG quay tít, chỉ là nó chờ mãi."
+rọi "Nhân giải thoát bằng cách nào? Ai đó `đóng` ống — đúng như Linux đóng đầu ghi:"
+gọi(M, AN, GH_ĐÓNG, ["/ống/mồ_côi"])
+chạy_tới_hết(M, 20)
+rọi "sau khi đóng: tt" + C + " → " + trạng(lấy_khoá(M, "nhân"), C) + " (thấy EOF, kết thúc sạch sẽ)"
+
+rọi ""
+rọi "════ 6. TỔNG KẾT ════"
+rọi trạng_gọn(KHỞI)
+rọi "tổng lát lập-lịch: " + dài(lấy_khoá(M, "vết")) + " · lời gọi hệ: " + dài(lấy_khoá(M, "nhật_ký"))
+rọi ""
+rọi "→ Ống là chỗ HAI TIẾN TRÌNH thật sự chạm nhau: chặn, đánh thức, phản áp, EOF — do NHÂN lo,"
+rọi "  chương trình chỉ việc `ghi`/`đọc`/`đóng` như với tệp thường."

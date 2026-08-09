@@ -1,0 +1,12 @@
+# Chương trình GIAO này sẽ được BIÊN DỊCH xuống bytecode GVM (giaoc.py)
+# rồi chạy trên máy trit/γ — không qua trình thông dịch Python.
+# Vòng hội tụ CDFL: niềm tin (tâm) học dần về thực tại (vật).
+
+vật mục_tiêu = 37        # MF: thực tại
+tâm mục_tiêu = ẩn        # IF: niềm tin khởi đầu = chưa biết
+
+lặp 7 {
+    học mục_tiêu         # σ ← σ + (ρ−σ)>>1   (HỌC ở tầng máy)
+    giao kq = mục_tiêu   # OR = tâm ⋈ vật, kèm γ
+    rọi kq               # in tri thức (γ tăng dần)
+}

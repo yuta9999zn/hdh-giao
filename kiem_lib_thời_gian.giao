@@ -1,0 +1,29 @@
+# Kiểm lib_thời_gian — datetime + múi-giờ (ba-trị)
+nhập "lib_thời_gian.giao"
+
+đặt t = thời_điểm(2026, 6, 17, 14, 30, 0, 420)   # 14:30 UTC+7
+rọi định_dạng_tg(t)                  # 2026-06-17T14:30:00+07:00
+rọi lấy_giờ(t)                       # 14
+rọi lấy_phút(t)                      # 30
+rọi định_dạng_tg(thời_điểm(2026, 2, 30, 0, 0, 0, 0))   # ẩn (ngày sai)
+rọi thời_điểm(2026, 6, 17, 25, 0, 0, 0)                 # ẩn (giờ sai)
+rọi thời_điểm(2026, 6, 17, 0, 60, 0, 0)                 # ẩn (phút sai)
+
+# --- cộng giây/giờ (giữ múi, qua nửa đêm) ---
+rọi định_dạng_tg(cộng_giờ(t, 1))     # 2026-06-17T15:30:00+07:00
+rọi định_dạng_tg(cộng_giờ(thời_điểm(2026, 6, 17, 23, 30, 0, 420), 1))  # 2026-06-18T00:30:00+07:00 (qua ngày)
+rọi định_dạng_tg(cộng_phút(t, 0 - 45))   # 2026-06-17T13:45:00+07:00 (lùi)
+
+# --- đổi múi (CÙNG khoảnh-khắc) ---
+rọi định_dạng_tg(đổi_múi(t, 0))      # 2026-06-17T07:30:00+00:00 (14:30+7 = 07:30 UTC)
+rọi định_dạng_tg(đổi_múi(t, 0 - 300))# 2026-06-17T02:30:00-05:00 (UTC-5)
+
+# --- khoảng + so sánh ---
+đặt u = đổi_múi(t, 0)                 # cùng khoảnh-khắc, múi khác
+rọi khoảng_giây(t, u)                # 0 (cùng lúc)
+rọi cùng_lúc(t, u)                   # sáng
+rọi khoảng_giây(t, cộng_giờ(t, 2))   # 7200
+rọi trước(t, cộng_giờ(t, 1))         # sáng
+rọi trước(cộng_giờ(t, 1), t)         # tối
+rọi so_thời_điểm(t, ẩn)              # ẩn (lan-truyền)
+rọi trước(ẩn, t)                     # ẩn

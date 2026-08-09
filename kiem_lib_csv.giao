@@ -1,0 +1,10 @@
+nhập "lib_csv.giao"
+đặt rows = phân_tích_csv("tên,tuổi,phố
+An,25,Hà Nội
+\"Bình, Jr\",30,\"Số 1, Lê Lợi\"")
+rọi dài(rows)               # 3 hàng
+rọi rows[0]                 # [tên, tuổi, phố]
+rọi rows[1][2]              # Hà Nội
+rọi rows[2][0]              # Bình, Jr   (dấu phẩy trong nháy)
+rọi rows[2][2]              # Số 1, Lê Lợi
+rọi thành_csv([["a","b,c"],["d","e\"f"]])   # a,"b,c" / d,"e""f"

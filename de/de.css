@@ -1,0 +1,215 @@
+/* de.css — bàn làm việc HĐH-GIAO. Tự chứa: không phông ngoài, không ảnh ngoài, không CDN. */
+:root{
+  --nền1:#0b1030; --nền2:#1c3fa8; --nền3:#4f7ce8; --nền4:#9fc0f5;
+  --kính:rgba(18,22,48,.72); --kính-viền:rgba(255,255,255,.13);
+  --chữ:#eef2ff; --chữ-mờ:#a8b3d8; --nhấn:#7aa2ff; --xanh:#4ade80; --vàng:#fbbf24; --đỏ:#f87171;
+  --bo:12px; --bóng:0 18px 50px rgba(0,0,0,.45);
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  font:14px/1.5 "Segoe UI","Inter",system-ui,-apple-system,"Noto Sans",sans-serif;
+  color:var(--chữ); overflow:hidden;
+  background:
+    radial-gradient(120% 90% at 78% 8%, var(--nền3) 0%, transparent 55%),
+    radial-gradient(150% 120% at 20% 100%, var(--nền4) 0%, transparent 45%),
+    linear-gradient(155deg, var(--nền1) 0%, var(--nền2) 55%, #2a55c8 100%);
+}
+/* dải sáng cong như hình nền trong ảnh */
+body::after{
+  content:""; position:fixed; inset:0; pointer-events:none;
+  background:
+    radial-gradient(closest-side at 30% 120%, rgba(255,255,255,.30), transparent 70%),
+    radial-gradient(closest-side at 85% -20%, rgba(255,255,255,.18), transparent 70%);
+}
+.ẩn{display:none !important}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+input{font:inherit}
+
+/* ══════════ MÀN ĐĂNG NHẬP ══════════ */
+.khoá{position:fixed;inset:0;display:grid;place-items:center;z-index:9000;
+  backdrop-filter:blur(3px);background:rgba(6,10,32,.35)}
+.khoá-hộp{width:330px;padding:30px 26px;text-align:center;border-radius:20px;
+  background:var(--kính);border:1px solid var(--kính-viền);box-shadow:var(--bóng);
+  backdrop-filter:blur(24px) saturate(1.3)}
+.khoá-ảnh{width:74px;height:74px;margin:0 auto 14px;border-radius:50%;display:grid;place-items:center;
+  font-size:30px;font-weight:600;background:linear-gradient(145deg,#5b8cff,#2a4bb8);
+  box-shadow:0 6px 20px rgba(0,0,0,.35)}
+.khoá-máy{font-size:19px;font-weight:600}
+.khoá-nhắc{color:var(--chữ-mờ);font-size:12px;margin-bottom:18px;letter-spacing:.08em}
+.khoá-ô{width:100%;margin-bottom:9px;padding:10px 13px;border-radius:9px;color:var(--chữ);
+  background:rgba(255,255,255,.09);border:1px solid var(--kính-viền);outline:none}
+.khoá-ô:focus{border-color:var(--nhấn);background:rgba(255,255,255,.14)}
+.khoá-nút{width:100%;margin-top:6px;padding:10px;border-radius:9px;font-weight:600;
+  background:linear-gradient(145deg,#5b8cff,#3560d8)}
+.khoá-nút:hover{filter:brightness(1.12)}
+.khoá-lỗi{min-height:19px;margin-top:9px;color:var(--đỏ);font-size:12.5px}
+.khoá-gợi{margin-top:6px;color:var(--chữ-mờ);font-size:11.5px;opacity:.75}
+
+/* ══════════ THANH TRÊN ══════════ */
+.bàn{position:fixed;inset:0}
+.thanh{position:absolute;top:0;left:0;right:0;height:34px;display:flex;align-items:center;
+  gap:6px;padding:0 10px;z-index:500;
+  background:rgba(10,14,38,.55);backdrop-filter:blur(18px);
+  border-bottom:1px solid rgba(255,255,255,.08)}
+.thanh-nút{padding:3px 9px;border-radius:7px;font-size:14px}
+.thanh-nút:hover{background:rgba(255,255,255,.14)}
+.thanh-logo{font-size:15px;color:#cfe0ff}
+.thanh-giữa{flex:1}
+.khay{display:flex;align-items:center;gap:12px;font-size:12.5px;color:var(--chữ-mờ)}
+.khay-mục{font-variant-numeric:tabular-nums}
+.khay-giờ{color:var(--chữ);font-variant-numeric:tabular-nums}
+
+/* ══════════ ĐỒNG HỒ WIDGET ══════════ */
+/* z-index 1: đồng hồ là TRANG TRÍ, phải nằm DƯỚI cửa sổ — để trên thì nó nuốt mất cú bấm
+   của cửa sổ nào trôi vào góc phải trên. */
+.đồng-hồ{position:absolute;top:60px;right:48px;width:150px;height:150px;z-index:1;
+  border-radius:34px;padding:10px;background:rgba(20,22,28,.82);
+  border:1px solid rgba(255,255,255,.10);box-shadow:var(--bóng);backdrop-filter:blur(8px)}
+.đồng-hồ svg{width:100%;height:100%}
+.dh-số{fill:#f2f4f8;font-size:13px;font-weight:600;text-anchor:middle;dominant-baseline:middle}
+.dh-vạch line{stroke:rgba(255,255,255,.38);stroke-width:1.3;stroke-linecap:round}
+.dh-vạch line.dài{stroke:rgba(255,255,255,.72);stroke-width:2}
+.dh-kim{stroke:#f2f4f8;stroke-linecap:round}
+.dh-kim-giờ{stroke-width:4.2}
+.dh-kim-phút{stroke-width:3}
+.dh-kim-giây{stroke:var(--vàng);stroke-width:1.4}
+.dh-tâm{fill:var(--vàng)}
+
+/* ══════════ MENU ỨNG DỤNG ══════════ */
+.menu{position:absolute;top:40px;left:10px;width:660px;height:520px;z-index:600;
+  display:flex;flex-direction:column;border-radius:16px;overflow:hidden;
+  background:var(--kính);border:1px solid var(--kính-viền);box-shadow:var(--bóng);
+  backdrop-filter:blur(26px) saturate(1.3)}
+.menu-đầu{display:flex;align-items:center;gap:11px;padding:12px 14px;
+  border-bottom:1px solid rgba(255,255,255,.07)}
+.menu-ảnh{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:14px;
+  background:linear-gradient(145deg,#5b8cff,#2a4bb8)}
+.menu-tên{font-weight:600}
+.menu-tìm{flex:1;max-width:330px;margin-left:auto;padding:6px 12px;border-radius:8px;color:var(--chữ);
+  background:rgba(255,255,255,.09);border:1px solid var(--kính-viền);outline:none}
+.menu-tìm:focus{border-color:var(--nhấn)}
+.menu-thân{flex:1;display:flex;min-height:0}
+.menu-cột{width:210px;padding:8px;overflow:auto;border-right:1px solid rgba(255,255,255,.07)}
+.nhóm{display:flex;align-items:center;gap:10px;width:100%;padding:8px 11px;border-radius:8px;
+  text-align:left;color:var(--chữ-mờ);font-size:13.5px}
+.nhóm:hover{background:rgba(255,255,255,.08);color:var(--chữ)}
+.nhóm.chọn{background:rgba(122,162,255,.20);color:var(--chữ);font-weight:600}
+.nhóm .chấm{margin-left:auto;width:7px;height:7px;border-radius:50%;background:var(--xanh)}
+.menu-lưới{flex:1;padding:12px;overflow:auto;
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));
+  grid-auto-rows:min-content;gap:8px;align-content:start}
+.ô-app{padding:11px 6px;border-radius:11px;text-align:center;font-size:12px;color:var(--chữ)}
+.ô-app:hover{background:rgba(255,255,255,.10)}
+.ô-app .biểu{display:block;margin:0 auto 7px;width:46px;height:46px;border-radius:12px;
+  display:grid;place-items:center;font-size:22px;box-shadow:0 4px 12px rgba(0,0,0,.3)}
+.menu-chân{display:flex;align-items:center;gap:5px;padding:8px 10px;
+  background:rgba(0,0,0,.22);border-top:1px solid rgba(255,255,255,.07)}
+.chân-nút{padding:6px 11px;border-radius:8px;font-size:12.5px;color:var(--chữ-mờ)}
+.chân-nút:hover{background:rgba(255,255,255,.12);color:var(--chữ)}
+.chân-chọn{background:rgba(255,255,255,.14);color:var(--chữ)}
+.menu-giãn{flex:1}
+
+/* ══════════ CỬA SỔ ══════════ */
+.vùng{position:absolute;inset:34px 0 96px 0}
+.cửa{position:absolute;display:flex;flex-direction:column;min-width:340px;min-height:200px;
+  border-radius:var(--bo);overflow:hidden;background:var(--kính);
+  border:1px solid var(--kính-viền);box-shadow:var(--bóng);backdrop-filter:blur(22px) saturate(1.2)}
+.cửa.mờ{opacity:.93}
+.cửa-đầu{display:flex;align-items:center;gap:9px;padding:9px 12px;cursor:grab;user-select:none;
+  background:rgba(255,255,255,.06);border-bottom:1px solid rgba(255,255,255,.07)}
+.cửa-đầu:active{cursor:grabbing}
+.cửa-tên{font-size:13px;font-weight:600;flex:1}
+/* Vùng bấm 22px nhưng chấm màu vẫn 13px — dễ trúng mà nhìn không to ra. */
+.cửa-nút{width:22px;height:22px;border-radius:50%;flex:none;display:grid;place-items:center;
+  margin:-4px -4px -4px 0}
+.cửa-nút::before{content:"";width:13px;height:13px;border-radius:50%;grid-area:1/1}
+.n-đỏ::before{background:#ff5f57}.n-vàng::before{background:#febc2e}.n-xanh::before{background:#28c840}
+.cửa-thân{flex:1;overflow:auto;padding:12px}
+.cửa-chân{display:flex;align-items:center;gap:8px;padding:8px 10px;flex:none;
+  background:rgba(0,0,0,.26);border-top:1px solid rgba(255,255,255,.09)}
+.cửa-góc{position:absolute;right:0;bottom:0;width:16px;height:16px;cursor:nwse-resize}
+.cửa.thu{display:none}                       /* thu nhỏ: còn sống, chỉ khuất mắt */
+/* Rê chuột vào thanh tiêu đề mới lộ dấu trong chấm — đúng nếp macOS */
+.cửa-nút::after{grid-area:1/1;font:700 10px/1 system-ui;opacity:0;transition:opacity .12s}
+.cửa-đầu:hover .cửa-nút::after{opacity:.72}
+.n-đỏ::after{content:"×";color:#4a0000}
+.n-vàng::after{content:"–";color:#5a3c00}
+.n-xanh::after{content:"+";color:#00420f}
+.dock-ô.thu{opacity:.55}                      /* biểu tượng mờ = cửa sổ đang thu nhỏ */
+.dock-ô.thu .sáng{background:var(--vàng)}
+
+/* nội dung ứng dụng */
+.vt{font:12.5px/1.55 "Cascadia Mono","Consolas","Menlo",monospace;white-space:pre-wrap;word-break:break-word}
+.tm-ra{margin:0}
+.tm-nhắc{color:var(--xanh)}
+.tm-lỗi{color:var(--đỏ)}
+.tm-dòng{display:flex;gap:6px;align-items:baseline;margin-top:4px}
+.tm-ô{flex:1;padding:6px 10px;border-radius:8px;color:var(--chữ);outline:none;
+  background:rgba(255,255,255,.08);border:1px solid var(--kính-viền);
+  font:12.5px/1.4 "Cascadia Mono","Consolas",monospace}
+.tm-ô:focus{border-color:var(--nhấn);background:rgba(255,255,255,.13)}
+.tm-ô:disabled{opacity:.55}
+.nút-nhỏ{padding:6px 12px;font-size:12px}
+/* bảng chọn chuột phải */
+.bảng-chọn{position:fixed;z-index:7000;min-width:190px;padding:6px;border-radius:11px;
+  background:var(--kính);border:1px solid var(--kính-viền);box-shadow:var(--bóng);
+  backdrop-filter:blur(24px) saturate(1.3)}
+.bc-mục{display:block;width:100%;text-align:left;padding:7px 11px;border-radius:7px;font-size:13px}
+.bc-mục:hover{background:rgba(122,162,255,.24)}
+/* đích thả được */
+.thả-được{outline:2px dashed var(--nhấn);outline-offset:-2px;background:rgba(122,162,255,.16)}
+.dock-ô.thả-được{transform:translateY(-8px) scale(1.12)}
+tr[draggable="true"]{cursor:grab}
+/* trình soạn thảo */
+.st-ô{width:100%;height:calc(100% - 58px);min-height:180px;margin-top:10px;padding:11px;
+  border-radius:9px;color:var(--chữ);background:rgba(0,0,0,.30);border:1px solid var(--kính-viền);
+  outline:none;resize:none;font:12.5px/1.6 "Cascadia Mono","Consolas",monospace}
+.st-ô:focus{border-color:var(--nhấn)}
+.nút-hàng{padding:2px 7px;border-radius:6px;font-size:12px;background:rgba(255,255,255,.10);opacity:.55}
+.nút-hàng:hover{background:rgba(255,255,255,.22);opacity:1}
+code{font-family:"Cascadia Mono","Consolas",monospace;font-size:.92em;
+  padding:1px 5px;border-radius:5px;background:rgba(0,0,0,.28)}
+.tl-chờ{color:var(--chữ-mờ);font-style:italic}
+.bảng{width:100%;border-collapse:collapse;font-size:12.5px}
+.bảng th{text-align:left;padding:6px 8px;color:var(--chữ-mờ);font-weight:600;
+  border-bottom:1px solid rgba(255,255,255,.12);position:sticky;top:-12px;background:rgba(20,24,52,.95)}
+.bảng td{padding:5px 8px;border-bottom:1px solid rgba(255,255,255,.05)}
+.bảng tr:hover td{background:rgba(255,255,255,.06)}
+.bảng .mono{font-family:"Cascadia Mono","Consolas",monospace;color:var(--chữ-mờ)}
+.hàng-thư{cursor:pointer}
+.đường{display:flex;gap:6px;align-items:center;margin-bottom:10px;font-size:12.5px;flex-wrap:wrap}
+.đường button{padding:3px 9px;border-radius:7px;background:rgba(255,255,255,.09)}
+.đường button:hover{background:rgba(255,255,255,.18)}
+.thẻ{display:inline-block;padding:1px 8px;border-radius:20px;font-size:11px;
+  background:rgba(122,162,255,.22);color:#cfe0ff}
+.gợi{color:var(--chữ-mờ);font-size:12px;margin-bottom:10px}
+.nút{padding:8px 16px;border-radius:9px;font-weight:600;font-size:13px}
+.nút-đậm{background:linear-gradient(145deg,#5b8cff,#3560d8)}
+.nút-nhạt{background:rgba(255,255,255,.12)}
+.nút:hover{filter:brightness(1.14)}
+
+/* ══════════ DOCK ══════════ */
+.dock{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:400;
+  display:flex;align-items:flex-end;gap:9px;padding:9px 12px;border-radius:20px;
+  background:rgba(16,20,44,.62);border:1px solid var(--kính-viền);
+  box-shadow:var(--bóng);backdrop-filter:blur(24px) saturate(1.3)}
+.dock-ô{position:relative;width:50px;height:50px;border-radius:14px;display:grid;place-items:center;
+  font-size:23px;transition:transform .13s ease;box-shadow:0 5px 14px rgba(0,0,0,.32)}
+.dock-ô:hover{transform:translateY(-8px) scale(1.09)}
+.dock-ô .sáng{position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);
+  width:5px;height:5px;border-radius:50%;background:#fff;opacity:.9}
+
+/* ══════════ HỘP PHÊ DUYỆT ══════════ */
+.duyệt-nền{position:fixed;inset:0;z-index:8000;display:grid;place-items:center;
+  background:rgba(4,7,26,.55);backdrop-filter:blur(5px)}
+.duyệt{width:430px;padding:26px;text-align:center;border-radius:18px;
+  background:var(--kính);border:1px solid rgba(251,191,36,.42);box-shadow:var(--bóng);
+  backdrop-filter:blur(26px)}
+.duyệt-biểu{font-size:34px;color:var(--vàng)}
+.duyệt-tiêu{margin:8px 0 12px;font-size:17px;font-weight:600}
+.duyệt-mô{padding:11px;border-radius:9px;margin-bottom:12px;
+  font-family:"Cascadia Mono","Consolas",monospace;font-size:12.5px;color:var(--vàng);
+  background:rgba(0,0,0,.28)}
+.duyệt-giải{color:var(--chữ-mờ);font-size:12.5px;margin-bottom:18px}
+.duyệt-nút{display:flex;gap:10px;justify-content:center}

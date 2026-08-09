@@ -1,0 +1,226 @@
+# ============================================================
+# lib_mật_khẩu.giao — BĂM MẬT KHẨU CÓ MUỐI, CÓ LẶP (kiểu /etc/shadow)
+# ------------------------------------------------------------
+# Vì sao không dùng `băm()` của lib_băm.giao: djb2 là hash cho BẢNG BĂM — không muối, không lặp,
+# một phép nhân là xong. Đem băm mật khẩu thì bảng cầu vồng phá trong tích tắc.
+#
+# Ở đây dùng cấu trúc chuẩn của một hàm dẫn-xuất-khoá:
+#   • MUỐI ngẫu nhiên cho từng người  ⇒ hai người trùng mật khẩu vẫn ra hai bản băm khác nhau,
+#     và bảng tính sẵn trở nên vô dụng.
+#   • LẶP nhiều vòng                   ⇒ mỗi lần thử đoán phải trả đúng chừng ấy công.
+#   • Trộn theo MODULO SỐ NGUYÊN TỐ lớn (2^61−1, số nguyên tố Mersenne) — GIAO tính số nguyên
+#     CHÍNH XÁC nên phép modulo này không hề mất bit như số thực.
+#
+# BA ĐỊNH DẠNG SONG SONG (bản ghi cũ KHÔNG bao giờ bị bắt đổi):
+#   $g1$<vòng>$<muối>$<băm16hex>   bộ trộn Mersenne cũ — giữ để bản ghi đời đầu vẫn đọc được
+#   $g2$<vòng>$<muối>$<băm64hex>   SHA-256 THẬT (lib_sha256.giao) xích `vòng` lần
+#   $g3$<N>$<muối>$<băm64hex>      ★ KHÓ VỀ BỘ NHỚ (ROMix kiểu scrypt) — BẢN MỚI dùng cái này
+#
+# ⚠ TRUNG THỰC VỀ SỨC MẠNH: $g2$ chỉ khó về THỜI GIAN nên GPU vẫn ăn được; $g3$ thêm được tính
+#   khó-về-BỘ-NHỚ với ĐÚNG cùng một ngân sách thời gian (đo thật: g2 743 ms/lần · g3 752 ms/lần,
+#   chênh 1,2%). Nhưng bảng của $g3$ mới 2 KB, còn xa scrypt (16 MB) và yescrypt của Kali —
+#   xem ghi chú dài ở ngay trên `băm_mk3`. Cả ba đều CHƯA qua thẩm định mật mã.
+# ============================================================
+nhập "lib_chuoi.giao"
+nhập "lib_sha256.giao"
+
+đặt MK_NGUYÊN_TỐ = 2305843009213693951      # 2^61 − 1
+đặt MK_NHÂN      = 6364136223846793005      # hệ số trộn (PCG/Knuth LCG)
+đặt MK_VÒNG      = 4096                      # số vòng lặp mặc định
+đặt MK_HEX       = "0123456789abcdef"
+
+hàm _mk_dư(a) { trả a - a // MK_NGUYÊN_TỐ * MK_NGUYÊN_TỐ }
+
+# một vòng trộn: nhân, cộng, gập — luôn nằm trong [0, P)
+hàm _trộn(h, x) {
+    đặt t = _mk_dư(h * MK_NHÂN + x + 1)
+    trả _mk_dư(t + t // 4294967296)          # gập nửa cao xuống, tránh bit cao "chết"
+}
+
+hàm _mk_nuốt(h, s) {
+    lặp c trong s { đặt h = _trộn(h, mã(c)) }
+    trả h
+}
+
+# số → chuỗi hex 16 ký tự (chữ thường)
+hàm mk_hex(n, rộng) {
+    đặt ra = ""
+    đặt v = n
+    lặp rộng {
+        đặt ra = lát_chuỗi(MK_HEX, v - v // 16 * 16, v - v // 16 * 16 + 1) + ra
+        đặt v = v // 16
+    }
+    trả ra
+}
+
+# ---------------- băm chính ----------------
+hàm băm_mk(mật_khẩu, muối, vòng) {
+    đặt h = _mk_nuốt(_mk_nuốt(1469598103934665, muối), mật_khẩu)
+    đặt d = dài(mật_khẩu) + dài(muối)
+    lặp vòng {
+        đặt h = _trộn(h, d)                  # công không rút ngắn được: mỗi vòng phụ thuộc vòng trước
+        đặt h = _trộn(h, muối_mã(muối, h))
+    }
+    trả mk_hex(h, 16)
+}
+
+# lấy một mã ký tự của muối, chọn theo trạng thái hiện tại ⇒ không bỏ qua vòng nào được
+hàm muối_mã(muối, h) {
+    đặt n = dài(muối)
+    nếu n == 0 { trả 0 }
+    đặt i = h - h // n * n
+    trả mã(lát_chuỗi(muối, i, i + 1))
+}
+
+# ---------------- muối ngẫu nhiên ----------------
+hàm muối_mới(hạt) {
+    đặt s = ""
+    đặt v = hạt
+    lặp 16 {
+        đặt v = ngẫu(v)
+        đặt i = v - v // 16 * 16
+        đặt s = s + lát_chuỗi(MK_HEX, i, i + 1)
+    }
+    trả s
+}
+
+# ---------------- $g2$: SHA-256 xích (C1) ----------------
+đặt MK_VÒNG2 = 128                           # ~0.8s/lần kiểm ở thông dịch (6.3ms/vòng sau khi
+                                             # inline vòng nóng lib_sha256) — nâng nữa khi có đường máy
+
+# xích theo BYTE (không qua hex giữa chừng): mỗi vòng băm đúng MỘT khối 64-byte (32 digest + muối)
+hàm băm_mk2(mật_khẩu, muối, vòng) {
+    đặt H = sha256_bytes(utf8_mã(muối + "$" + mật_khẩu))
+    đặt mb = utf8_mã(muối)
+    lặp vòng {
+        đặt bs = []
+        lặp w trong H {
+            gom(bs, và_bit(dịch_phải(w, 24), 255))  gom(bs, và_bit(dịch_phải(w, 16), 255))
+            gom(bs, và_bit(dịch_phải(w, 8), 255))   gom(bs, và_bit(w, 255))
+        }
+        đặt H = sha256_bytes(ghép(bs, mb))
+    }
+    đặt ra = ""
+    lặp w trong H { đặt ra = ra + _s_hex32(w) }
+    trả ra
+}
+
+# ---------------- $g3$: KHÓ VỀ BỘ NHỚ (memory-hard) — học yescrypt của Kali ----------------
+# Quan sát máy THẬT (Kali 2026.2, `/etc/login.defs`): `ENCRYPT_METHOD YESCRYPT`. Đây là chỗ
+# Kali HƠN ta thật, nói thẳng ra: $g2$ chỉ khó về THỜI GIAN. Kẻ tấn công đem GPU ra là thắng,
+# vì SHA-256 gần như không cần bộ nhớ — nhét vài nghìn nhân băm song song lên một con card là
+# xong, mỗi nhân chỉ tốn dăm chục byte.
+#
+# Cách chữa đúng (Percival, scrypt 2009): bắt hàm băm phải GIỮ MỘT BẢNG LỚN và truy cập vào
+# bảng ấy theo thứ tự KHÔNG ĐOÁN TRƯỚC ĐƯỢC. Hai pha:
+#   ① ĐỔ ĐẦY: V[0..N−1], mỗi ô là kết quả băm của ô trước ⇒ phải chạy tuần tự, không rút gọn.
+#   ② TRUY CẬP NGẪU NHIÊN: mỗi bước lấy j từ CHÍNH trạng thái hiện tại rồi trộn với V[j].
+#      j chỉ biết được sau khi đã tính tới đó ⇒ không nạp trước, không đoán trước.
+# Kẻ nào tiếc bộ nhớ mà chỉ giữ một phần bảng thì mỗi lần trượt ô phải TÍNH LẠI từ đầu —
+# đó chính là cái giá đổi-bộ-nhớ-lấy-thời-gian khiến GPU/ASIC hết rẻ.
+#
+# ⚠ TRUNG THỰC — ĐỪNG đọc "memory-hard" thành "bằng yescrypt":
+#   • Bảng ở đây N ô × 32 byte. Mặc định N = 64 ⇒ **2 KB**. scrypt thật chạy N = 16384 (16 MB),
+#     yescrypt còn hơn. Ta có ĐÚNG CẤU TRÚC nhưng LƯỢNG bộ nhớ còn nhỏ, nên phần chặn GPU mới
+#     là phần nào chứ chưa dứt điểm.
+#   • Vì sao N nhỏ: ngân sách thời gian. 2N lần SHA-256 ở đường thông dịch ⇒ N=64 ngốn đúng
+#     bằng $g2$ 128 vòng. ĐO THẬT (3 lượt/phép, đã trừ chi phí khởi động 99ms):
+#         $g2$ 128 vòng = 743 ms/lần   ·   $g3$ N=64 = 752 ms/lần   → chênh 1,2%
+#     Nói cách khác: **cùng một cái giá, nay mua thêm được tính khó-về-bộ-nhớ.** Đó là lý do đổi.
+#   • N nằm TRONG bản ghi (như `vòng`), nên có đường máy nhanh thì nâng N, bản ghi cũ vẫn khớp.
+#   • Vẫn CHƯA qua thẩm định mật mã.
+đặt MK_N3 = 64                               # số ô của bảng V (bộ nhớ = N × 32 byte)
+
+hàm _mk_byte(H) {                            # 8 từ 32-bit → 32 byte
+    đặt bs = []
+    lặp w trong H {
+        gom(bs, và_bit(dịch_phải(w, 24), 255))  gom(bs, và_bit(dịch_phải(w, 16), 255))
+        gom(bs, và_bit(dịch_phải(w, 8), 255))   gom(bs, và_bit(w, 255))
+    }
+    trả bs
+}
+
+hàm _mk_xor_dãy(a, b) {
+    đặt ra = []
+    đặt i = 0
+    mãi { nếu i >= dài(a) { dừng }  gom(ra, xor(a[i], b[i]))  đặt i = i + 1 }
+    trả ra
+}
+
+hàm _mk_chỉ_số(X, N) {
+    "Lấy 4 byte CUỐI của trạng thái làm chỉ số — j phụ thuộc trạng thái nên không đoán trước được."
+    đặt d = dài(X)
+    đặt v = X[d - 4] * 16777216 + X[d - 3] * 65536 + X[d - 2] * 256 + X[d - 1]
+    trả v - v // N * N
+}
+
+hàm băm_mk3(mật_khẩu, muối, N) {
+    đặt mb = utf8_mã(muối)
+    đặt X = _mk_byte(sha256_bytes(utf8_mã(muối + "$" + mật_khẩu)))
+    # ① ĐỔ ĐẦY BẢNG — đây là chỗ ngốn bộ nhớ, và tuần tự nên không rút ngắn được
+    đặt V = []
+    lặp N {
+        gom(V, X)
+        đặt X = _mk_byte(sha256_bytes(ghép(X, mb)))
+    }
+    # ② TRUY CẬP NGẪU NHIÊN — đây là chỗ BẮT PHẢI GIỮ cả bảng
+    lặp N {
+        đặt j = _mk_chỉ_số(X, N)
+        đặt X = _mk_byte(sha256_bytes(ghép(_mk_xor_dãy(X, V[j]), mb)))
+    }
+    đặt ra = ""
+    lặp b trong X {
+        đặt ra = ra + lát_chuỗi(MK_HEX, dịch_phải(b, 4), dịch_phải(b, 4) + 1)
+        đặt ra = ra + lát_chuỗi(MK_HEX, và_bit(b, 15), và_bit(b, 15) + 1)
+    }
+    trả ra
+}
+
+# ---------------- bản ghi kiểu /etc/shadow ----------------
+hàm dựng_bóng(mật_khẩu, muối, vòng) {
+    trả "$g1$" + vòng + "$" + muối + "$" + băm_mk(mật_khẩu, muối, vòng)
+}
+hàm dựng_bóng2(mật_khẩu, muối, vòng) {
+    trả "$g2$" + vòng + "$" + muối + "$" + băm_mk2(mật_khẩu, muối, vòng)
+}
+hàm dựng_bóng3(mật_khẩu, muối, N) {
+    trả "$g3$" + N + "$" + muối + "$" + băm_mk3(mật_khẩu, muối, N)
+}
+
+hàm bóng_mới(mật_khẩu, hạt) { trả dựng_bóng3(mật_khẩu, muối_mới(hạt), MK_N3) }      # BẢN MỚI = $g3$
+hàm bóng_mới_g2(mật_khẩu, hạt) { trả dựng_bóng2(mật_khẩu, muối_mới(hạt), MK_VÒNG2) } # chỉ để kiểm cũ
+hàm bóng_mới_g1(mật_khẩu, hạt) { trả dựng_bóng(mật_khẩu, muối_mới(hạt), MK_VÒNG) }  # chỉ để kiểm cũ
+
+# TRẦN CÔNG: bản ghi tự khai số vòng / số ô, mà ta lại chạy đúng theo lời khai ấy. Một bản ghi
+# mang `N = 999999999` (do sổ hỏng, do chụp-ảnh cũ nạp lại, do gói cài đặt bậy) sẽ treo máy NGAY
+# TẠI MÀN ĐĂNG NHẬP — kẻ tấn công không cần biết mật khẩu, chỉ cần ghi được một dòng vào sổ.
+# Trần này KHÔNG hạ mức an toàn: nó chỉ chặn con số vô lý, còn dư xa mức ta dùng (128 / 64).
+đặt MK_TRẦN_VÒNG = 100000                    # $g1$/$g2$ — số vòng lặp
+đặt MK_TRẦN_N    = 4096                      # $g3$ — số ô bảng V (4096 × 32B = 128 KB)
+# Trần vẫn còn ĐẮT nếu ai đó ghi sát trần: N=4096 tốn ~51 giây ở đường thông dịch. Chọn thế để
+# còn chỗ nâng `MK_N3` khi có đường máy nhanh — nhưng nếu sau này thấy 51 giây là quá, hạ xuống
+# được ngay mà không phá bản ghi nào đang dùng (mức đang dùng là 64).
+
+hàm khớp_mk(mật_khẩu, bóng) {
+    đặt p = tách_giữ(bóng, "$")                  # ["", "g1|g2|g3", vòng|N, muối, băm]
+    nếu dài(p) < 5 { trả tối }
+    đặt vòng = số_chuỗi(p[2])
+    nếu loại(vòng) == "ẩn" { trả tối }
+    nếu vòng < 1 { trả tối }                     # 0 vòng = không tốn công gì — từ chối thẳng
+    nếu p[1] == "g1" {                           # bản ghi CŨ vẫn đọc được (không bắt ai đổi mật khẩu)
+        nếu vòng > MK_TRẦN_VÒNG { trả tối }
+        nếu băm_mk(mật_khẩu, p[3], vòng) == p[4] { trả sáng }
+        trả tối
+    }
+    nếu p[1] == "g2" {
+        nếu vòng > MK_TRẦN_VÒNG { trả tối }
+        nếu băm_mk2(mật_khẩu, p[3], vòng) == p[4] { trả sáng }
+        trả tối
+    }
+    nếu p[1] == "g3" {                           # `vòng` ở đây là N — số ô của bảng V
+        nếu vòng > MK_TRẦN_N { trả tối }
+        nếu băm_mk3(mật_khẩu, p[3], vòng) == p[4] { trả sáng }
+        trả tối
+    }
+    trả tối
+}

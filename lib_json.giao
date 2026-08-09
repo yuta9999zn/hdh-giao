@@ -1,0 +1,161 @@
+# ============================================================
+# lib_json.giao — JSON cho GIAO (tham-chiếu json của Python / JSON của Ruby)
+# ------------------------------------------------------------
+# Python json.loads/dumps ↔ Ruby JSON.parse/generate. GIAO: phân_tích_json / thành_json.
+# ÁNH XẠ ba-trị CDFL (đẹp): JSON null ↔ GIAO 'ẩn' (chưa-biết) · true/false ↔ sáng/tối.
+#   object↔bản · array↔danh-sách · number↔số · string↔chuỗi.
+# Parser đệ-quy-xuống (recursive descent) tự-thân; dựng trên builtin + lib_chuoi (chỉ_số).
+# Nạp: nhập "lib_json.giao".
+# (Giới-hạn v1: escape \uXXXX chưa hỗ trợ.)
+# ⚠ GIỚI-HẠN LÕI (không vá được ở tầng lib): `sáng`/`tối` được lõi biểu-diễn = chuỗi "sáng"/"tối"
+#   (giao.py SANG="sáng"), nên `loại(sáng)`=="chuỗi" — KHÔNG phân-biệt được bool `sáng` với chuỗi
+#   văn-bản "sáng". Do đó `thành_json("sáng")` → `true` (theo đúng ánh-xạ ba-trị↔bool). Muốn tách
+#   bạch phải làm sáng/tối thành KIỂU riêng trong lõi (thay đổi lớn) — tài-liệu-hoá thay vì giả-vá.
+# ============================================================
+nhập "lib_chuoi.giao"
+
+đặt _SỐ_CHỮ = "0123456789"
+
+# ---------------- con-trỏ (cursor) ----------------
+hàm _ct(s) { đặt c = bản()  đặt_khoá(c, "s", s)  đặt_khoá(c, "i", 0)  trả c }
+hàm _ký(c) {
+    đặt i = lấy_khoá(c, "i")
+    nếu i >= dài(lấy_khoá(c, "s")) { trả "" }
+    trả lấy_khoá(c, "s")[i]
+}
+hàm _tiến(c) { đặt_khoá(c, "i", lấy_khoá(c, "i") + 1) }
+hàm _bỏ_trắng(c) {
+    mãi {
+        đặt k = _ký(c)
+        nếu k == " " { _tiến(c) }
+        khác { nếu k == "\n" { _tiến(c) } khác { nếu k == "\t" { _tiến(c) } khác { dừng } } }
+    }
+}
+
+# ---------------- chuỗi ----------------
+hàm _đọc_chuỗi(c) {                     # _ký(c) == '"'
+    _tiến(c)
+    đặt kq = ""
+    mãi {
+        đặt k = _ký(c)
+        nếu k == "" { dừng }                            # HẾT chuỗi (thiếu nháy đóng) → dừng êm, không lặp vô-hạn
+        nếu k == "\"" { _tiến(c)  dừng }
+        nếu k == "\\" {                                 # ESCAPE: \n · \t · \" · \\ …
+            _tiến(c)
+            đặt e = _ký(c)
+            nếu e == "n" { đặt kq = kq + "\n" }
+            khác { nếu e == "t" { đặt kq = kq + "\t" } khác { đặt kq = kq + e } }
+            _tiến(c)
+        }
+        khác { đặt kq = kq + k  _tiến(c) }
+    }
+    trả kq
+}
+
+# ---------------- số (nguyên + âm + thập phân) ----------------
+hàm _đọc_số(c) {
+    đặt âm = tối
+    nếu _ký(c) == "-" { đặt âm = sáng  _tiến(c) }
+    đặt n = 0
+    mãi {
+        đặt d = chỉ_số(_SỐ_CHỮ, _ký(c))
+        nếu loại(d) == "ẩn" { dừng }
+        đặt n = n * 10 + d  _tiến(c)
+    }
+    nếu _ký(c) == "." {
+        _tiến(c)
+        đặt mẫu = 1  đặt fr = 0
+        mãi {
+            đặt d = chỉ_số(_SỐ_CHỮ, _ký(c))
+            nếu loại(d) == "ẩn" { dừng }
+            đặt fr = fr * 10 + d  đặt mẫu = mẫu * 10  _tiến(c)
+        }
+        đặt n = n + fr / mẫu
+    }
+    nếu âm { trả 0 - n }
+    trả n
+}
+
+# ---------------- mảng / đối-tượng ----------------
+hàm _đọc_mảng(c) {
+    _tiến(c)  _bỏ_trắng(c)
+    đặt kq = []
+    nếu _ký(c) == "]" { _tiến(c)  trả kq }
+    mãi {
+        đặt kq = ghép(kq, [_giá_trị(c)])
+        _bỏ_trắng(c)
+        nếu _ký(c) == "," { _tiến(c)  _bỏ_trắng(c) }
+        khác { _tiến(c)  dừng }
+    }
+    trả kq
+}
+hàm _đọc_đối_tượng(c) {
+    _tiến(c)  _bỏ_trắng(c)
+    đặt m = bản()
+    nếu _ký(c) == "}" { _tiến(c)  trả m }
+    mãi {
+        _bỏ_trắng(c)
+        đặt khoá = _đọc_chuỗi(c)
+        _bỏ_trắng(c)  _tiến(c)  _bỏ_trắng(c)     # bỏ ':'
+        đặt_khoá(m, khoá, _giá_trị(c))
+        _bỏ_trắng(c)
+        nếu _ký(c) == "," { _tiến(c) }
+        khác { _tiến(c)  dừng }
+    }
+    trả m
+}
+
+# ---------------- dispatch giá-trị ----------------
+hàm _giá_trị(c) {
+    _bỏ_trắng(c)
+    đặt k = _ký(c)
+    nếu k == "{" { trả _đọc_đối_tượng(c) }
+    nếu k == "[" { trả _đọc_mảng(c) }
+    nếu k == "\"" { trả _đọc_chuỗi(c) }
+    nếu k == "t" { _tiến(c) _tiến(c) _tiến(c) _tiến(c)  trả sáng }            # true
+    nếu k == "f" { _tiến(c) _tiến(c) _tiến(c) _tiến(c) _tiến(c)  trả tối }     # false
+    nếu k == "n" { _tiến(c) _tiến(c) _tiến(c) _tiến(c)  trả ẩn }              # null → ẩn (ba-trị)
+    trả _đọc_số(c)
+}
+hàm phân_tích_json(s) { nếu loại(s) == "ẩn" { trả ẩn }  trả _giá_trị(_ct(s)) }     # json string → giá-trị GIAO ; ẩn → ẩn
+
+# ---------------- SERIALIZE: giá-trị GIAO → json string ----------------
+# _thoát: nháy kép, gạch chéo ngược, xuống dòng, tab → dạng escape (BẮT BUỘC, không thì JSON hỏng)
+hàm _thoát(s) {
+    đặt kq = ""  đặt i = 0
+    mãi {
+        nếu i >= dài(s) { dừng }
+        đặt c = s[i]
+        nếu c == "\"" { đặt kq = kq + "\\\"" }
+        khác {
+            nếu c == "\\" { đặt kq = kq + "\\\\" }
+            khác {
+                nếu c == "\n" { đặt kq = kq + "\\n" }
+                khác {
+                    nếu c == "\t" { đặt kq = kq + "\\t" }
+                    khác { đặt kq = kq + c }
+                }
+            }
+        }
+        đặt i = i + 1
+    }
+    trả kq
+}
+
+hàm thành_json(v) {
+    nếu loại(v) == "ẩn" { trả "null" }                 # ẩn → null
+    nếu v == sáng { trả "true" }                       # sáng (="sáng") → true
+    nếu v == tối { trả "false" }
+    nếu loại(v) == "số" { trả "" + v }
+    nếu loại(v) == "danh_sách" {
+        đặt phần = []
+        lặp x trong v { gom(phần, thành_json(x)) }     # gom O(1) thay ghép-copy O(n²)
+        trả "[" + nối(phần, ",") + "]"
+    }
+    nếu loại(v) == "bản" {
+        đặt phần = []
+        lặp khoá trong v { gom(phần, "\"" + _thoát("" + khoá) + "\":" + thành_json(lấy_khoá(v, khoá))) }
+        trả "{" + nối(phần, ",") + "}"
+    }
+    trả "\"" + _thoát(v) + "\""                       # chuỗi (đã thoát ký tự đặc biệt)
+}

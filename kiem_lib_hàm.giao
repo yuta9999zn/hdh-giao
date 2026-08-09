@@ -1,0 +1,52 @@
+# Kiểm lib_hàm — tổ-hợp hàm (functional combinators), bao-đóng THẬT, ba-trị-aware
+nhập "lib_hàm.giao"
+
+hàm thêm1(x) { trả x + 1 }
+hàm nhân2(x) { trả x * 2 }
+hàm trừ2(a, b) { trả a - b }
+hàm cộng(a, b) { trả a + b }
+hàm dương(x) { nếu loại(x) == "ẩn" { trả ẩn }  nếu x > 0 { trả sáng }  trả tối }
+
+rọi đồng_nhất(5)                 # 5
+đặt fg = kết_hợp(thêm1, nhân2)
+rọi fg(3)                        # 7   (thêm1(nhân2(3)) = thêm1(6))
+đặt fl = lật(trừ2)
+rọi fl(3, 10)                    # 7   (trừ2(10,3))
+đặt c10 = bán_phần(cộng, 10)
+rọi c10(5)                       # 15
+rọi lặp_hàm(nhân2, 3, 1)         # 8   (1→2→4→8)
+đặt k7 = hằng_hàm(7)
+rọi k7(99)                       # 7
+đặt kp = phủ_định(dương)
+rọi kp(5)                        # tối
+rọi kp(0 - 1)                    # sáng
+rọi kp(ẩn)                       # ẩn  (ba-trị: phủ-định KHÔNG bịa)
+
+# --- đợt 2: juxt / until / compose-list ---
+hàm tới10(x) { nếu x >= 10 { trả sáng }  trả tối }
+rọi áp_hết([thêm1, nhân2], 5)    # [6, 10]  (juxt)
+rọi cho_đến(tới10, nhân2, 1)     # 16  (1→2→4→8→16)
+đặt h = kết_hợp_nhiều([thêm1, nhân2])
+rọi h(3)                         # 7   (thêm1(nhân2(3)))
+
+# --- đợt 3: ifelse / coalesce / memoize ---
+hàm chẵn_q(x) { nếu x - x//2*2 == 0 { trả sáng }  trả tối }
+đặt pl = điều_kiện(chẵn_q, nhân2, thêm1)
+rọi pl(4)                        # 8 (chẵn → ×2)
+rọi pl(3)                        # 4 (lẻ → +1)
+rọi dùng_mặc(ẩn, 99)             # 99
+rọi dùng_mặc(7, 99)              # 7
+đặt gm = ghi_nhớ(nhân2)
+rọi gm(5)                        # 10
+rọi gm(5)                        # 10 (cache — bao-đóng giữ bản)
+rọi gm(8)                        # 16
+
+# --- đợt 4: apply-to-pair / fixpoint / first-clear (ba-trị) ---
+hàm nửa(x) { trả x // 2 }
+hàm chỉ_dương(x) { nếu x > 0 { trả x }  trả ẩn }
+hàm chỉ_chẵn(x) { nếu x - x//2*2 == 0 { trả x }  trả ẩn }
+đặt cc = áp_đôi(hàm(a, b) { trả a + b })
+rọi cc([3, 4])                   # 7  (spread cặp)
+rọi điểm_bất_động(nửa, 100)      # 0  (100→50→…→1→0)
+rọi đầu_rõ([chỉ_dương, chỉ_chẵn], 0 - 4)  # -4 (dương ẩn → chẵn rõ)
+rọi đầu_rõ([chỉ_dương, chỉ_chẵn], 0 - 3)  # ẩn (cả hai ẩn)

@@ -1,0 +1,28 @@
+# Kiểm lib_đống — priority queue (heapq) + bisect (ba-trị-aware)
+nhập "lib_đống.giao"
+
+# --- đống ưu-tiên ---
+rọi sắp_đống([5, 3, 8, 1, 9, 2, 7])     # [1, 2, 3, 5, 7, 8, 9]  (heapsort)
+rọi sắp_đống([])                        # []
+rọi đỉnh(từ_ds([5, 3, 8, 1]))           # 1  (min ở đỉnh)
+rọi đỉnh(đống_rỗng())                   # ẩn (rỗng → không-có)
+rọi lấy(đống_rỗng())                    # ẩn
+đặt r = lấy(từ_ds([4, 2, 6]))           # pop min
+rọi r[0]                                # 2
+rọi xả_đống(r[1])                       # [4, 6]  (rút ĐỐNG còn lại — r[1] là đống, không phải list)
+rọi rỗng_đống(đống_rỗng())              # sáng
+rọi rỗng_đống(đẩy(đống_rỗng(), 1))      # tối
+rọi n_nhỏ_nhất([5, 3, 8, 1, 9, 2], 3)   # [1, 2, 3]
+rọi n_lớn_nhất([5, 3, 8, 1, 9, 2], 2)   # [9, 8]
+rọi sắp_đống([4, 1, 4, 1, 4])           # [1, 1, 4, 4, 4]  (trùng giữ đủ)
+
+# --- bisect ---
+rọi vị_trí_trái([1, 3, 3, 5, 7], 3)     # 1  (trước các 3)
+rọi vị_trí_phải([1, 3, 3, 5, 7], 3)     # 3  (sau các 3)
+rọi vị_trí_trái([1, 3, 5, 7], 4)        # 2  (chèn giữa 3 và 5)
+rọi vị_trí_phải([1, 3, 5, 7], 0)        # 0  (đầu)
+rọi vị_trí_trái([1, 3, 5, 7], 9)        # 4  (cuối)
+rọi chèn_xếp([1, 3, 5, 7], 4)           # [1, 3, 4, 5, 7]
+rọi chèn_xếp([], 5)                     # [5]
+rọi có_sắp([1, 3, 5, 7], 5)             # sáng
+rọi có_sắp([1, 3, 5, 7], 4)             # tối

@@ -1,0 +1,73 @@
+# Kiểm lib_duyet — Enumerable kiểu Python/Ruby (ba-trị-aware)
+nhập "lib_duyet.giao"
+
+hàm chẵn_q(x) { nếu x - x//2*2 == 0 { trả sáng } trả tối }
+hàm âm_q(x) { nếu x < 0 { trả sáng } trả tối }
+hàm bình(x) { trả x * x }
+
+rọi sắp_xếp([5, 2, 9, 1, 5, 6])          # [1,2,5,5,6,9]
+rọi sắp_theo(bình, [3, 0 - 4, 1, 0 - 2]) # theo bình phương: [1,-2,3,-4] → [1,4,9,16]
+rọi duy_nhất([1, 2, 2, 3, 1, 4])         # [1,2,3,4]
+rọi phẳng([[1, 2], [3], [4, 5]])         # [1,2,3,4,5]
+rọi gộp_bản_đồ(hàm(x) { trả [x, x] }, [1, 2])  # [1,1,2,2]
+rọi khoá_kéo([1, 2, 3], [10, 20, 30])    # [[1,10],[2,20],[3,30]]
+rọi phân_đôi(chẵn_q, [1, 2, 3, 4, 5, 6]) # [[2,4,6],[1,3,5]]
+rọi lấy_khi(âm_q, [0 - 3, 0 - 1, 2, 0 - 5])  # [-3,-1]
+rọi bỏ_n([1, 2, 3, 4, 5], 2)             # [3,4,5]
+rọi lát([10, 20, 30, 40, 50], 1, 4)      # [20,30,40]
+rọi bất_kỳ(âm_q, [1, 2, 0 - 3])          # sáng
+rọi mọi(chẵn_q, [2, 4, 6])               # sáng
+rọi mọi(chẵn_q, [2, 3])                  # tối
+rọi không_ai(âm_q, [1, 2, 3])            # sáng
+rọi đếm_thoả(chẵn_q, [1, 2, 3, 4, 5, 6]) # 3
+rọi tìm_thấy(âm_q, [1, 2, 0 - 7, 3])     # -7
+rọi tìm_thấy(âm_q, [1, 2, 3])            # ẩn (KHÔNG bịa)
+rọi chỉ_số([10, 20, 30], 20)             # 1
+rọi chỉ_số([10, 20, 30], 99)             # ẩn
+rọi gọn([1, ẩn, 2, ẩn, 3])               # [1,2,3]  (BỎ ẩn — ba-trị cốt lõi)
+rọi lớn_nhất_theo(bình, [1, 0 - 5, 3])   # -5 (bình phương lớn nhất)
+rọi nhỏ_nhất_theo(bình, [3, 1, 0 - 2])   # 1
+rọi tổng_theo(bình, [1, 2, 3])           # 14
+đặt g = nhóm_theo(chẵn_q, [1, 2, 3, 4, 5])
+rọi lấy_khoá(g, sáng)                     # [2,4]
+rọi lấy_khoá(g, tối)                      # [1,3,5]
+
+# --- bổ sung idiom: đánh-số / cuộn / khối / cửa-sổ / reduce / minmax / xen ---
+rọi liệt_kê([10, 20, 30])                 # [[0,10],[1,20],[2,30]]
+rọi liệt_kê_từ([10, 20], 1)               # [[1,10],[2,20]]
+rọi cuộn(cộng2, 0, [1, 2, 3])             # [0,1,3,6]  (scanl, gồm seed)
+rọi tích_lũy([1, 2, 3])                   # [1,3,6]    (accumulate, không seed)
+rọi rút_gọn(cộng2, [1, 2, 3, 4])          # 10
+rọi rút_gọn(cộng2, [])                    # ẩn (rỗng + không seed → không bịa)
+rọi min_max([5, 2, 9, 1])                 # [1,9]
+rọi theo_khối([1, 2, 3, 4, 5], 2)         # [[1,2],[3,4],[5]]
+rọi cửa_sổ([1, 2, 3, 4], 2)               # [[1,2],[2,3],[3,4]]
+rọi xen_kẽ([1, 2, 3], 0)                  # [1,0,2,0,3]
+
+# --- đợt 2: unzip / rotate / chunk-runs / slice_when / step / deep-flatten / product ---
+hàm cách_xa(a, b) { nếu b - a > 1 { trả sáng }  trả tối }
+rọi giải_nén([[1, 10], [2, 20], [3, 30]]) # [[1,2,3],[10,20,30]]
+rọi xoay_ds([1, 2, 3, 4, 5], 2)           # [3,4,5,1,2]
+rọi xoay_ds([1, 2, 3, 4, 5], 0 - 1)       # [5,1,2,3,4]  (n<0 = xoay phải)
+rọi gom_kề([1, 1, 2, 3, 3, 1])            # [[1,1],[2],[3,3],[1]]
+rọi chia_khi(cách_xa, [1, 2, 4, 9, 10])   # [[1,2],[4],[9,10]]
+rọi lấy_mỗi([0, 1, 2, 3, 4, 5], 2)        # [0,2,4]
+rọi phẳng_sâu([1, [2, [3, [4]]], 5])      # [1,2,3,4,5]
+rọi tích([1, 2, 3, 4])                    # 24
+rọi tích([])                              # 1
+
+# --- đợt 3: zip-nhiều / foldr / split_at / last-drop / deltas / sort-desc ---
+rọi khoá_kéo_nhiều([[1, 2, 3], [10, 20, 30], [100, 200]])   # [[1,10,100],[2,20,200]]
+rọi gấp_phải(hàm(x, acc) { trả ghép([x], acc) }, [], [1, 2, 3])  # [1,2,3]
+rọi chia_đôi([1, 2, 3, 4, 5], 2)          # [[1,2],[3,4,5]]
+rọi lấy_cuối([1, 2, 3, 4, 5], 2)          # [4,5]
+rọi bỏ_cuối([1, 2, 3, 4, 5], 2)           # [1,2,3]
+rọi khác_biệt([1, 4, 9, 16])              # [3,5,7]
+rọi sắp_giảm([3, 1, 4, 1, 5])             # [5,4,3,1,1]
+
+# --- đợt 4: interleave / map-index / top-k / shuffle-tất-định ---
+rọi đan([1, 2, 3], ["a", "b", "c"])       # [1,a,2,b,3,c]
+rọi bản_đồ_chỉ_số(hàm(i, x) { trả [i, x] }, ["a", "b"])  # [[0,a],[1,b]]
+rọi đỉnh_k([3, 1, 4, 1, 5, 9, 2], 3)      # [9,5,4]
+rọi xáo([1, 2, 3, 4, 5], 7)               # [2,3,1,4,5] (tất-định)
+rọi xáo([1, 2, 3, 4, 5], 7)               # [2,3,1,4,5] (GIỐNG — cùng hạt)

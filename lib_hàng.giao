@@ -1,0 +1,47 @@
+# ============================================================
+# lib_hàng.giao — HÀNG HAI ĐẦU (deque kiểu collections.deque của Python) cho GIAO
+# ------------------------------------------------------------
+# list GIAO HÀM-THUẦN → mọi thao-tác trả HÀNG MỚI (không phá bản gốc). Hàng = danh-sách thường.
+# GIỮ CỐT LÕI GIAO: ba-trị (xem/bỏ từ hàng RỖNG → 'ẩn' = không-có, KHÔNG bịa) · idiom Việt ·
+#   TỰ-THÂN (trên builtin thêm/ghép/đuôi + chuẩn.giao lấy_n/dư + lib_duyet bỏ_n).
+# Nạp: nhập "lib_hàng.giao".
+# ============================================================
+nhập "lib_duyet.giao"     # bỏ_n (lấy_n, dư ở chuẩn.giao)
+
+hàm hàng_rỗng() { trả [] }
+hàm rỗng_hàng(h) {                       # → sáng/tối ; ẩn → ẩn
+    nếu loại(h) == "ẩn" { trả ẩn }
+    nếu dài(h) == 0 { trả sáng }
+    trả tối
+}
+hàm thêm_cuối(h, x) { nếu loại(h) == "ẩn" { trả ẩn }  trả thêm(h, x) }           # push back  → hàng MỚI
+hàm thêm_đầu(h, x) { nếu loại(h) == "ẩn" { trả ẩn }  trả ghép([x], h) }          # push front → hàng MỚI
+hàm xem_đầu(h) {                         # peek front; rỗng → ẩn
+    nếu loại(h) == "ẩn" { trả ẩn }
+    nếu dài(h) == 0 { trả ẩn }
+    trả h[0]
+}
+hàm xem_cuối(h) {                        # peek back; rỗng → ẩn
+    nếu loại(h) == "ẩn" { trả ẩn }
+    nếu dài(h) == 0 { trả ẩn }
+    trả h[dài(h) - 1]
+}
+hàm bỏ_đầu(h) {                          # popleft → [phần_tử, hàng_còn]; rỗng → ẩn
+    nếu loại(h) == "ẩn" { trả ẩn }
+    nếu dài(h) == 0 { trả ẩn }
+    trả [h[0], đuôi(h)]
+}
+hàm bỏ_cuối(h) {                         # pop → [phần_tử, hàng_còn]; rỗng → ẩn
+    nếu loại(h) == "ẩn" { trả ẩn }
+    nếu dài(h) == 0 { trả ẩn }
+    trả [h[dài(h) - 1], lấy_n(h, dài(h) - 1)]
+}
+hàm xoay(h, n) {                         # rotate: n>0 dồn PHẢI (cuối→đầu) như deque.rotate; n<0 dồn TRÁI
+    nếu loại(h) == "ẩn" { trả ẩn }
+    nếu loại(n) == "ẩn" { trả ẩn }
+    đặt m = dài(h)
+    nếu m == 0 { trả h }
+    đặt k = dư(n, m)                       # chuẩn-hoá 0..m-1 (dư xử-lý cả n âm)
+    nếu k == 0 { trả h }
+    trả ghép(bỏ_n(h, m - k), lấy_n(h, m - k))     # k phần-tử CUỐI ra ĐẦU
+}

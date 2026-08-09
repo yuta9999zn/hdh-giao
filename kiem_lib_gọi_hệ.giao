@@ -1,0 +1,70 @@
+# kiem_lib_gọi_hệ.giao — nghiệm thu TẦNG GỌI-HỆ (syscall) kiểu Linux
+nhập "lib_gọi_hệ.giao"
+
+đặt M = khởi_máy()
+thêm_người(M, 0, "gốc")
+thêm_người(M, 1000, "an")
+
+# tiến-trình 1 = khởi (init), chạy quyền gốc
+đặt khởi = sinh_tt(M, "khởi", 0, 0, "/")
+rọi "khởi = tiến-trình " + khởi
+
+rọi "-- dựng hệ-tệp gốc qua GỌI-HỆ (không chạm VFS trực tiếp) --"
+rọi gọi(M, khởi, GH_TẠO_THƯ, ["/hệ", 755])
+rọi gọi(M, khởi, GH_TẠO_THƯ, ["/nhà", 755])
+rọi gọi(M, khởi, GH_TẠO_THƯ, ["/tb", 755])
+rọi gọi(M, khởi, GH_TẠO_THƯ, ["/tt", 555])
+rọi gọi(M, khởi, GH_TẠO_THƯ, ["/nhà/an", 700])
+rọi gọi(M, khởi, GH_ĐỔI_CHỦ, ["/nhà/an", 1000])          # bất-khả-hồi → CẦN PHÊ DUYỆT
+rọi lỗi_cuối(M)
+rọi duyệt(M)                                              # người phê duyệt → chạy
+rọi gọi(M, khởi, GH_TẠO, ["/hệ/mật_khẩu", 600, "gốc:*"])
+rọi gọi(M, khởi, GH_GẮN_TB, ["/tb/màn", 666, "màn_hình"])
+rọi gọi(M, khởi, GH_GẮN_TB, ["/tb/không", 666, "không"])
+rọi gọi(M, khởi, GH_GẮN_TB, ["/tb/đĩa0", 600, "đĩa0"])
+
+rọi "-- sinh tiến-trình người dùng (uid 1000) --"
+đặt vỏ = gọi(M, khởi, GH_SINH, ["vỏ", 5])
+đặt_khoá(lấy_khoá(lấy_khoá(M, "cred"), vỏ), "uid", 1000)   # đăng nhập thành 'an'
+đặt_khoá(lấy_khoá(lấy_khoá(M, "cred"), vỏ), "thư", "/nhà/an")
+rọi gọi(M, vỏ, GH_AI, [])
+rọi gọi(M, vỏ, GH_Ở, [])
+
+rọi "-- người dùng thường bị chặn đúng chỗ --"
+rọi gọi(M, vỏ, GH_ĐỌC, ["/hệ/mật_khẩu"])                  # tối
+rọi lỗi_cuối(M)
+rọi gọi(M, vỏ, GH_TẠO, ["/hệ/cửa_sau", 777, "hack"])      # tối
+rọi lỗi_cuối(M)
+rọi gọi(M, vỏ, GH_THÀNH, [0])                             # tối — không tự lên gốc-quyền được
+rọi lỗi_cuối(M)
+
+rọi "-- việc bình thường trong nhà mình --"
+rọi gọi(M, vỏ, GH_TẠO, ["ghi_chú", 644, "việc hôm nay"])   # đường TƯƠNG ĐỐI theo thư hiện hành
+rọi gọi(M, vỏ, GH_ĐỌC, ["ghi_chú"])
+rọi gọi(M, vỏ, GH_LIỆT, ["."])
+rọi gọi(M, vỏ, GH_SOI, ["ghi_chú"])
+
+rọi "-- thiết bị --"
+rọi gọi(M, vỏ, GH_GHI, ["/tb/màn", "xin chào từ tiến-trình " + vỏ])
+rọi gọi(M, vỏ, GH_ĐỌC, ["/tb/đĩa0"])                       # tối: 600, chủ là gốc
+rọi lỗi_cuối(M)
+rọi gọi(M, khởi, GH_GHI, ["/tb/đĩa0", "ZERO"])             # BẤT KHẢ HỒI → cần duyệt
+rọi lỗi_cuối(M)
+
+rọi "-- /tt : procfs, mọi thứ là tệp --"
+rọi gọi(M, vỏ, GH_LIỆT, ["/tt"])
+rọi gọi(M, vỏ, GH_ĐỌC, ["/tt/" + vỏ + "/tên"])
+rọi gọi(M, vỏ, GH_ĐỌC, ["/tt/" + vỏ + "/trạng"])
+rọi gọi(M, vỏ, GH_TT, [])
+
+rọi "-- giết --"
+rọi gọi(M, vỏ, GH_GIẾT, [1])                               # chặn: không giết init
+rọi lỗi_cuối(M)
+đặt phụ = gọi(M, vỏ, GH_SINH, ["việc_phụ", 7])
+rọi gọi(M, vỏ, GH_GIẾT, [phụ])                             # cần duyệt
+rọi lỗi_cuối(M)
+rọi duyệt(M)
+rọi gọi(M, vỏ, GH_ĐỌC, ["/tt/" + phụ + "/trạng"])
+
+rọi "-- nhật ký (audit) 5 dòng cuối --"
+lặp d trong nhật_ký_gần(M, 5) { rọi d }

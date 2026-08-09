@@ -1,0 +1,82 @@
+# ============================================================
+# hdh_máy.giao — ★ TIỀN ĐỊNH THẬT: thân tiến trình BIÊN DỊCH XUỐNG GVM, nhân CƯỚP CPU giữa chừng
+# ------------------------------------------------------------
+# Tiến trình closure (đa nhiệm hợp-tác) phải TỰ trả CPU sau mỗi lát ⇒ kẻ cố tình không trả thì treo
+# máy. Tiến trình MÁY thì thân là BYTECODE GVM: nhân cho chạy đúng `lượng_tử` LỆNH rồi DỪNG NÓ LẠI
+# GIỮA CHỪNG. Nó không cần hợp tác và cũng không có cách nào từ chối.
+#   • `tham_lam` ở đây là VÒNG LẶP MỘT TRIỆU BƯỚC, KHÔNG hề có điểm nhường nào.
+#   • ρ (tín hiệu hữu ích) = "có RỌI trong lượng tử" — CHÍNH tín hiệu did_out của γ-scheduler silicon.
+# Chạy:  python giao.py hdh_máy.giao --cho-máy
+#        (không có --cho-máy thì năng lực `máy` KHÔNG tồn tại — sandbox bẩm sinh, HĐH vẫn chạy)
+# ============================================================
+nhập "lib_vỏ.giao"
+nhập "lib_chương_trình.giao"
+
+rọi "┌───────────────────────────────────────────────────────────────┐"
+rọi "│  HĐH-GIAO — TIẾN TRÌNH MÁY: nhân cướp được CPU giữa chừng     │"
+rọi "└───────────────────────────────────────────────────────────────┘"
+
+# `dừng` chỉ hợp lệ TRONG vòng lặp, nên dùng hàm + `trả` để thoát sớm khi chưa có năng lực.
+hàm thiếu_năng_lực() {
+    rọi ""
+    rọi "⚠ Chưa cấp năng lực `máy` ⇒ tên `biên_dịch`/`máy_nạp` KHÔNG TỒN TẠI (object-capability)."
+    rọi "   Chạy lại:  python giao.py hdh_máy.giao --cho-máy"
+    trả ẩn
+}
+
+hàm trình_diễn() {
+
+đặt M = khởi_máy()
+thêm_người(M, 0, "gốc")
+đặt KHỞI = sinh_tt(M, "khởi", 0, 0, "/")
+gọi(M, KHỞI, GH_TẠO_THƯ, ["/tạm", 777])
+nạp_chương_trình(M)
+bật_lịch_γ(M, sáng)
+đặt_lượng_tử(M, 120)                      # 120 LỆNH MÁY mỗi lát rồi bị cướp
+
+# ───────── hai chương trình, biên dịch xuống máy ─────────
+đăng_ký_ct_máy(M, "việc_thật",
+    "hàm đếm(n) { nếu n == 0 { trả 0 }  rọi n  trả đếm(n - 1) }  rọi đếm(40)")
+đăng_ký_ct_máy(M, "tham_lam",
+    "đặt t = 0  lặp 1000000 { đặt t = t + 1 }  rọi t")     # KHÔNG rọi gì suốt vòng, KHÔNG nhường
+
+rọi ""
+rọi "════ 1. Sinh hai tiến trình MÁY (thân là bytecode GVM) ════"
+đặt A = gọi(M, KHỞI, GH_SINH, ["việc_thật", 5])
+đặt C = gọi(M, KHỞI, GH_SINH, ["việc_thật", 5])
+đặt B = gọi(M, KHỞI, GH_SINH, ["tham_lam", 5])
+rọi "tt" + A + " việc_thật  — in số (việc thật)      ·  tt" + C + " việc_thật — cũng việc thật"
+rọi "tt" + B + " tham_lam   — vòng lặp 1.000.000 bước, KHÔNG nhường, KHÔNG in gì"
+rọi "lượng tử = " + lấy_khoá(M, "lượng_tử") + " lệnh máy/lát · lịch γ đang bật"
+
+rọi ""
+rọi "════ 2. Chạy 18 lát — kẻ tham lam bị CẮT NGANG mỗi lượng tử ════"
+đặt_khoá(M, "kể", sáng)
+vòng_nhân(M, 18)
+đặt_khoá(M, "kể", tối)
+
+rọi ""
+rọi "════ 3. PHÂN BỔ CPU THẬT (đếm bằng LỆNH MÁY, không phải bằng lát) ════"
+rọi "   việc_thật (tt" + A + "): " + lệnh_đã_chạy(M, A) + " lệnh · " + γ_soi(M, A)[2] + " lát · trạng = " + trạng(lấy_khoá(M, "nhân"), A)
+rọi "   việc_thật (tt" + C + "): " + lệnh_đã_chạy(M, C) + " lệnh · " + γ_soi(M, C)[2] + " lát · trạng = " + trạng(lấy_khoá(M, "nhân"), C)
+rọi "   tham_lam  (tt" + B + "): " + lệnh_đã_chạy(M, B) + " lệnh · " + γ_soi(M, B)[2] + " lát · trạng = " + trạng(lấy_khoá(M, "nhân"), B)
+rọi "   σ học được:  việc_thật = " + γ_soi(M, A)[0] + " / " + γ_soi(M, C)[0] + "   ·   tham_lam = " + γ_soi(M, B)[0]
+rọi "   γ:           việc_thật = " + γ_gamma(γ_soi(M, A)[0]) + "   ·   tham_lam = " + γ_gamma(γ_soi(M, B)[0])
+
+rọi ""
+rọi "════ 4. ĐIỀU QUAN TRỌNG NHẤT ════"
+rọi "   `tham_lam` là vòng lặp một triệu bước KHÔNG có chỗ nhường nào. Ở tầng closure nó sẽ TREO"
+rọi "   cả hệ. Ở đây nó chỉ chạy được từng " + lấy_khoá(M, "lượng_tử") + " lệnh rồi bị nhân cắt — hệ vẫn thở."
+rọi "   Nó cũng KHÔNG in gì ⇒ ρ=0 ⇒ σ tụt ⇒ lịch γ cấp CPU cho nó ít dần. Vừa CẮT được, vừa BÓP được."
+rọi ""
+rọi "   Còn chạy tiếp cũng không sao — hệ không treo. Thử thêm 10 lát nữa:"
+vòng_nhân(M, 10)
+rọi "   sau 24 lát:  việc_thật = " + lệnh_đã_chạy(M, A) + "+" + lệnh_đã_chạy(M, C) + " lệnh  ·  tham_lam = " + lệnh_đã_chạy(M, B) + " lệnh (" + trạng(lấy_khoá(M, "nhân"), B) + ")"
+
+rọi ""
+rọi "→ Thân tiến trình đã xuống tới bytecode của chính cái máy NAND-dựng-nên. Nhân không xin phép"
+rọi "  tiến trình nữa: hết lượng tử là cắt. `tiền định` từ đây đúng nghĩa đen."
+trả ẩn
+}
+
+nếu có_máy() == sáng { trình_diễn() } khác { thiếu_năng_lực() }

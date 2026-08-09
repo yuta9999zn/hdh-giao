@@ -1,0 +1,54 @@
+# ============================================================
+# GIAO VIỆC CHO AI — TỔNG QUÁT N TÀI NGUYÊN (viết bằng GIAO, xây lại os_ai.py)
+# Thế giới (MF) = [v0..vn], mục tiêu = [m0..mn], hành động = [Δ0..Δn].
+# áp/lệch làm việc trên danh sách BẤT KỲ chiều (đệ quy theo từng tài nguyên).
+# Nhân-tác-tử CHỌN hành động giảm lệch nhiều nhất, ĐỐI CHIẾU γ, báo OR/DE.
+# (Mô hình LLM local thay 'chọn' ở ranh giới hệ thống; GIAO lo quyết định CDFL.)
+# ============================================================
+
+# áp hành động theo TỪNG tài nguyên (kẹp ≥ 0) — tổng quát N chiều
+hàm áp(tg, hđ) {
+    nếu dài(tg) == 0 { trả [] }
+    trả ghép([lớn(đầu(tg) + đầu(hđ), 0)], áp(đuôi(tg), đuôi(hđ)))
+}
+# tổng vượt ngưỡng trên MỌI tài nguyên (0 = đạt mục tiêu)
+hàm lệch(tg, mt) {
+    nếu dài(tg) == 0 { trả 0 }
+    trả lớn(đầu(tg) - đầu(mt), 0) + lệch(đuôi(tg), đuôi(mt))
+}
+# chọn hành động cho LỆCH nhỏ nhất sau khi áp (đệ quy)
+hàm chọn(tg, mt, hđs, tốt, lệch_tốt) {
+    nếu dài(hđs) == 0 { trả tốt }
+    đặt l = lệch(áp(tg, đầu(hđs)), mt)
+    nếu l < lệch_tốt { trả chọn(tg, mt, đuôi(hđs), đầu(hđs), l) }
+    trả chọn(tg, mt, đuôi(hđs), tốt, lệch_tốt)
+}
+# VÒNG GIAO VIỆC: chọn → nếu γ tăng (lệch giảm) thì thi hành (IF→MF) → lặp; không thì DE
+hàm giao_việc(tg, mt, hđs, n) {
+    nếu n == 0 { trả tg }
+    đặt l0 = lệch(tg, mt)
+    nếu l0 == 0 { rọi "  ✓ viên mãn: ĐẠT mục tiêu, MF = " + tg  trả tg }
+    đặt hđ = chọn(tg, mt, hđs, đầu(hđs), 999999)
+    đặt tg2 = áp(tg, hđ)
+    nếu lệch(tg2, mt) < l0 {
+        rọi "  lệch " + l0 + " → CHỌN " + hđ + " → MF = " + tg2
+        trả giao_việc(tg2, mt, hđs, n - 1)
+    }
+    rọi "  lệch " + l0 + " → DE: không hành động nào mở OR (cần con người/biết thêm)"
+    trả tg
+}
+
+# ============= CHẠY: 4 tài nguyên [cpu, mem, disk, net] =============
+đặt thế_giới = [85, 70, 60, 90]
+đặt mục_tiêu = [30, 40, 50, 20]
+đặt hành_động = [
+    [0 - 30, 0, 0, 0],      # đóng tiến trình: cpu −30
+    [0, 0 - 40, 0, 0],      # giải phóng cache: mem −40
+    [0, 0, 0 - 25, 0],      # dọn đĩa: disk −25
+    [0, 0, 0, 0 - 50],      # bóp băng thông: net −50
+    [0, 0, 0, 0]            # chờ
+]
+rọi "GIAO VIỆC: [cpu,mem,disk,net]=[85,70,60,90] → ≤ [30,40,50,20]"
+đặt cuối = giao_việc(thế_giới, mục_tiêu, hành_động, 12)
+rọi "OR (đã kiểm chứng): " + cuối
+rọi "→ Tổng quát N tài nguyên: cùng một logic CDFL, chỉ đổi dữ liệu."

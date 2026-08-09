@@ -1,0 +1,11 @@
+# HÀM ĐỆ QUY cộng một DANH SÁCH — biên dịch xuống GVM.
+# Kết hợp: danh sách cons-cell trên HEAP + đệ quy (GỌI/TRẢ_VỀ) + điều kiện (NIL).
+# Tất cả chạy trên máy trit/γ nền NAND; Python chỉ là CPU.
+
+hàm tổng(l) {
+    nếu l == 0 { trả 0 }            # 0 = NIL (danh sách rỗng)
+    trả đầu(l) + tổng(đuôi(l))      # head + tổng(tail)
+}
+
+đặt l = [10, 20, 30, 40]
+rọi tổng(l)                          # 100

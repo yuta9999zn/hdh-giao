@@ -1,0 +1,156 @@
+# ============================================================
+# CUNG ĐIỆN KÝ ỨC (port từ Ruby reasoning/memory: record + tier_store + service) — bằng GIAO
+# 4 TẦNG vòng đời  L1_WORKING → L2_SHORT → L3_CONSOLIDATED → L4_LONG
+# 5 LOẠI nhận thức EPISODIC SEMANTIC PROCEDURAL OPERATIONAL DECISION
+# Tin-cậy PHÂN RÃ theo bán-rã từng loại; độ-quan-trọng → thăng hạng; truy xuất xếp theo match×trust;
+# mức kinh nghiệm = 1−e^(−k·khối-tri-thức). Dùng toán GIAO tự xây: mũ_e, ln, tách (jaccard văn bản).
+#
+# GAP GIAO lộ ra: KHÔNG có đồng hồ hệ thống (Ruby Time.now). GIAO không lén đọc thực tại —
+# THỜI GIAN là tham số tường minh 'nay' (số ngày). Đây là điểm MẠNH: tất định & tái lập được.
+# ============================================================
+
+# bản ghi = [id, loại, nội(chuỗi), tầng, ngày_xảy, lần_gặp, cờ_quan_trọng, kết_quả, tin_cậy, ngày_kiểm]
+hàm b_loại(r){ trả r[1] }   hàm b_nội(r){ trả r[2] }    hàm b_tầng(r){ trả r[3] }
+hàm b_ngày(r){ trả r[4] }   hàm b_lần(r){ trả r[5] }    hàm b_cờ(r){ trả r[6] }
+hàm b_kq(r){ trả r[7] }     hàm b_tin(r){ trả r[8] }    hàm b_kiểm(r){ trả r[9] }
+hàm đặt_tầng(r, t){ trả [r[0],r[1],r[2],t,r[4],r[5],r[6],r[7],r[8],r[9]] }
+
+# ---- bán-rã (ngày) theo loại: khái niệm học già chậm, sự kiện già nhanh ----
+hàm bán_rã(t) {
+    nếu t == "SEMANTIC" { trả 365 }
+    nếu t == "PROCEDURAL" { trả 365 }
+    nếu t == "EPISODIC" { trả 30 }
+    trả 60                                  # DECISION, OPERATIONAL
+}
+# ---- tầng mặc định theo loại (Ruby DEFAULT_TIER) ----
+hàm tầng_mặc(t) {
+    nếu t == "EPISODIC" { trả "L2_SHORT" }
+    nếu t == "SEMANTIC" { trả "L4_LONG" }
+    nếu t == "PROCEDURAL" { trả "L4_LONG" }
+    trả "L3_CONSOLIDATED"                    # OPERATIONAL, DECISION
+}
+hàm tạo(id, loại, nội, ngày, lần, cờ, kq, tin) {
+    trả [id, loại, nội, tầng_mặc(loại), ngày, lần, cờ, kq, tin, 0 - 1]
+}
+
+# ---- TIN-CẬY: confidence · 0.5^(tuổi/bán-rã) = conf · e^((tuổi/hl)·ln0.5) ----
+hàm tuổi(r, nay) {
+    đặt mốc = b_ngày(r)
+    nếu b_kiểm(r) >= 0 { đặt mốc = b_kiểm(r) }   # đã kiểm thì tính từ lần kiểm
+    đặt d = nay - mốc
+    nếu d < 0 { trả 0 }
+    trả d
+}
+hàm điểm_tin(r, nay) { trả b_tin(r) * mũ_e(tuổi(r, nay) / bán_rã(b_loại(r)) * ln(0.5)) }
+hàm mức_tin(s) {
+    nếu s >= 0.66 { trả "tươi" }
+    nếu s >= 0.33 { trả "phai" }
+    trả "cũ"
+}
+hàm hệ_số_tin(r, nay) { trả 0.4 + 0.6 * điểm_tin(r, nay) }   # nhân-tử xếp hạng [0.4,1]
+
+# ---- ĐỘ-QUAN-TRỌNG (giữ lại): recency/lặp/cờ/kết-quả ----
+hàm quan_trọng(r, nay) {
+    đặt cũ = nay - b_ngày(r)
+    đặt recency = lớn(0, 1 - cũ / 90)
+    đặt tái = nhỏ(1, b_lần(r) / 5)
+    đặt kq = 0
+    nếu b_kq(r) > 10000000 { đặt kq = 1 }
+    trả nhỏ(1, 0.2 * recency + 0.3 * tái + 0.3 * b_cờ(r) + 0.2 * kq)
+}
+
+# ---- TRUY XUẤT: điểm = jaccard(token) · hệ_số_tin; xếp giảm; lấy top_k ----
+hàm giao_tập(a, b) {
+    nếu dài(a) == 0 { trả 0 }
+    đặt r = giao_tập(đuôi(a), b)
+    nếu chứa(b, đầu(a)) { trả 1 + r }
+    trả r
+}
+hàm khớp_văn(truy, văn) {                     # Ruby cheap_text_match (token jaccard)
+    đặt q = tách(truy, " ")
+    đặt t = tách(văn, " ")
+    nếu dài(q) == 0 { trả 0 }
+    nếu dài(t) == 0 { trả 0 }
+    đặt gt = giao_tập(q, t)
+    trả gt / (dài(q) + dài(t) - gt)            # |∩|/|∪|
+}
+hàm chèn(x, ds) {                              # chèn vào danh sách [score,rec] đã giảm dần
+    nếu dài(ds) == 0 { trả [x] }
+    nếu x[0] >= đầu(ds)[0] { trả ghép([x], ds) }
+    trả ghép([đầu(ds)], chèn(x, đuôi(ds)))
+}
+hàm sắp_giảm(ds) {
+    nếu dài(ds) == 0 { trả [] }
+    trả chèn(đầu(ds), sắp_giảm(đuôi(ds)))
+}
+hàm chấm(recs, q, nay) {
+    nếu dài(recs) == 0 { trả [] }
+    đặt r = đầu(recs)
+    đặt s = khớp_văn(q, b_nội(r)) * hệ_số_tin(r, nay)
+    nếu s > 0 { trả ghép([[s, b_nội(r)]], chấm(đuôi(recs), q, nay)) }
+    trả chấm(đuôi(recs), q, nay)
+}
+hàm truy_xuất(recs, q, nay, k) { trả lấy_n(sắp_giảm(chấm(recs, q, nay)), k) }
+
+# ---- CỦNG CỐ / THĂNG HẠNG (L2→L3→L4) ----
+hàm dời_tầng(recs, t) { trả bản_đồ(hàm(r){ trả đặt_tầng(r, t) }, recs) }   # đổi nhãn tầng cả lô
+hàm thăng(recs, nay) {                          # giữ lại bản quan_trọng>0.7, đẩy lên L4
+    nếu dài(recs) == 0 { trả [] }
+    đặt r = đầu(recs)
+    nếu quan_trọng(r, nay) > 0.7 { trả ghép([đặt_tầng(r, "L4_LONG")], thăng(đuôi(recs), nay)) }
+    trả thăng(đuôi(recs), nay)
+}
+
+# ---- KINH NGHIỆM: 1 − e^(−k·khối); khối = Σ điểm_tin ----
+hàm tổng_khối(recs, nay) {
+    nếu dài(recs) == 0 { trả 0 }
+    trả điểm_tin(đầu(recs), nay) + tổng_khối(đuôi(recs), nay)
+}
+hàm dải_kn(s) {
+    nếu s >= 0.8 { trả "chuyên gia" }
+    nếu s >= 0.55 { trả "dày dạn" }
+    nếu s >= 0.3 { trả "thành thạo" }
+    nếu s >= 0.1 { trả "tập sự" }
+    trả "mới"
+}
+hàm kinh_nghiệm(recs, nay, k) {
+    đặt mass = tổng_khối(recs, nay)
+    đặt s = 1 - mũ_e(0 - k * mass)
+    trả [s, dải_kn(s)]
+}
+
+# ===================== CHẠY =====================
+# Ghi 5 ký ức (ngày xảy ra = 0), mỗi loại → tầng mặc định riêng
+đặt m1 = tạo("k1", "EPISODIC",   "user hỏi lỗi mạng hôm qua",       0, 1, 0, 0, 0.70)
+đặt m2 = tạo("k2", "SEMANTIC",   "TCP bắt tay ba bước",             0, 4, 1, 0, 0.85)
+đặt m3 = tạo("k3", "PROCEDURAL", "khởi động lại dịch vụ mạng",      0, 3, 0, 0, 0.80)
+đặt m4 = tạo("k4", "DECISION",   "chọn dùng lookahead có hoàn tác", 0, 5, 1, 99999999, 0.75)
+đặt m5 = tạo("k5", "OPERATIONAL","ping cổng 80 mỗi phút",           0, 2, 0, 0, 0.70)
+đặt kho = [m1, m2, m3, m4, m5]
+
+rọi "=== 5 ký ức → tầng mặc định theo LOẠI ==="
+mỗi(hàm(r){ rọi "  " + b_loại(r) + " → " + b_tầng(r) }, kho)
+rọi ""
+
+rọi "=== TIN-CẬY phân rã theo bán-rã (cùng nội dung, khác loại) ==="
+rọi "ngày 0:   episodic=" + điểm_tin(m1,0)   + " (" + mức_tin(điểm_tin(m1,0))   + "), semantic=" + điểm_tin(m2,0)   + " (" + mức_tin(điểm_tin(m2,0))   + ")"
+rọi "ngày 30:  episodic=" + điểm_tin(m1,30)  + " (" + mức_tin(điểm_tin(m1,30))  + "), semantic=" + điểm_tin(m2,30)  + " (" + mức_tin(điểm_tin(m2,30))  + ")"
+rọi "ngày 365: episodic=" + điểm_tin(m1,365) + " (" + mức_tin(điểm_tin(m1,365)) + "), semantic=" + điểm_tin(m2,365) + " (" + mức_tin(điểm_tin(m2,365)) + ")"
+rọi "  → episodic (bán-rã 30) phai NHANH; semantic (365) bền. Đúng 'càng nhiều tháng càng biết nhiều'."
+rọi ""
+
+rọi "=== TRUY XUẤT: 'mạng dịch vụ' (xếp theo match×trust, ngày 0) ==="
+mỗi(hàm(kq){ rọi "  " + kq[0] + "  " + kq[1] }, truy_xuất(kho, "mạng dịch vụ", 0, 3))
+rọi ""
+
+rọi "=== ĐỘ-QUAN-TRỌNG & THĂNG HẠNG L3→L4 (ngày 0) ==="
+rọi "  m4 (DECISION, kết-quả lớn): quan_trọng = " + quan_trọng(m4, 0)
+rọi "  m5 (OPERATIONAL thường):    quan_trọng = " + quan_trọng(m5, 0)
+đặt l3 = [m4, m5]
+rọi "  thăng L3→L4 (giữ >0.7): " + bản_đồ(b_nội, thăng(l3, 0))
+rọi ""
+
+rọi "=== KINH NGHIỆM (maturation) = 1 − e^(−k·khối tri-thức) ==="
+rọi "  ngày 0   (k=0.5): " + kinh_nghiệm(kho, 0, 0.5)
+rọi "  ngày 200 (k=0.5): " + kinh_nghiệm(kho, 200, 0.5)
+rọi "  → khối tri-thức còn-tin tích lại → trình độ lên 'chuyên gia'; theo ngày thì phai dần."

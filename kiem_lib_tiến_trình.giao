@@ -1,0 +1,37 @@
+# Kiểm lib_tiến_trình — bảng tiến-trình: TÊN + vòng-đời TRẠNG-THÁI (ba-trị)
+nhập "lib_tiến_trình.giao"
+
+đặt bg = bảng_tt()
+tạo_tt(bg, "web", "máy-chủ-web", 5)
+tạo_tt(bg, "db",  "cơ-sở-dữ-liệu", 2)
+tạo_tt(bg, "log", "ghi-nhật-ký", 9)
+
+# 1) tạo xong → trạng khởi-đầu "sẵn-sàng"; tên/ưu đúng
+rọi trạng_của(bg, "web")             # sẵn-sàng
+rọi trạng_của(bg, "db")              # sẵn-sàng
+rọi tên_của(bg, "db")                # cơ-sở-dữ-liệu
+rọi ưu_của(bg, "web")                # 5
+rọi ưu_của(bg, "log")                # 9
+
+# 2) đổi trạng-thái: db → chặn
+đặt_trạng(bg, "db", "chặn")
+rọi trạng_của(bg, "db")              # chặn
+
+# 3) liệt-kê theo trạng-thái
+rọi liệt_theo_trạng(bg, "sẵn-sàng")  # [web, log]
+rọi liệt_theo_trạng(bg, "chặn")      # [db]
+
+# 4) giết log → chết; đếm_sống = 2 (web + db)
+giết(bg, "log")
+rọi trạng_của(bg, "log")             # chết
+rọi đếm_sống(bg)                     # 2
+
+# 5) ba-trị: truy-vấn tid LẠ → ẩn; có_tt → tối
+rọi trạng_của(bg, "x")               # ẩn
+rọi tên_của(bg, "x")                 # ẩn
+rọi có_tt(bg, "x")                   # tối
+rọi có_tt(bg, "web")                 # sáng
+
+# 6) đặt_trạng trên tid LẠ → KHÔNG làm gì (vẫn ẩn, không tạo bản-ghi)
+đặt_trạng(bg, "x", "chạy")
+rọi trạng_của(bg, "x")               # ẩn

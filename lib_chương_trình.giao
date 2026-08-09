@@ -1,0 +1,218 @@
+# ============================================================
+# lib_chương_trình.giao — CHƯƠNG TRÌNH THẬT chạy dưới bộ lập lịch của HĐH-GIAO
+# ------------------------------------------------------------
+# Mỗi chương trình là một XƯỞNG:  hàm(máy, tid, đối) → thân
+#   `thân` = closure KHÔNG THAM SỐ, mỗi lần nhân gọi thì chạy MỘT LÁT rồi trả:
+#       "tiếp" (còn việc) · "xong" (kết thúc) · "chặn" (đang chờ tin — nhân để yên, `gửi` đánh thức)
+#   Trạng thái riêng của tiến-trình giữ trong một `bản` do closure ôm (lexical) — chính là
+#   "vùng nhớ tiến-trình", mỗi tiến-trình một cõi, không giẫm lên nhau.
+# KỶ LUẬT: chương trình KHÔNG chạm hệ-tệp/bảng tiến-trình. Nó chỉ có `gọi(máy, tid, …)` —
+#   và luôn chạy bằng uid mà nó được sinh ra, nên bị quyền chặn y như người dùng.
+# Nạp: nhập "lib_chương_trình.giao".
+# ============================================================
+nhập "lib_gọi_hệ.giao"
+
+# ---------------- đếm: việc dài, chia thành nhiều lát (thấy rõ đa nhiệm) ----------------
+# đối = [đích, tệp-ghi]. Mỗi lát đếm thêm 1 và GHI vào tệp qua gọi-hệ ⇒ tiến-độ soi được từ ngoài.
+hàm ct_đếm(máy, tid, đối) {
+    đặt s = lấy_trạng(máy, tid)                        # PHỤC HỒI? → dùng lại state cũ, đếm tiếp
+    nếu loại(s) == "ẩn" {                              # sinh MỚI → dựng state + tạo tệp
+        đặt s = bản()
+        đặt_khoá(s, "i", 0)
+        đặt_khoá(s, "đích", đối[0])
+        đặt_khoá(s, "tệp", đối[1])
+        đặt_trạng_ct(máy, tid, s)
+        gọi(máy, tid, GH_TẠO, [đối[1], 644, ""])
+    }
+    trả hàm() {
+        đặt i = lấy_khoá(s, "i") + 1
+        đặt_khoá(s, "i", i)
+        gọi(máy, tid, GH_THÊM, [lấy_khoá(s, "tệp"), "" + i + " "])
+        nếu i >= lấy_khoá(s, "đích") { trả "xong" }
+        trả "tiếp"
+    }
+}
+
+# ---------------- nhật_ký_hệ: DỊCH VỤ NỀN — chặn chờ tin, có tin thì ghi nhật ký ----------------
+# Đây là ca quan trọng nhất: tiến-trình NGỦ (trạng "chặn") không tốn lát nào; ai `gửi` thì nhân
+# đánh thức. Chính là mô hình daemon của Linux (chờ trên hàng đợi, không quay vòng bận).
+hàm ct_nhật_ký(máy, tid, đối) {
+    đặt s = lấy_trạng(máy, tid)
+    nếu loại(s) == "ẩn" { đặt s = bản()  đặt_khoá(s, "đã", 0)  đặt_trạng_ct(máy, tid, s) }
+    trả hàm() {
+        đặt tin = gọi(máy, tid, GH_NHẬN, [])
+        nếu loại(tin) == "ẩn" { trả "chặn" }               # hộp thư rỗng → ngủ
+        đặt_khoá(s, "đã", lấy_khoá(s, "đã") + 1)
+        gọi(máy, tid, GH_THÊM, ["/hệ/nhật_ký", "\nnhịp " + lấy_khoá(máy, "nhịp") + "  " + tin])
+        trả "tiếp"
+    }
+}
+
+# ---------------- báo: gửi tin cho dịch vụ nhật ký rồi nghỉ ----------------
+# đối = [tid dịch-vụ, danh-sách lời]. Mỗi lát gửi một lời ⇒ đánh thức daemon đang chặn.
+hàm ct_báo(máy, tid, đối) {
+    đặt s = lấy_trạng(máy, tid)
+    nếu loại(s) == "ẩn" {
+        đặt s = bản()
+        đặt_khoá(s, "đích", đối[0])  đặt_khoá(s, "lời", đối[1])  đặt_khoá(s, "k", 0)
+        đặt_trạng_ct(máy, tid, s)
+    }
+    trả hàm() {
+        đặt k = lấy_khoá(s, "k")
+        đặt ds = lấy_khoá(s, "lời")
+        nếu k >= dài(ds) { trả "xong" }
+        gọi(máy, tid, GH_GỬI, [lấy_khoá(s, "đích"), ds[k]])
+        đặt_khoá(s, "k", k + 1)
+        nếu k + 1 >= dài(ds) { trả "xong" }
+        trả "tiếp"
+    }
+}
+
+# ---------------- chào: ghi ra thiết bị màn hình (driver) ----------------
+hàm ct_chào(máy, tid, đối) {
+    đặt s = lấy_trạng(máy, tid)
+    nếu loại(s) == "ẩn" {
+        đặt s = bản()  đặt_khoá(s, "n", 0)  đặt_khoá(s, "lời", đối[0])  đặt_trạng_ct(máy, tid, s)
+    }
+    trả hàm() {
+        đặt n = lấy_khoá(s, "n") + 1
+        đặt_khoá(s, "n", n)
+        gọi(máy, tid, GH_GHI, ["/tb/màn", lấy_khoá(s, "lời") + " (" + n + ")"])
+        nếu n >= 2 { trả "xong" }
+        trả "tiếp"
+    }
+}
+
+# ---------------- soi_rác: duyệt /tạm, ghi báo cáo (chương trình có ĐI HỎI hệ-tệp) ----------------
+hàm ct_soi_rác(máy, tid, đối) {
+    đặt s = lấy_trạng(máy, tid)
+    nếu loại(s) == "ẩn" {
+        đặt s = bản()  đặt_khoá(s, "pha", 0)  đặt_khoá(s, "ds", [])  đặt_trạng_ct(máy, tid, s)
+    }
+    trả hàm() {
+        đặt pha = lấy_khoá(s, "pha")
+        nếu pha == 0 {
+            đặt ds = gọi(máy, tid, GH_LIỆT, ["/tạm"])
+            nếu loại(ds) == "danh_sách" { đặt_khoá(s, "ds", ds) } khác { đặt_khoá(s, "ds", []) }
+            đặt_khoá(s, "pha", 1)
+            trả "tiếp"
+        }
+        đặt ds = lấy_khoá(s, "ds")
+        gọi(máy, tid, GH_TẠO, ["/tạm/báo_cáo_rác", 644, "rác trong /tạm: " + dài(ds) + " mục — " + nối(ds, ", ")])
+        trả "xong"
+    }
+}
+
+# ---------------- kẻ_tọc_mạch: THỬ vượt quyền — để chứng minh nhân chặn thật ----------------
+hàm ct_tọc_mạch(máy, tid, đối) {
+    trả hàm() {
+        gọi(máy, tid, GH_ĐỌC, ["/hệ/mật_khẩu"])
+        gọi(máy, tid, GH_TẠO, ["/hệ/cửa_sau", 777, "x"])
+        trả "xong"
+    }
+}
+
+# ---------------- tham: KẺ THAM LAM — quay vòng ăn CPU mà chẳng làm gì ----------------
+# Không gọi-hệ, không kết thúc, chỉ xin CPU mãi. Đây là kẻ mà lịch `nice` của Linux không trị nổi
+# (nó cứ khai ưu tiên cao là được ưu ái), còn lịch γ thì ĐO ra ngay: ρ=0 ⇒ σ→0 ⇒ credit không lên.
+hàm ct_tham(máy, tid, đối) {
+    đặt s = lấy_trạng(máy, tid)
+    nếu loại(s) == "ẩn" { đặt s = bản()  đặt_khoá(s, "vòng", 0)  đặt_trạng_ct(máy, tid, s) }
+    trả hàm() {
+        đặt_khoá(s, "vòng", lấy_khoá(s, "vòng") + 1)     # đốt CPU, KHÔNG một lời gọi-hệ nào
+        trả "tiếp"
+    }
+}
+
+# ============================================================
+# ★ CHƯƠNG TRÌNH ĐƯỜNG-ỐNG — quy ước: đối[0] = ỐNG VÀO ("" nếu không có)
+#                                      đối[1] = ỐNG RA  ("" nếu không có)
+#                                      đối[2…] = tham số riêng
+# Nhờ quy ước này, vỏ ghép được `bơm 8 | lọc chẵn | hút /tạm/kq` thành BA TIẾN TRÌNH THẬT
+# nối bằng hai ống của nhân — chạy xen kẽ, tự chặn/tự thức, có phản áp, có EOF.
+# ============================================================
+
+# bơm: sinh N gói rồi ĐÓNG ống ra (đóng = báo EOF cho bên sau).
+hàm ct_bơm(máy, tid, đối) {
+    đặt s = lấy_trạng(máy, tid)
+    nếu loại(s) == "ẩn" {
+        đặt s = bản()
+        đặt_khoá(s, "ra", đối[1])  đặt_khoá(s, "n", đối[2])  đặt_khoá(s, "i", 0)
+        đặt_trạng_ct(máy, tid, s)
+    }
+    trả hàm() {
+        đặt i = lấy_khoá(s, "i") + 1
+        nếu i > lấy_khoá(s, "n") {
+            gọi(máy, tid, GH_ĐÓNG, [lấy_khoá(s, "ra")])
+            trả "xong"
+        }
+        đặt nhãn = "lẻ"
+        nếu dư(i, 2) == 0 { đặt nhãn = "chẵn" }
+        đặt r = gọi(máy, tid, GH_GHI, [lấy_khoá(s, "ra"), "gói " + i + " " + nhãn])
+        nếu r == sáng { đặt_khoá(s, "i", i)  trả "tiếp" }
+        trả "chặn"                                   # ống ĐẦY → ngủ, giữ nguyên i để ghi lại
+    }
+}
+
+# lọc: đọc ống vào, gói nào CHỨA `chữ` thì đẩy sang ống ra; vào hết (EOF) → đóng ra rồi xong.
+hàm ct_lọc(máy, tid, đối) {
+    đặt s = lấy_trạng(máy, tid)
+    nếu loại(s) == "ẩn" {
+        đặt s = bản()
+        đặt_khoá(s, "vào", đối[0])  đặt_khoá(s, "ra", đối[1])  đặt_khoá(s, "chữ", đối[2])
+        đặt_khoá(s, "giữ", ẩn)                       # gói đang chờ đẩy tiếp (khi ống ra đầy)
+        đặt_trạng_ct(máy, tid, s)
+    }
+    trả hàm() {
+        đặt giữ = lấy_khoá(s, "giữ")
+        nếu loại(giữ) == "ẩn" {
+            đặt g = gọi(máy, tid, GH_ĐỌC, [lấy_khoá(s, "vào")])
+            nếu loại(g) == "ẩn" {
+                nếu chứa_chuỗi(lỗi_cuối(máy), "EOF") {
+                    gọi(máy, tid, GH_ĐÓNG, [lấy_khoá(s, "ra")])
+                    trả "xong"
+                }
+                trả "chặn"                            # ống vào rỗng → ngủ
+            }
+            nếu chứa_chuỗi(g, lấy_khoá(s, "chữ")) { đặt_khoá(s, "giữ", g) } khác { trả "tiếp" }
+        }
+        đặt r = gọi(máy, tid, GH_GHI, [lấy_khoá(s, "ra"), lấy_khoá(s, "giữ")])
+        nếu r == sáng { đặt_khoá(s, "giữ", ẩn)  trả "tiếp" }
+        trả "chặn"                                    # ống ra đầy → ngủ, còn giữ gói
+    }
+}
+
+# hút: đọc ống vào, nối vào tệp (hoặc ra màn nếu tệp = "màn"); EOF → xong.
+hàm ct_hút(máy, tid, đối) {
+    đặt s = lấy_trạng(máy, tid)
+    nếu loại(s) == "ẩn" {
+        đặt s = bản()
+        đặt_khoá(s, "vào", đối[0])  đặt_khoá(s, "tệp", đối[2])
+        đặt_trạng_ct(máy, tid, s)
+        gọi(máy, tid, GH_TẠO, [đối[2], 644, ""])
+    }
+    trả hàm() {
+        đặt g = gọi(máy, tid, GH_ĐỌC, [lấy_khoá(s, "vào")])
+        nếu loại(g) == "ẩn" {
+            nếu chứa_chuỗi(lỗi_cuối(máy), "EOF") { trả "xong" }
+            trả "chặn"
+        }
+        gọi(máy, tid, GH_THÊM, [lấy_khoá(s, "tệp"), g + "\n"])
+        trả "tiếp"
+    }
+}
+
+# ---------------- nạp tất cả vào một máy ----------------
+hàm nạp_chương_trình(máy) {
+    đăng_ký_ct(máy, "đếm", ct_đếm)
+    đăng_ký_ct(máy, "nhật_ký_hệ", ct_nhật_ký)
+    đăng_ký_ct(máy, "báo", ct_báo)
+    đăng_ký_ct(máy, "chào", ct_chào)
+    đăng_ký_ct(máy, "soi_rác", ct_soi_rác)
+    đăng_ký_ct(máy, "tọc_mạch", ct_tọc_mạch)
+    đăng_ký_ct(máy, "bơm", ct_bơm)          # ★ ba chương trình ĐƯỜNG-ỐNG
+    đăng_ký_ct(máy, "lọc", ct_lọc)
+    đăng_ký_ct(máy, "hút", ct_hút)
+    đăng_ký_ct(máy, "tham", ct_tham)        # kẻ tham lam (để thử bộ lập lịch γ)
+    trả máy
+}

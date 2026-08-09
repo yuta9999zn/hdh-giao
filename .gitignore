@@ -1,0 +1,23 @@
+# ───────────────────────────────────────────────────────── phụ thuộc ngoài
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# ───────────────────────────────────────────────────────── sản phẩm dựng phần cứng
+# Giữ NGUỒN (*.v, *.ys, *.py, *.hex) — bỏ SẢN PHẨM tổng hợp/đặt-nối (tái tạo được, rất nặng)
+hw/**/*.asc
+hw/**/*.bit
+hw/**/*.config
+hw/**/*.json
+hw/**/*.log
+hw/**/*.vvp
+*.vvp
+
+# ───────────────────────────────────────────────────────── vết chạy
+*.tmp
+.DS_Store
+
+# ───────────────────────────────────────────────────────── sổ cổng: GIỮ, đây là dữ liệu quý
+!so_cong.jsonl

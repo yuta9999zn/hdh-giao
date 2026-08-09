@@ -1,0 +1,95 @@
+# ============================================================
+# hdh_bền.giao — ★ BỀN HOÁ: chụp CẢ HỆ ĐIỀU HÀNH ra JSON, dựng lại, CHẠY TIẾP
+# ------------------------------------------------------------
+# "Tắt máy" ở đây = vứt bỏ toàn bộ máy đang chạy, chỉ giữ MỘT CHUỖI JSON.
+# "Bật lại"  = dựng máy MỚI từ chuỗi đó, nạp lại kho chương trình (mã), rồi chạy tiếp —
+#              tiến trình đang đếm dở sẽ đếm TIẾP, không đếm lại từ đầu.
+# Chạy:  python giao.py hdh_bền.giao
+# ============================================================
+nhập "lib_vỏ.giao"
+nhập "lib_chương_trình.giao"
+nhập "lib_bền.giao"
+
+# ───────── máy thứ nhất: sống một đời ─────────
+đặt M = khởi_máy()
+thêm_người(M, 0, "gốc")  thêm_người(M, 1000, "an")
+đặt KHỞI = sinh_tt(M, "khởi", 0, 0, "/")
+gọi(M, KHỞI, GH_TẠO_THƯ, ["/hệ", 755])   gọi(M, KHỞI, GH_TẠO_THƯ, ["/nhà", 755])
+gọi(M, KHỞI, GH_TẠO_THƯ, ["/tạm", 777])  gọi(M, KHỞI, GH_TẠO_THƯ, ["/tt", 555])
+gọi(M, KHỞI, GH_TẠO_THƯ, ["/ống", 777])  gọi(M, KHỞI, GH_TẠO_THƯ, ["/tb", 755])
+gọi(M, KHỞI, GH_GẮN_TB, ["/tb/màn", 666, "màn_hình"])
+cài_lệnh(M, KHỞI)
+gọi(M, KHỞI, GH_TẠO, ["/hệ/tên_máy", 644, "giao-01"])
+gọi(M, KHỞI, GH_TẠO, ["/hệ/nhật_ký", 644, "nhịp 0  khởi: nhân lên"])
+gọi(M, KHỞI, GH_TẠO_THƯ, ["/nhà/an", 700])
+gọi(M, KHỞI, GH_ĐỔI_CHỦ, ["/nhà/an", 1000])  duyệt(M)
+nạp_chương_trình(M)
+đặt V = sinh_tt(M, "vỏ", 5, 1000, "/nhà/an")
+
+rọi "┌───────────────────────────────────────────────────────────────┐"
+rọi "│  HĐH-GIAO — BỀN HOÁ: chụp cả hệ ra JSON rồi dựng lại chạy tiếp│"
+rọi "└───────────────────────────────────────────────────────────────┘"
+
+rọi ""
+rọi "════ 1. Sống một đời: làm việc, sinh tiến trình, để lại việc DỞ DANG ════"
+gõ(M, V, "nói \"sổ tay ngày thứ nhất\" > /nhà/an/sổ_tay")
+gõ(M, V, "ghi /nhà/an/lệnh_riêng \"nói tôi là lệnh do người dùng viết\"")
+gõ(M, V, "xoá /nhà/an/sổ_tay")                                      # để lại việc CHỜ PHÊ DUYỆT
+đặt NK = gọi(M, KHỞI, GH_SINH, ["nhật_ký_hệ", 3])                   # dịch vụ nền
+vòng_nhân(M, 2)                                                     # nó vào trạng "chặn" (ngủ)
+gọi(M, V, GH_ỐNG, ["/ống/dở", 4])
+gọi(M, V, GH_GHI, ["/ống/dở", "gói còn kẹt trong ống"])             # ống có gói ĐANG ĐỌNG
+đặt ĐẾM = gọi(M, V, GH_SINH, ["đếm", 5, [6, "/nhà/an/đếm"]])        # đếm tới 6…
+vòng_nhân(M, 3)                                                     # …nhưng CHỈ cho chạy 3 lát!
+rọi "tiến trình đếm (tt" + ĐẾM + ") mới chạy 3 lát: tệp = [" + gọi(M, V, GH_ĐỌC, ["/nhà/an/đếm"]) + "]"
+rọi "trạng thái trước khi tắt: nhịp=" + lấy_khoá(M, "nhịp") + " · tiến trình sống=" + số_sống(lấy_khoá(M, "nhân"))
+
+rọi ""
+rọi "════ 2. CHỤP: cả hệ điều hành → MỘT chuỗi JSON ════"
+đặt ẢNH = chụp_máy(M)
+rọi "ảnh chụp dài " + dài(ẢNH) + " ký tự"
+rọi "mở đầu: " + lát_chuỗi(ẢNH, 0, 72) + "…"
+
+rọi ""
+rọi "════ 3. TẮT MÁY: vứt bỏ toàn bộ máy cũ, chỉ giữ chuỗi JSON ════"
+đặt M = ẩn                                                          # máy cũ biến mất
+rọi "máy cũ: " + loại(M) + "   (chỉ còn chuỗi ẢNH trong tay)"
+
+rọi ""
+rọi "════ 4. BẬT LẠI: dựng máy MỚI từ ảnh + nạp lại MÃ ════"
+đặt M2 = phục_hồi_máy(ẢNH)
+nạp_chương_trình(M2)                                                # kho chương trình = MÃ, phải nạp lại
+đặt số_thân = hồi_sinh(M2)                                          # dựng lại thân cho tiến trình còn sống
+rọi "dựng lại " + số_thân + " thân tiến-trình · nhịp = " + lấy_khoá(M2, "nhịp")
+rọi "người dùng còn nguyên: uid 1000 = " + tên_người(M2, 1000) + " · uid 0 = " + tên_người(M2, 0)
+rọi "hệ-tệp còn nguyên: " + gọi(M2, V, GH_ĐỌC, ["/hệ/tên_máy"])
+rọi "lệnh người dùng tự viết còn đó: " + gọi(M2, V, GH_ĐỌC, ["/nhà/an/lệnh_riêng"])
+
+rọi ""
+rọi "════ 5. CHẠY TIẾP — tiến trình đếm DỞ phải đếm TIẾP, không đếm lại ════"
+rọi "trước khi chạy tiếp: [" + gọi(M2, V, GH_ĐỌC, ["/nhà/an/đếm"]) + "]"
+chạy_tới_hết(M2, 60)
+rọi "sau khi chạy tiếp:  [" + gọi(M2, V, GH_ĐỌC, ["/nhà/an/đếm"]) + "]   ← 1 2 3 rồi 4 5 6, KHÔNG lặp lại"
+
+rọi ""
+rọi "════ 6. Mọi thứ khác cũng sống lại đúng ════"
+rọi "• ống còn giữ gói đang đọng: " + gọi(M2, V, GH_ĐỌC, ["/ống/dở"])
+rọi "• việc chờ phê duyệt vẫn treo: " + mô_tả_lệnh(lấy_khoá(M2, "chờ_duyệt")[1], lấy_khoá(M2, "chờ_duyệt")[2])
+gõ(M2, V, "duyệt")
+gõ(M2, V, "liệt /nhà/an")
+rọi "• dịch vụ nền tt" + NK + " trạng = " + trạng(lấy_khoá(M2, "nhân"), NK) + " (vẫn đang ngủ chờ tin)"
+gọi(M2, V, GH_GỬI, [NK, "tin sau khi phục hồi"])
+chạy_tới_hết(M2, 20)
+rọi "• gửi tin → dịch vụ dậy ghi nhật ký:"
+lặp d trong tách(gọi(M2, KHỞI, GH_ĐỌC, ["/hệ/nhật_ký"]), "\n") { nếu dài(d) > 0 { rọi "     " + d } }
+rọi "• nhật ký audit giữ nguyên " + dài(lấy_khoá(M2, "nhật_ký")) + " lời gọi từ ĐỜI TRƯỚC"
+
+rọi ""
+rọi "════ 7. CHỤP LẠI LẦN NỮA — round-trip có ổn định không? ════"
+đặt M3 = phục_hồi_máy(chụp_máy(M2))
+nạp_chương_trình(M3)  hồi_sinh(M3)
+rọi "ảnh(M2) == ảnh(M3)? " + giống_nhau(M2, M3) + "   (chụp → dựng → chụp cho ra ĐÚNG một ảnh)"
+
+rọi ""
+rọi "→ Một hệ điều hành đang sống gói gọn trong một chuỗi JSON: tệp, quyền, tiến trình, ống,"
+rọi "  hộp thư, nhật ký, cả việc đang chờ người phê duyệt. Mã thì nạp lại; dữ liệu thì bền."

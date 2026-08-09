@@ -1,0 +1,121 @@
+# ============================================================
+# lib_đống.giao — ĐỐNG ưu-tiên (heapq) + TÌM-CHÈN nhị-phân (bisect) cho GIAO
+# ------------------------------------------------------------
+# Vì list GIAO là HÀM-THUẦN (thêm/ghép/đuôi trả list MỚI, KHÔNG gán-chỉ-mục) → heap mảng+swap
+# không hợp. Dùng PAIRING-HEAP (cây lồng list, thuần-hàm): node = [giá_trị, [con...]] · rỗng = [].
+# GIỮ CỐT LÕI GIAO: ba-trị (đỉnh/lấy của đống RỖNG → 'ẩn' = không-có, KHÔNG bịa) · idiom Việt ·
+#   TỰ-THÂN (trên builtin thêm/ghép + chuẩn.giao lấy_n + lib_duyet bỏ_n). Đống MIN (nhỏ nhất ở đỉnh).
+# Nạp: nhập "lib_đống.giao".
+# ============================================================
+nhập "lib_duyet.giao"     # bỏ_n (lấy_n có ở chuẩn.giao)
+
+# ---------------- ĐỐNG ưu-tiên (pairing heap, MIN) ----------------
+# Nút = [giá_trị, con] · con = CONS-LIST: [] (rỗng) hoặc [nút_con, con_còn] → prepend O(1) (KHÔNG copy, GIỮ persistence).
+# (Trước: con là list phẳng + `thêm`-copy O(k)/merge → push O(n²). Cons-prepend → push O(n).)
+hàm đống_rỗng() { trả [] }
+hàm rỗng_đống(h) {                       # → sáng/tối ; ẩn → ẩn
+    nếu loại(h) == "ẩn" { trả ẩn }
+    nếu dài(h) == 0 { trả sáng }
+    trả tối
+}
+hàm gộp_đống(a, b) {                      # merge: gốc nhỏ hơn lên đỉnh, đống kia thành CON
+    nếu loại(a) == "ẩn" { trả ẩn }
+    nếu loại(b) == "ẩn" { trả ẩn }
+    nếu rỗng_đống(a) { trả b }
+    nếu rỗng_đống(b) { trả a }
+    nếu a[0] <= b[0] { trả [a[0], [b, a[1]]] }    # prepend b vào con của a (cons O(1))
+    trả [b[0], [a, b[1]]]
+}
+hàm đẩy(h, x) { trả gộp_đống(h, [x, []]) }       # heappush
+
+hàm _gộp_ds(cons) {                       # gộp CONS-LIST đống-con → một đống (sau khi pop đỉnh)
+    đặt h = []  đặt c = cons
+    mãi { nếu dài(c) == 0 { dừng }  đặt h = gộp_đống(h, c[0])  đặt c = c[1] }
+    trả h
+}
+hàm đỉnh(h) {                             # peek MIN; đống rỗng → ẩn (KHÔNG bịa)
+    nếu rỗng_đống(h) { trả ẩn }
+    trả h[0]
+}
+hàm lấy(h) {                              # heappop → [min, đống_còn_lại]; rỗng → ẩn
+    nếu loại(h) == "ẩn" { trả ẩn }
+    nếu rỗng_đống(h) { trả ẩn }
+    trả [h[0], _gộp_ds(h[1])]
+}
+hàm từ_ds(ds) {                           # heapify: danh-sách → đống
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    đặt h = []
+    lặp x trong ds { đặt h = đẩy(h, x) }
+    trả h
+}
+hàm xả_đống(h) {                          # drain: ĐỐNG có-sẵn → danh-sách TĂNG DẦN (pop tới rỗng)
+    nếu loại(h) == "ẩn" { trả ẩn }
+    đặt g = h  đặt kq = []
+    mãi {
+        nếu rỗng_đống(g) { dừng }
+        đặt r = lấy(g)
+        gom(kq, r[0])
+        đặt g = r[1]
+    }
+    trả kq
+}
+hàm sắp_đống(ds) { trả xả_đống(từ_ds(ds)) }      # heapsort: danh-sách → TĂNG DẦN
+hàm n_nhỏ_nhất(ds, k) { nếu loại(ds) == "ẩn" { trả ẩn }  nếu loại(k) == "ẩn" { trả ẩn }  trả lấy_n(sắp_đống(ds), k) }              # nsmallest
+hàm n_lớn_nhất(ds, k) { nếu loại(ds) == "ẩn" { trả ẩn }  nếu loại(k) == "ẩn" { trả ẩn }  trả lấy_n(đảo(sắp_đống(ds)), k) }         # nlargest (đảo của tăng-dần)
+
+# ---------------- ĐỐNG theo KHOÁ (priority queue tải-trọng tuỳ-ý) ----------------
+# phần-tử = [khoá_số, tải]; so-sánh CHỈ theo khoá (vì GIAO KHÔNG so-sánh list trực-tiếp). khoá NHỎ = ưu-tiên CAO.
+hàm _gộp_k(a, b) {
+    nếu rỗng_đống(a) { trả b }
+    nếu rỗng_đống(b) { trả a }
+    nếu a[0][0] <= b[0][0] { trả [a[0], [b, a[1]]] }   # prepend cons O(1)
+    trả [b[0], [a, b[1]]]
+}
+hàm đẩy_khoá(h, khoá, tải) { nếu loại(h) == "ẩn" { trả ẩn }  nếu loại(khoá) == "ẩn" { trả ẩn }  trả _gộp_k(h, [[khoá, tải], []]) }   # heappush có ưu-tiên
+hàm _gộp_ds_k(cons) {
+    đặt h = []  đặt c = cons
+    mãi { nếu dài(c) == 0 { dừng }  đặt h = _gộp_k(h, c[0])  đặt c = c[1] }
+    trả h
+}
+hàm đỉnh_tải(h) {                        # tải của phần-tử khoá NHỎ nhất (peek); rỗng → ẩn
+    nếu rỗng_đống(h) { trả ẩn }
+    trả h[0][1]
+}
+hàm lấy_nhỏ_nhất(h) {                     # heappop → [khoá, tải, đống_còn]; rỗng → ẩn
+    nếu loại(h) == "ẩn" { trả ẩn }
+    nếu rỗng_đống(h) { trả ẩn }
+    trả [h[0][0], h[0][1], _gộp_ds_k(h[1])]
+}
+
+# ---------------- TÌM-CHÈN nhị-phân (bisect) trên danh-sách ĐÃ SẮP ----------------
+hàm vị_trí_trái(ds, x) {                  # bisect_left: chỉ-số chèn, TRƯỚC mọi phần-tử == x
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    đặt lo = 0  đặt hi = dài(ds)
+    mãi {
+        nếu lo >= hi { dừng }
+        đặt giữa = (lo + hi) // 2
+        nếu ds[giữa] < x { đặt lo = giữa + 1 } khác { đặt hi = giữa }
+    }
+    trả lo
+}
+hàm vị_trí_phải(ds, x) {                  # bisect_right: chỉ-số chèn, SAU mọi phần-tử == x
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    đặt lo = 0  đặt hi = dài(ds)
+    mãi {
+        nếu lo >= hi { dừng }
+        đặt giữa = (lo + hi) // 2
+        nếu x < ds[giữa] { đặt hi = giữa } khác { đặt lo = giữa + 1 }
+    }
+    trả lo
+}
+hàm chèn_xếp(ds, x) {                     # insort: trả danh-sách MỚI đã chèn x GIỮ thứ-tự
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    đặt i = vị_trí_phải(ds, x)
+    trả ghép(lấy_n(ds, i), ghép([x], bỏ_n(ds, i)))
+}
+hàm có_sắp(ds, x) {                       # tìm-nhị-phân: x có trong ds-đã-sắp? → sáng/tối
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    đặt i = vị_trí_trái(ds, x)
+    nếu i < dài(ds) { nếu ds[i] == x { trả sáng } }
+    trả tối
+}

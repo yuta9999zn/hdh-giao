@@ -1,0 +1,48 @@
+# ============================================================
+# lib_url.giao — URL cho GIAO (tham-chiếu urllib.parse của Python / URI của Ruby)
+# ------------------------------------------------------------
+# phân_tích_url(url) → bản{scheme, host, cổng, đường, truy_vấn(bản)}. Thiếu phần nào → 'ẩn' (ba-trị).
+# phân_tích_truy_vấn("a=1&b=2") → bản · thành_truy_vấn(bản) → "a=1&b=2".
+# GIỮ CỐT LÕI: ba-trị (không-có-cổng/scheme → ẩn), tự-thân. Nạp: nhập "lib_url.giao".
+# ============================================================
+nhập "lib_chuoi.giao"     # lát_chuỗi (slice→chuỗi), chỉ_số…
+
+hàm phân_tích_truy_vấn(qs) {
+    nếu loại(qs) == "ẩn" { trả ẩn }
+    đặt m = bản()
+    nếu dài(qs) == 0 { trả m }
+    lặp cặp trong tách(qs, "&") {
+        nếu dài(cặp) == 0 { }                          # BỎ pair rỗng ("&&"/trailing "&") — như Python parse_qs (sau khi builtin tách GIỮ rỗng)
+        khác {
+            đặt kv = tách(cặp, "=")
+            nếu dài(kv) >= 2 { đặt_khoá(m, kv[0], kv[1]) }   # "a=1=2" → giá "1" (tách giữ "2" nhưng kv[1] đầu); chấp-nhận
+            khác { đặt_khoá(m, kv[0], "") }
+        }
+    }
+    trả m
+}
+hàm thành_truy_vấn(m) {
+    nếu loại(m) == "ẩn" { trả ẩn }         # ẩn → ẩn (không trả "" SAI)
+    đặt phần = []
+    lặp k trong m { đặt phần = ghép(phần, [k + "=" + lấy_khoá(m, k)]) }
+    trả nối(phần, "&")
+}
+hàm phân_tích_url(url) {
+    nếu loại(url) == "ẩn" { trả ẩn }
+    đặt r = bản()
+    đặt p = url
+    đặt vp = vị_trí(p, "://")                              # scheme
+    nếu loại(vp) == "ẩn" { đặt_khoá(r, "scheme", ẩn) }
+    khác { đặt_khoá(r, "scheme", lát_chuỗi(p, 0, vp))  đặt p = lát_chuỗi(p, vp + 3, dài(p)) }
+    đặt vs = vị_trí(p, "/")                                # authority / path
+    đặt auth = p  đặt rest = ""
+    nếu loại(vs) == "ẩn" { } khác { đặt auth = lát_chuỗi(p, 0, vs)  đặt rest = lát_chuỗi(p, vs, dài(p)) }
+    đặt vc = vị_trí(auth, ":")                             # host : cổng
+    nếu loại(vc) == "ẩn" { đặt_khoá(r, "host", auth)  đặt_khoá(r, "cổng", ẩn) }
+    khác { đặt_khoá(r, "host", lát_chuỗi(auth, 0, vc))  đặt_khoá(r, "cổng", lát_chuỗi(auth, vc + 1, dài(auth))) }
+    đặt vq = vị_trí(rest, "?")                             # đường ? truy_vấn
+    nếu loại(vq) == "ẩn" { đặt_khoá(r, "đường", rest)  đặt_khoá(r, "truy_vấn", bản()) }
+    khác { đặt_khoá(r, "đường", lát_chuỗi(rest, 0, vq))
+           đặt_khoá(r, "truy_vấn", phân_tích_truy_vấn(lát_chuỗi(rest, vq + 1, dài(rest)))) }
+    trả r
+}

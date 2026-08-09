@@ -1,0 +1,79 @@
+# ============================================================
+# TIM ⟂ VÒNG LIÊN TỤC — nối TRÁI TIM (LLM) vào NHÂN-AI CDFL liên tục (nhan_ai_cdfl)
+# Khác bản số: ô giờ là NGỮ NGHĨA. Tim 'nhúng' thực tại↔niềm tin thành σ/Φ (vector);
+# γ = cộng_hưởng(σ, Φ(ρ)) (cosine). Bốn-mặt CDFL điều phối sự chú ý:
+#   3 TRỒI đốm sáng (σ=ẩn, DE: chưa từng tin) · 2 SOI đốm tối (γ<τ: niềm tin lạc thực tại)
+#   1 LÀM TƯƠI (thế giới đã trôi) · 0 OR ổn (nghỉ).
+# Thế giới TRÔI bằng VĂN BẢN (sự kiện mới nối vào ρ) ⇒ niềm tin cũ hoá đốm tối ⇒
+# luôn có việc để làm ⇒ nhân-AI đập MÃI (chỉ viên mãn CỤC BỘ). Tim bơm, não neo.
+# Chạy với tim_llm dự phòng; cắm Ollama vào là σ/Φ thành ngữ nghĩa thật, KHÔNG sửa GIAO.
+# Ô = [tên, ρ_văn, σ_vec, phiên_bản, đã_học].
+# ============================================================
+
+hàm Φ(văn) { trả nhúng(văn) }                 # thấu kính tim: văn bản → σ/Φ vector
+đặt τ = 55 / 100                                # hiệu chỉnh cho bge-m3 (ảo ~0.51 < τ < thật ~0.92)
+
+hàm γ_ô(ô) {
+    nếu loại(ô[2]) == "ẩn" { trả 0 - 2 }       # chưa tin → rất âm (rơi vào DE)
+    trả cộng_hưởng(ô[2], Φ(ô[1]))
+}
+hàm mặt_ô(ô) {
+    nếu loại(ô[2]) == "ẩn" { trả 3 }           # đốm sáng (DE)
+    nếu γ_ô(ô) < τ { trả 2 }                    # đốm tối (ảo/lạc thực tại)
+    nếu ô[3] > ô[4] { trả 1 }                   # làm tươi (đã trôi)
+    trả 0                                        # OR ổn
+}
+hàm nhãn_mặt(m) {
+    nếu m == 3 { trả "TRỒI đốm sáng (DE→tri thức)" }
+    nếu m == 2 { trả "SOI đốm tối (niềm tin lạc thực tại)" }
+    nếu m == 1 { trả "LÀM TƯƠI (thế giới đã trôi)" }
+    trả "OR ổn (nghỉ)"
+}
+hàm chọn_ô(cells) { trả argmax(mặt_ô, cells) }
+
+# HỌC: tim nhúng lại thực tại → σ khớp ρ; đánh dấu đã_học = phiên_bản
+hàm học_ô(cells, tên) {
+    nếu dài(cells) == 0 { trả [] }
+    đặt ô = đầu(cells)
+    nếu ô[0] == tên { trả ghép([[ô[0], ô[1], Φ(ô[1]), ô[3], ô[3]]], đuôi(cells)) }
+    trả ghép([ô], học_ô(đuôi(cells), tên))
+}
+# THẾ GIỚI TRÔI: nối một sự-kiện mới vào ρ_văn → niềm tin cũ lạc đi (γ tụt)
+đặt sự_kiện = ["nóng", "lỗi", "tải-cao", "đầy", "chậm", "trễ"]
+hàm drift_ô(cells, tên) {
+    nếu dài(cells) == 0 { trả [] }
+    đặt ô = đầu(cells)
+    nếu ô[0] == tên {
+        đặt ρ2 = ô[1] + " " + sự_kiện[dư(ô[3], 6)]
+        trả ghép([[ô[0], ρ2, ô[2], ô[3] + 1, ô[4]]], đuôi(cells))
+    }
+    trả ghép([ô], drift_ô(đuôi(cells), tên))
+}
+hàm g4(x) { trả nguyên(x * 1000) / 1000 }      # làm tròn để in
+
+# VÒNG LIÊN TỤC: chú ý (bốn-mặt) → tim nói (khi mở DE) → học → thế giới trôi → lặp
+hàm vòng(cells, n, idx) {
+    nếu n == 0 { trả cells }
+    đặt ô_c = chọn_ô(cells)
+    đặt m = mặt_ô(ô_c)
+    rọi "  ♥ chú ý [" + ô_c[0] + "] γ=" + g4(γ_ô(ô_c)) + " → " + nhãn_mặt(m)
+    nếu m == 3 { rọi "    tim nói: " + tim("Một việc cần biết: " + ô_c[1] + ". Tóm tắt ngắn:") }
+    đặt cells2 = học_ô(cells, ô_c[0])
+    đặt ô_d = cells2[dư(idx, dài(cells2))]      # một ô trôi (xoay vòng) — thế giới không đứng yên
+    trả vòng(drift_ô(cells2, ô_d[0]), n - 1, idx + 1)
+}
+
+# ===================== CHẠY =====================
+rọi "TIM nối VÒNG LIÊN TỤC — A: DE(chưa tin) · B: niềm-tin SAI(đốm tối) · C: khớp(OR ổn)"
+rọi ""
+đặt cells = [
+    ["A", "ổ đĩa còn trống nhiều chỗ", ẩn, 0, 0],
+    ["B", "kết nối internet vẫn thông suốt nhanh", nhúng("máy chủ đang bị xâm nhập đánh sập"), 0, 0],
+    ["C", "cpu tải thấp đang nhàn rỗi", nhúng("cpu tải thấp đang nhàn rỗi"), 0, 0]
+]
+rọi "nhịp tim [sinh, nhúng]: " + nhịp_tim()
+rọi ""
+đặt cuối = vòng(cells, 8, 0)
+rọi ""
+rọi "→ Tim bơm σ/Φ (vector ngữ nghĩa); bốn-mặt CDFL ưu tiên: mở DE > soi ảo > làm tươi > nghỉ."
+rọi "  Thế giới trôi (sự kiện mới) ⇒ niềm tin hoá đốm tối ⇒ VIÊN MÃN chỉ CỤC BỘ ⇒ đập MÃI."

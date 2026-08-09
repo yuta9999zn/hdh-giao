@@ -1,0 +1,94 @@
+# ============================================================
+# lib_tiến_trình.giao — BẢNG TIẾN-TRÌNH (process table) cho HĐH-GIAO
+# ------------------------------------------------------------
+# Bảng tiến-trình = 'bản' ánh-xạ tid → 'bản'{ "tên":..., "trạng":..., "ưu":... }.
+# Vòng-đời TRẠNG-THÁI (chuỗi): "sẵn-sàng" → "chạy" ↔ "chặn" → "chết".
+#   • "sẵn-sàng": vừa tạo, chờ CPU.   • "chạy": đang dùng CPU.
+#   • "chặn": chờ I/O / tin (đã nhường CPU).   • "chết": kết-thúc (không hồi).
+# GIỮ CỐT LÕI GIAO: ba-trị (truy-vấn tid LẠ → 'ẩn' = không-biết, KHÔNG bịa ·
+#   có_tt → sáng/tối) · idiom Việt · TỰ-THÂN (chỉ builtin bản/đặt_khoá/lấy_khoá/
+#   có_khoá/khoá + gom; KHÔNG nhập lib khác). Nạp: nhập "lib_tiến_trình.giao".
+# ============================================================
+
+# ---------------- dựng bảng ----------------
+hàm bảng_tt() {                            # bảng tiến-trình RỖNG
+    trả bản()
+}
+
+# tạo_tt: đăng-ký tiến-trình MỚI; trạng khởi-đầu "sẵn-sàng". Mutate bảng, trả bảng.
+# (Nếu tid đã tồn-tại → GHI ĐÈ bằng bản-ghi mới — coi như tái-đăng-ký.)
+hàm tạo_tt(bảng, tid, tên, ưu) {
+    nếu loại(bảng) == "ẩn" { trả ẩn }
+    nếu loại(tid) == "ẩn" { trả bảng }     # tid ẩn → KHÔNG đăng-ký (no-op, như tid-lạ)
+    đặt p = bản()
+    đặt_khoá(p, "tên", tên)
+    đặt_khoá(p, "trạng", "sẵn-sàng")
+    đặt_khoá(p, "ưu", ưu)
+    đặt_khoá(bảng, tid, p)
+    trả bảng
+}
+
+# ---------------- vòng-đời TRẠNG-THÁI ----------------
+# đặt_trạng: đổi trạng-thái CHỈ khi tid tồn-tại; tid không có → KHÔNG làm gì.
+hàm đặt_trạng(bảng, tid, trạng) {
+    nếu loại(bảng) == "ẩn" { trả ẩn }
+    nếu loại(tid) == "ẩn" { trả bảng }     # tid ẩn → bỏ qua (no-op)
+    nếu có_khoá(bảng, tid) {
+        đặt_khoá(lấy_khoá(bảng, tid), "trạng", trạng)
+    }
+    trả bảng
+}
+
+# giết: đặt trạng "chết" (qua đặt_trạng → tid lạ tự bỏ qua).
+hàm giết(bảng, tid) {
+    trả đặt_trạng(bảng, tid, "chết")
+}
+
+# ---------------- truy-vấn (ba-trị: tid lạ → ẩn) ----------------
+hàm trạng_của(bảng, tid) {
+    nếu loại(bảng) == "ẩn" { trả ẩn }
+    nếu loại(tid) == "ẩn" { trả ẩn }
+    nếu có_khoá(bảng, tid) { trả lấy_khoá(lấy_khoá(bảng, tid), "trạng") }
+    trả ẩn
+}
+hàm tên_của(bảng, tid) {
+    nếu loại(bảng) == "ẩn" { trả ẩn }
+    nếu loại(tid) == "ẩn" { trả ẩn }
+    nếu có_khoá(bảng, tid) { trả lấy_khoá(lấy_khoá(bảng, tid), "tên") }
+    trả ẩn
+}
+hàm ưu_của(bảng, tid) {
+    nếu loại(bảng) == "ẩn" { trả ẩn }
+    nếu loại(tid) == "ẩn" { trả ẩn }
+    nếu có_khoá(bảng, tid) { trả lấy_khoá(lấy_khoá(bảng, tid), "ưu") }
+    trả ẩn
+}
+hàm có_tt(bảng, tid) {                     # tid có trong bảng? → sáng/tối  (đổi tên từ 'tồn_tại' để không đụng lib_io.tồn_tại(tệp))
+    nếu loại(bảng) == "ẩn" { trả ẩn }
+    nếu loại(tid) == "ẩn" { trả ẩn }
+    nếu có_khoá(bảng, tid) { trả sáng }
+    trả tối
+}
+
+# ---------------- liệt-kê / đếm ----------------
+# liệt_theo_trạng: danh-sách tid CÓ trạng-thái 'trạng' (duyệt bảng; gom).
+hàm liệt_theo_trạng(bảng, trạng) {
+    nếu loại(bảng) == "ẩn" { trả ẩn }
+    đặt r = []
+    lặp tid trong bảng {
+        đặt p = lấy_khoá(bảng, tid)
+        nếu lấy_khoá(p, "trạng") == trạng { gom(r, tid) }
+    }
+    trả r
+}
+
+# đếm_sống: SỐ tiến-trình KHÁC "chết".
+hàm đếm_sống(bảng) {
+    nếu loại(bảng) == "ẩn" { trả ẩn }
+    đặt n = 0
+    lặp tid trong bảng {
+        đặt p = lấy_khoá(bảng, tid)
+        nếu lấy_khoá(p, "trạng") == "chết" { } khác { đặt n = n + 1 }
+    }
+    trả n
+}

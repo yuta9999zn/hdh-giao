@@ -1,0 +1,972 @@
+# ============================================================
+# lib_vỏ.giao — VỎ LỆNH (shell) kiểu Linux cho HĐH-GIAO
+# ------------------------------------------------------------
+# Vỏ là CHƯƠNG TRÌNH NGƯỜI-DÙNG THUẦN: nó KHÔNG biết gì về hệ-tệp hay bảng tiến-trình —
+# mọi việc đều đi qua `gọi(máy, tid, số, đối)` của lib_gọi_hệ (đúng kỷ luật Linux: vỏ chỉ là
+# một tiến-trình bình thường, không có đặc quyền nào ngoài uid của nó).
+# Có đủ nếp quen Unix: ỐNG `|` · CHUYỂN HƯỚNG `>` `>>` · NỐI `&&` · đường-dẫn tương-đối `.` `..`.
+# Lệnh có TÊN VIỆT + BÍ DANH Linux (ls/cat/echo/ps/…) để ai quen Linux gõ được ngay.
+#   ★ `nhờ <lời nói tự nhiên>` — chuyển việc cho TRỢ LÝ AI qua gọi-hệ GH_NHỜ.
+#   ★ `duyệt` / `huỷ` — phê duyệt (hoặc bỏ) việc BẤT KHẢ HỒI đang bị cổng an-toàn giữ lại.
+# Nạp: nhập "lib_vỏ.giao".
+# ============================================================
+nhập "lib_gọi_hệ.giao"
+nhập "lib_bền.giao"      # chụp_máy — cho lệnh `chụp`
+nhập "lib_kho.giao"      # kho phần mềm — cho lệnh `gói`
+nhập "lib_dinh_dang.giao" # ★ B2: sổ định dạng chạy được — cho `dịch` / `định_dạng`
+
+# ---------------- tách dòng lệnh (giữ "chuỗi trong ngoặc kép") ----------------
+hàm _tách_lệnh(dòng) {
+    đặt kq = []  đặt cur = ""  đặt nháy = tối  đặt i = 0
+    mãi {
+        nếu i >= dài(dòng) { dừng }
+        đặt c = dòng[i]
+        nếu c == "\"" {
+            nếu nháy == sáng { đặt nháy = tối } khác { đặt nháy = sáng }
+        } khác {
+            nếu c == " " {
+                nếu nháy == sáng { đặt cur = cur + c }
+                khác { nếu dài(cur) > 0 { gom(kq, cur)  đặt cur = "" } }
+            } khác { đặt cur = cur + c }
+        }
+        đặt i = i + 1
+    }
+    nếu dài(cur) > 0 { gom(kq, cur) }
+    trả kq
+}
+
+hàm _từ_thứ(đối, i) { nếu dài(đối) > i { trả đối[i] }  trả ẩn }
+hàm _còn_lại(đối, i) {                      # nối các từ từ vị trí i (cho `nói`, `nhờ`)
+    đặt kq = ""
+    đặt j = i
+    mãi {
+        nếu j >= dài(đối) { dừng }
+        nếu dài(kq) > 0 { đặt kq = kq + " " }
+        đặt kq = kq + đối[j]
+        đặt j = j + 1
+    }
+    trả kq
+}
+hàm _dòng_hoá(ds) {                         # danh-sách → văn-bản nhiều dòng
+    đặt kq = ""
+    lặp x trong ds {
+        nếu dài(kq) > 0 { đặt kq = kq + "\n" }
+        đặt kq = kq + x
+    }
+    trả kq
+}
+hàm _kết(mã, ra) { trả [mã, ra] }           # kết quả lệnh: [mã thoát, văn-bản ra]
+
+# ---------------- BẢNG LỆNH (tên Việt · bí danh Linux) ----------------
+hàm _chuẩn_tên(t) {
+    nếu t == "ls"     { trả "liệt" }      nếu t == "cat"   { trả "xem" }
+    nếu t == "echo"   { trả "nói" }       nếu t == "mkdir" { trả "tạothư" }
+    nếu t == "rm"     { trả "xoá" }       nếu t == "touch" { trả "sờ" }
+    nếu t == "pwd"    { trả "ở" }         nếu t == "cd"    { trả "về" }
+    nếu t == "whoami" { trả "tôi" }       nếu t == "ps"    { trả "tt" }
+    nếu t == "kill"   { trả "giết" }      nếu t == "chmod" { trả "quyền" }
+    nếu t == "stat"   { trả "soi" }       nếu t == "tree"  { trả "cây" }
+    nếu t == "grep"   { trả "tìm" }       nếu t == "wc"    { trả "đếm" }
+    nếu t == "ai"     { trả "nhờ" }       nếu t == "help"  { trả "giúp" }
+    nếu t == "exit"   { trả "thoát" }     nếu t == "sudo"  { trả "duyệt" }
+    nếu t == "dmesg"  { trả "nhật_ký" }   nếu t == "chown" { trả "đổichủ" }
+    nếu t == "mknod"  { trả "gắntb" }     nếu t == "id"    { trả "tôi" }
+    nếu t == "run"    { trả "chạy" }      nếu t == "tick"  { trả "nhịp" }
+    nếu t == "jobs"   { trả "việc" }      nếu t == "verbose" { trả "kể" }
+    nếu t == "mkfifo" { trả "ống" }       nếu t == "close" { trả "đóng" }
+    nếu t == "snapshot" { trả "chụp" }    nếu t == "pick" { trả "chọn" }
+    nếu t == "sched" { trả "lịch" }
+    nếu t == "cc"    { trả "dịch" }       nếu t == "file"  { trả "định_dạng" }
+    nếu t == "mv"    { trả "chuyển" }     nếu t == "cp"    { trả "chép" }
+    trả t
+}
+
+# đối số của vỏ là CHUỖI; chương trình thường cần SỐ (đích đếm, tid…) ⇒ chuyển cái nào toàn chữ số.
+hàm _đối_hoá(đối, từ) {
+    đặt kq = []
+    đặt i = từ
+    mãi {
+        nếu i >= dài(đối) { dừng }
+        đặt n = số_hoá(đối[i])
+        nếu loại(n) == "ẩn" { gom(kq, đối[i]) } khác { gom(kq, n) }
+        đặt i = i + 1
+    }
+    trả kq
+}
+
+hàm _báo_lỗi(máy) { trả lỗi_cuối(máy) }
+
+# ============================================================
+# ★ /lệnh — THƯ MỤC LỆNH THẬT (đúng tinh thần "mọi thứ là tệp")
+# ------------------------------------------------------------
+# Vỏ KHÔNG còn bảng lệnh cứng. Gõ `xem` ⇒ vỏ đi TRA TỆP `/lệnh/xem` giống hệt Linux tra `$PATH`:
+#   • không có tệp        → "không có lệnh" (127)      ⇒ xoá tệp là mất lệnh, thật sự.
+#   • có nhưng thiếu bit x → "cấm chạy" (126)          ⇒ `quyền /lệnh/xoá 644` là khoá lệnh lại.
+#   • quyền theo TỪNG NGƯỜI (chủ/khác) ⇒ lệnh của gốc-quyền, người thường không chạy được.
+# Ba HẠNG tệp lệnh, phân biệt bằng dòng đầu:
+#   "#nội-trú <tên>"  — vỏ tự làm (một thân, nhiều tên — như busybox).
+#   "#tt <chương-trình>" — SINH TIẾN TRÌNH thật chạy dưới bộ lập lịch (nối với việc số 1).
+#   còn lại           — KỊCH BẢN: các dòng lệnh vỏ, có `$1…$9`, `$*` ⇒ ai cũng viết thêm lệnh mới
+#                       lúc đang chạy, chỉ cần `ghi` một tệp vào /lệnh rồi `quyền … 755`.
+# `$PATH` nằm ở `/hệ/đường_lệnh` (mặc định "/lệnh"), ngăn cách bằng ":".
+# ============================================================
+hàm _đường_lệnh(máy, tid) {                 # đọc PATH; chưa có tệp → chỉ /lệnh
+    đặt s = gọi(máy, tid, GH_ĐỌC, ["/hệ/đường_lệnh"])
+    nếu dài(lỗi_cuối(máy)) == 0 { trả tách(cắt_lề(s), ":") }
+    trả ["/lệnh"]
+}
+
+hàm tìm_lệnh(máy, tid, tên) {               # tên → đường dẫn tệp lệnh | ẩn
+    nếu chứa_chuỗi(tên, "/") {              # có "/" ⇒ đường dẫn tường minh (như ./lệnh_của_tôi)
+        nếu loại(gọi(máy, tid, GH_SOI, [tên])) == "danh_sách" { trả tên }
+        trả ẩn
+    }
+    lặp d trong _đường_lệnh(máy, tid) {
+        đặt đ = nối_đường(cắt_lề(d), tên)
+        nếu loại(gọi(máy, tid, GH_SOI, [đ])) == "danh_sách" { trả đ }
+    }
+    trả ẩn
+}
+
+# _chạy_được: bit `x` theo ĐÚNG người đang gõ — chỉ dùng dữ liệu do gọi-hệ trả (soi + ai).
+hàm _chạy_được(máy, tid, s) {
+    đặt ai = gọi(máy, tid, GH_AI, [])
+    nếu ai[0] == 0 { trả sáng }                        # gốc-quyền chạy được mọi thứ
+    đặt q = s[1]                                       # "rwxr-xr-x"
+    nếu s[2] == ai[0] { nếu q[2] == "x" { trả sáng }  trả tối }
+    nếu q[8] == "x" { trả sáng }
+    trả tối
+}
+
+hàm _thế_đối(dòng, đối) {                   # $1…$9 · $* trong kịch bản
+    đặt kq = thay(dòng, "$*", _còn_lại(đối, 1))
+    đặt i = 1
+    mãi {
+        nếu i > 9 { dừng }
+        đặt g = ""
+        nếu dài(đối) > i { đặt g = đối[i] }
+        đặt kq = thay(kq, "$" + i, g)
+        đặt i = i + 1
+    }
+    trả kq
+}
+
+# _chạy_kịch_bản: chạy từng dòng, GOM văn bản ra (để còn nối ống `|` / chuyển hướng `>` được).
+hàm _chạy_kịch_bản(máy, tid, nội, đối) {
+    đặt sâu = lấy_khoá(máy, "sâu_kb")
+    nếu loại(sâu) == "ẩn" { đặt sâu = 0 }
+    nếu sâu >= 8 { trả _kết(1, "vỏ: kịch bản lồng quá sâu (>8) — nghi ngờ gọi vòng") }
+    đặt_khoá(máy, "sâu_kb", sâu + 1)
+    đặt ra = []
+    đặt mã_ra = 0
+    lặp dòng trong tách(nội, "\n") {
+        đặt d = cắt_lề(dòng)
+        nếu dài(d) == 0 { } khác {
+            nếu d[0] == "#" { } khác {                  # "#" = chú thích
+                đặt r = chạy_dòng_im(máy, tid, _thế_đối(d, đối))
+                đặt mã_ra = r[0]
+                nếu dài(r[1]) > 0 { gom(ra, r[1]) }
+            }
+        }
+    }
+    đặt_khoá(máy, "sâu_kb", sâu)
+    trả _kết(mã_ra, _dòng_hoá(ra))
+}
+
+# ---------------- CÀI /lệnh LÚC BOOT (nhân dựng thư mục lệnh như /bin của Linux) ----------------
+hàm tên_lệnh_nội_trú() {
+    trả ["liệt", "xem", "nói", "tạothư", "sờ", "ghi", "xoá", "ở", "về", "tôi", "tt", "giết",
+         "quyền", "đổichủ", "gắntb", "soi", "cây", "tìm", "đếm", "nhật_ký", "duyệt", "huỷ",
+         "chờ", "nhờ", "giúp", "chạy", "nhịp", "việc", "kể", "thoát", "ống", "đóng", "chụp", "chọn", "lịch",
+         "người", "nhóm", "đổi_nhóm", "bỏ", "hoàn_tác", "thùng", "dọn_rác", "vì_sao",
+         "xin_thoát", "bộ_nhớ", "dọn_dẹp", "kiểm_cấu_hình", "gói", "chuyển", "chép",
+         "dịch", "định_dạng", "đĩa"]
+    # (`rác` KHÔNG dùng được: đã là tên một kịch bản mẫu có sẵn ở /lệnh/rác — nó sẽ đè lên.)
+}
+
+hàm cài_lệnh(máy, tid_gốc) {
+    gọi(máy, tid_gốc, GH_TẠO_THƯ, ["/lệnh", 755])
+    lặp t trong tên_lệnh_nội_trú() {
+        gọi(máy, tid_gốc, GH_TẠO, ["/lệnh/" + t, 755, "#nội-trú " + t])
+    }
+    # bệ phóng TIẾN TRÌNH (nối với việc số 1: gõ tên là sinh tiến trình thật)
+    gọi(máy, tid_gốc, GH_TẠO, ["/lệnh/đếm_số", 755, "#tt đếm"])
+    gọi(máy, tid_gốc, GH_TẠO, ["/lệnh/chào", 755, "#tt chào"])
+    gọi(máy, tid_gốc, GH_TẠO, ["/lệnh/soi_rác", 755, "#tt soi_rác"])
+    gọi(máy, tid_gốc, GH_TẠO, ["/lệnh/bơm", 755, "#tt bơm"])       # ★ ba chặng ĐƯỜNG ỐNG
+    gọi(máy, tid_gốc, GH_TẠO, ["/lệnh/lọc", 755, "#tt lọc"])
+    gọi(máy, tid_gốc, GH_TẠO, ["/lệnh/hút", 755, "#tt hút"])
+    # KỊCH BẢN mẫu — chỉ là tệp văn bản, ai cũng đọc/sửa/viết thêm được
+    gọi(máy, tid_gốc, GH_TẠO, ["/lệnh/soi_hệ", 755,
+        "# soi_hệ — xem nhanh tình trạng máy\nnói \"── máy ──\"\nxem /hệ/tên_máy\ntôi\ntt"])
+    gọi(máy, tid_gốc, GH_TẠO, ["/lệnh/lỗi", 755,
+        "# lỗi <chữ> — lọc nhật ký hệ theo từ khoá\nxem /hệ/nhật_ký | tìm $1"])
+    gọi(máy, tid_gốc, GH_TẠO, ["/lệnh/rác", 755,
+        "# rác — liệt kê rồi đếm tệp trong /tạm\nliệt /tạm\nliệt /tạm | đếm"])
+    gọi(máy, tid_gốc, GH_TẠO, ["/hệ/đường_lệnh", 644, "/lệnh:/nhà/an/lệnh"])   # ~ $PATH
+    gọi(máy, tid_gốc, GH_TẠO, [DD_TỆP, 644, dd_dòng_sổ()])                     # ★ B2: sổ định dạng
+    trả máy
+}
+
+# ---------------- TRA /lệnh RỒI MỚI CHẠY (đây là điểm vào của mọi lệnh) ----------------
+hàm chạy_một_lệnh(máy, tid, đối, vào) {
+    nếu dài(đối) == 0 { trả _kết(0, "") }
+    đặt tên = _chuẩn_tên(đối[0])
+
+    # `về` (đổi thư-mục của CHÍNH tiến-trình vỏ) và `thoát` phải nằm TRONG vỏ — như `cd` của bash,
+    # không thể là chương trình ngoài (chương trình ngoài đổi thư-mục của nó, không đổi của vỏ).
+    nếu tên == "về" { trả _nội_trú(máy, tid, đối, vào) }
+    nếu tên == "thoát" { trả _nội_trú(máy, tid, đối, vào) }
+
+    đặt đường = tìm_lệnh(máy, tid, tên)
+    nếu loại(đường) == "ẩn" {
+        trả _kết(127, "vỏ: không có lệnh '" + đối[0] + "' (xem `liệt /lệnh`)")
+    }
+    đặt s = gọi(máy, tid, GH_SOI, [đường])
+    nếu _chạy_được(máy, tid, s) == sáng { } khác {
+        trả _kết(126, "vỏ: cấm chạy " + đường + " — thiếu quyền x (" + s[1] + ", chủ " + tên_người(máy, s[2]) + ")")
+    }
+    đặt nội = gọi(máy, tid, GH_ĐỌC, [đường])
+    nếu dài(lỗi_cuối(máy)) == 0 { } khác { trả _kết(126, "vỏ: " + lỗi_cuối(máy)) }
+
+    # ---- B2: TRA SỔ ĐỊNH DẠNG thay vì ghi cứng ba nhánh (hình dạng `binfmt_misc`) ----
+    # Vỏ nay KHÔNG biết trước có những định dạng nào; nó hỏi sổ `/hệ/định_dạng`. Thêm một định dạng
+    # = thêm một DÒNG, không phải sửa vỏ. Sổ mất hay hỏng thì `lib_dinh_dang` trả ngả lui dựng sẵn
+    # nên máy vẫn chạy — khác `binfmt_misc`, ở đó phá sổ là làm câm cả máy.
+    đặt dạng = dạng_của(máy, tid, nội)
+    nếu loại(dạng) == "ẩn" {
+        trả _kết(126, "vỏ: " + vì_sao_dạng(máy, tid, đường))
+    }
+    nếu _dd_có_năng_lực(dạng[3]) == sáng { } khác {          # định dạng TỰ KHAI năng lực nó cần
+        trả _kết(126, "vỏ: " + vì_sao_dạng(máy, tid, đường))
+    }
+    đặt trình = dạng[2]
+
+    nếu trình == "nội_trú" { trả _nội_trú(máy, tid, đối, vào) }
+    nếu trình == "tiến_trình" {                          # tệp lệnh = bệ phóng TIẾN TRÌNH
+        đặt tên_ct = cắt_lề(tách(cắt_lề(nội), " ")[1])
+        đặt có_nó = tối
+        nếu có_ct(máy, tên_ct) == sáng { đặt có_nó = sáng }
+        nếu có_ct_máy(máy, tên_ct) == sáng { đặt có_nó = sáng }
+        nếu có_nó == sáng { } khác { trả _kết(127, "vỏ: chưa nạp chương trình '" + tên_ct + "'") }
+        trả _phóng_tt(máy, tid, tên_ct, đối)
+    }
+    nếu trình == "mã_máy" { trả _chạy_mã_máy(máy, tid, tên, đường, nội, đối) }
+    trả _chạy_kịch_bản(máy, tid, nội, đối)              # còn lại: KỊCH BẢN vỏ
+}
+
+hàm _phóng_tt(máy, tid, tên_ct, đối) {
+    "Sinh tiến trình rồi chờ (hoặc thả nền) — dùng chung cho `#tt` và `#!mã-máy`."
+    đặt con = gọi(máy, tid, GH_SINH, [tên_ct, 5, _đối_hoá(đối, 1)])
+    nếu loại(con) == "số" { } khác { trả _kết(126, "vỏ: " + _báo_lỗi(máy)) }
+    nếu lấy_khoá(máy, "nền_kế") == sáng {
+        trả _kết(0, "đã sinh tt" + con + " · " + tên_ct + "  [nền]")
+    }
+    đặt số_lát = chạy_tới_hết(máy, 200)                 # tiền cảnh: vỏ CHỜ nó xong
+    trả _kết(0, "tt" + con + " · " + tên_ct + " xong (" + số_lát + " lát lập-lịch)")
+}
+
+# ★ B2 — tệp lệnh mang CHÍNH BYTECODE: nạp thẳng lên GVM, KHÔNG đụng trình biên dịch.
+hàm _chạy_mã_máy(máy, tid, tên, đường, nội, đối) {
+    đặt mã = tệp_sang_mã(nội)
+    nếu loại(mã) == "ẩn" {
+        trả _kết(126, "vỏ: " + đường + " khai là '#!mã-máy' nhưng thân mã hỏng (cần dòng đầu '#!mã-máy <16|32>' rồi các từ-lệnh là số). Dựng lại bằng: dịch <nguồn> " + đường)
+    }
+    đăng_ký_ct_mã(máy, tên, mã)
+    trả _phóng_tt(máy, tid, tên, đối)
+}
+
+# ---------------- THÂN NỘI TRÚ (một thân, nhiều tên — như busybox) ----------------
+hàm _nội_trú(máy, tid, đối, vào) {
+    nếu dài(đối) == 0 { trả _kết(0, "") }
+    đặt lệnh = _chuẩn_tên(đối[0])
+
+    nếu lệnh == "liệt" {
+        đặt d = _từ_thứ(đối, 1)
+        nếu loại(d) == "ẩn" { đặt d = "." }
+        đặt r = gọi(máy, tid, GH_LIỆT, [d])
+        nếu loại(r) == "danh_sách" { trả _kết(0, _dòng_hoá(r)) }
+        trả _kết(1, "liệt: " + _báo_lỗi(máy))
+    }
+    nếu lệnh == "xem" {
+        đặt d = _từ_thứ(đối, 1)
+        nếu loại(d) == "ẩn" { trả _kết(0, vào) }              # `xem` không đối → dội lại ống
+        đặt r = gọi(máy, tid, GH_ĐỌC, [d])
+        # nội-dung tệp CŨNG là chuỗi (kể cả chuỗi "tối") ⇒ hỏi KÊNH RIÊNG: lỗi_cuối rỗng = thành công.
+        nếu dài(_báo_lỗi(máy)) == 0 { trả _kết(0, r) }
+        trả _kết(1, "xem: " + _báo_lỗi(máy))
+    }
+    nếu lệnh == "nói"  { trả _kết(0, _còn_lại(đối, 1)) }
+    nếu lệnh == "tạothư" {
+        đặt r = gọi(máy, tid, GH_TẠO_THƯ, [_từ_thứ(đối, 1), 755])
+        nếu r == sáng { trả _kết(0, "") }
+        trả _kết(1, "tạothư: " + _báo_lỗi(máy))
+    }
+    nếu lệnh == "sờ" {
+        đặt r = gọi(máy, tid, GH_TẠO, [_từ_thứ(đối, 1), 644, ""])
+        nếu r == sáng { trả _kết(0, "") }
+        trả _kết(1, "sờ: " + _báo_lỗi(máy))
+    }
+    nếu lệnh == "ghi" {                                        # ghi <tệp> <nội dung…>
+        đặt r = gọi(máy, tid, GH_TẠO, [_từ_thứ(đối, 1), 644, _còn_lại(đối, 2)])
+        nếu r == sáng { trả _kết(0, "") }
+        trả _kết(1, "ghi: " + _báo_lỗi(máy))
+    }
+    nếu lệnh == "xoá" {
+        đặt r = gọi(máy, tid, GH_XOÁ, [_từ_thứ(đối, 1)])
+        nếu r == sáng { trả _kết(0, "đã xoá " + _từ_thứ(đối, 1)) }
+        trả _kết(1, "xoá: " + _báo_lỗi(máy))
+    }
+    nếu lệnh == "ở"   { trả _kết(0, gọi(máy, tid, GH_Ở, [])) }
+    nếu lệnh == "về"  {
+        đặt r = gọi(máy, tid, GH_VỀ, [_từ_thứ(đối, 1)])
+        nếu r == sáng { trả _kết(0, "") }
+        trả _kết(1, "về: " + _báo_lỗi(máy))
+    }
+    nếu lệnh == "tôi" {
+        đặt r = gọi(máy, tid, GH_AI, [])
+        trả _kết(0, r[1] + " (uid " + r[0] + ") · tiến-trình " + tid + " · " + gọi(máy, tid, GH_Ở, []))
+    }
+    nếu lệnh == "người" {
+        # ~ `getent passwd`: đọc /hệ/người_dùng (644) bằng quyền của CHÍNH người gõ.
+        # Bản BĂM không nằm ở đây mà ở /hệ/mật_khẩu (600) — người thường đọc là `tối`.
+        đặt nội = gọi(máy, tid, GH_ĐỌC, ["/hệ/người_dùng"])
+        nếu nội == "tối" { trả _kết(1, "người: cấm đọc /hệ/người_dùng") }
+        nếu loại(nội) == "ẩn" { trả _kết(1, "người: không có /hệ/người_dùng") }
+        đặt ds = ["NGƯỜI       UID    NHÀ"]
+        lặp d trong tách_dòng(nội) {
+            nếu cắt_lề(d) != "" {
+                đặt p = tách_giữ(cắt_lề(d), ":")
+                nếu dài(p) >= 3 { gom(ds, p[0] + "	" + p[1] + "	" + p[2]) }
+            }
+        }
+        trả _kết(0, nối(ds, "
+"))
+    }
+    nếu lệnh == "chuyển" {                      # ~ mv (đổi tên hoặc dời chỗ)
+        đặt r = gọi(máy, tid, GH_CHUYỂN, [_từ_thứ(đối, 1), _từ_thứ(đối, 2)])
+        nếu r == sáng { trả _kết(0, "") }
+        trả _kết(1, "chuyển: " + _báo_lỗi(máy))
+    }
+    nếu lệnh == "chép" {                        # ~ cp (bản sao; tệp gốc không suy suyển)
+        đặt r = gọi(máy, tid, GH_CHÉP, [_từ_thứ(đối, 1), _từ_thứ(đối, 2)])
+        nếu r == sáng { trả _kết(0, "") }
+        trả _kết(1, "chép: " + _báo_lỗi(máy))
+    }
+    # ---- B2: dịch NGUỒN ra TỆP LỆNH mang chính bytecode ----
+    nếu lệnh == "dịch" {                        # dịch <nguồn> <đích>
+        đặt d_ng = _từ_thứ(đối, 1)
+        đặt d_đích = _từ_thứ(đối, 2)
+        nếu loại(d_ng) == "ẩn" { trả _kết(1, "dịch: cần `dịch <tệp nguồn> <tệp lệnh đích>`") }
+        nếu loại(d_đích) == "ẩn" { trả _kết(1, "dịch: cần `dịch <tệp nguồn> <tệp lệnh đích>`") }
+        nếu có_máy() == sáng { } khác {
+            trả _kết(126, "dịch: máy chưa được cấp năng lực `máy` — bật bằng cờ --cho-máy lúc khởi động")
+        }
+        đặt ng = gọi(máy, tid, GH_ĐỌC, [d_ng])
+        nếu dài(_báo_lỗi(máy)) == 0 { } khác { trả _kết(1, "dịch: " + _báo_lỗi(máy)) }
+        đặt mã = biên_dịch(ng, 32)
+        nếu loại(mã) == "ẩn" {
+            trả _kết(1, "dịch: " + d_ng + " vượt RANH GIỚI biên dịch xuống máy (closure · bản · thử-bắt… không xuống được). Cứ để nó làm kịch bản vỏ.")
+        }
+        đặt r = gọi(máy, tid, GH_TẠO, [d_đích, 755, mã_sang_tệp(mã)])
+        nếu r == sáng { } khác { trả _kết(1, "dịch: " + _báo_lỗi(máy)) }
+        trả _kết(0, "đã dịch " + d_ng + " → " + d_đích + " (" + (dài(mã) - 1) + " từ-lệnh, chạy thẳng không dịch lại)")
+    }
+    # ---- B3: đĩa có TẦNG KHỐI + NHẬT KÝ, gắn được vào cây thư mục ----
+    nếu lệnh == "đĩa" {
+        đặt v = _từ_thứ(đối, 1)
+        nếu loại(v) == "ẩn" { đặt v = "soi" }
+        nếu v == "dựng" {                       # đĩa dựng <đường gắn> [số khối] [cỡ khối]
+            đặt đg = _từ_thứ(đối, 2)
+            nếu loại(đg) == "ẩn" { trả _kết(1, "đĩa: cần `đĩa dựng <đường gắn> [số khối] [cỡ khối]`") }
+            đặt sk = số_hoá(_từ_thứ(đối, 3))
+            nếu loại(sk) == "ẩn" { đặt sk = 256 }
+            đặt ck = số_hoá(_từ_thứ(đối, 4))
+            nếu loại(ck) == "ẩn" { đặt ck = 64 }
+            gọi(máy, tid, GH_TẠO_THƯ, [đg, 755])
+            đặt r = gắn_đĩa(máy, tid, đg, đĩa_mới(sk, ck, 8))
+            nếu loại(r) == "chuỗi" { trả _kết(0, "đã dựng và gắn đĩa ở " + đg + " (" + sk + " khối × " + ck + " byte) — " + r) }
+            trả _kết(1, "đĩa: không gắn được ở " + đg + " (chỉ gốc-quyền, và phải là thư mục có sẵn)")
+        }
+        nếu v == "tháo" {
+            đặt r = tháo_đĩa(máy, tid, _từ_thứ(đối, 2))
+            nếu r == sáng { trả _kết(0, "đã tháo đĩa ở " + _từ_thứ(đối, 2)) }
+            trả _kết(1, "đĩa: không tháo được (chưa gắn ở đó, hoặc không phải gốc-quyền)")
+        }
+        nếu v == "gắn" {                        # gắn lại (phát lại nhật ký) — báo rõ đã làm gì
+            đặt đg = _từ_thứ(đối, 2)
+            đặt b = lấy_khoá(máy, "gắn")
+            nếu có_khoá(b, đg) { } khác { trả _kết(1, "đĩa: chưa có đĩa nào ở " + đg) }
+            đặt g = đĩa_gắn(lấy_khoá(b, đg))
+            nếu g[0] == sáng { trả _kết(0, g[1]) }
+            trả _kết(1, "đĩa: " + g[1])
+        }
+        # `đĩa soi [đường gắn]` — số liệu THẬT: mấy tệp, mấy khối, phí bao nhiêu byte
+        đặt b = lấy_khoá(máy, "gắn")
+        đặt ds = []
+        lặp đg trong khoá(b) {
+            đặt s = đĩa_soi(lấy_khoá(b, đg))
+            đặt đ = lấy_khoá(b, đg)
+            gom(ds, đg + "	" + s[0] + " tệp	" + s[1] + "/" + lấy_khoá(đ, "số_khối") + " khối×" + lấy_khoá(đ, "cỡ_khối") + "B	dùng " + s[3] + "B, phí " + s[4] + "B")
+        }
+        nếu dài(ds) == 0 { trả _kết(0, "chưa gắn đĩa nào (dựng bằng `đĩa dựng /đĩa`)") }
+        trả _kết(0, _dòng_hoá(ghép(["ĐIỂM GẮN	TỆP	KHỐI	CHỖ"], ds)))
+    }
+    nếu lệnh == "định_dạng" {                   # soi sổ định dạng, hoặc hỏi vì sao một tệp chạy được
+        đặt d = _từ_thứ(đối, 1)
+        nếu loại(d) == "ẩn" {
+            đặt ds = ["ĐỊNH DẠNG CHẠY ĐƯỢC (sổ " + DD_TỆP + ")", "TÊN        MAGIC       TRÌNH        NĂNG LỰC"]
+            lặp x trong _dd_đọc_sổ(máy, tid) {
+                đặt dấu = "  "
+                nếu _dd_có_năng_lực(x[3]) == sáng { } khác { đặt dấu = "✗ " }
+                gom(ds, dấu + x[0] + "	" + x[1] + "	" + x[2] + "	" + x[3])
+            }
+            gom(ds, "(✗ = năng lực chưa được cấp ⇒ định dạng ấy KHÔNG chạy được)")
+            trả _kết(0, _dòng_hoá(ds))
+        }
+        đặt đ = d
+        nếu bắt_đầu(d, "/") { } khác {
+            đặt tìm = tìm_lệnh(máy, tid, _chuẩn_tên(d))       # cho gõ tên lệnh, không cần đường đủ
+            nếu loại(tìm) == "ẩn" { } khác { đặt đ = tìm }
+        }
+        trả _kết(0, vì_sao_dạng(máy, tid, đ))
+    }
+    # ---- THÙNG RÁC + HOÀN TÁC (bổ khuyết Linux #1) ----
+    nếu lệnh == "bỏ" {
+        đặt r = gọi(máy, tid, GH_BỎ, [_từ_thứ(đối, 1)])
+        nếu r == sáng { trả _kết(0, "đã bỏ vào thùng rác — lấy lại bằng `hoàn_tác`") }
+        trả _kết(1, "bỏ: " + _báo_lỗi(máy))
+    }
+    nếu lệnh == "hoàn_tác" {
+        đặt r = gọi(máy, tid, GH_HOÀN_TÁC, [])
+        nếu loại(r) == "chuỗi" { trả _kết(0, "đã lấy lại: " + r) }
+        trả _kết(1, "hoàn_tác: " + _báo_lỗi(máy))
+    }
+    nếu lệnh == "thùng" {
+        đặt ds = liệt_rác(máy, tid)
+        nếu dài(ds) == 0 { trả _kết(0, "thùng rác trống") }
+        đặt ra = ["ĐƯỜNG CŨ                        BỎ Ở NHỊP"]
+        lặp m trong ds { gom(ra, m[0] + "\t" + m[1]) }
+        trả _kết(0, _dòng_hoá(ra))
+    }
+    nếu lệnh == "dọn_rác" {
+        đặt r = gọi(máy, tid, GH_DỌN_RÁC, [])
+        nếu loại(r) == "số" { trả _kết(0, "đã huỷ hẳn " + r + " thứ — không lấy lại được nữa") }
+        trả _kết(1, "dọn_rác: " + _báo_lỗi(máy))
+    }
+    # ---- XIN THOÁT ÊM (bổ khuyết Linux #3) ----
+    nếu lệnh == "xin_thoát" {
+        đặt hạn = 3
+        nếu _từ_thứ(đối, 2) == "" { } khác { đặt hạn = số_hoá(_từ_thứ(đối, 2)) }
+        đặt r = gọi(máy, tid, GH_XIN_THOÁT, [số_hoá(_từ_thứ(đối, 1)), hạn])
+        nếu r == sáng { trả _kết(0, "đã xin tiến-trình " + _từ_thứ(đối, 1) + " dọn rồi thoát (hạn " + hạn + " lát)") }
+        trả _kết(1, "xin_thoát: " + _báo_lỗi(máy))
+    }
+    nếu lệnh == "bộ_nhớ" {
+        đặt ds = soi_bộ_nhớ(máy)
+        đặt ra = ["TID  TÊN            σ (hữu ích)  Ô NHỚ"]
+        lặp m trong ds { gom(ra, "" + m[0] + "\t" + m[1] + "\t" + m[2] + "\t" + m[3]) }
+        gom(ra, "tổng " + tổng_ô(máy) + " / trần " + lấy_khoá(máy, "trần_ô") + " ô")
+        trả _kết(0, _dòng_hoá(ra))
+    }
+    nếu lệnh == "dọn_dẹp" {                    # soi nhật ký DỌN (nhân không im lặng bao giờ)
+        đặt v = vết_dọn(máy)
+        nếu dài(v) == 0 { trả _kết(0, "chưa có tiến-trình nào phải dọn") }
+        đặt ra = []
+        lặp d trong v { gom(ra, "nhịp " + d[0] + "  tt" + d[1] + "  " + d[2]) }
+        trả _kết(0, _dòng_hoá(ra))
+    }
+    # ---- KHO PHẦN MỀM (học apt/Kali, vá 5 chỗ yếu của nó) ----
+    nếu lệnh == "gói" {
+        đặt sub = _từ_thứ(đối, 1)                  # thiếu đối → ẩn (KHÔNG phải "")
+        nếu loại(sub) == "ẩn" {
+            đặt ds = kho_đã_cài(máy, tid)
+            nếu dài(ds) == 0 { trả _kết(0, "chưa cài gói nào") }
+            đặt ra = ["GÓI ĐÃ CÀI        PHIÊN"]
+            lặp g trong ds { gom(ra, g[0] + "\t" + g[1]) }
+            trả _kết(0, _dòng_hoá(ra))
+        }
+        nếu sub == "tải" {                          # ★ I2: cập nhật mục lục từ KHO Ở NGOÀI
+            đặt r = kho_tải_mục_lục(máy, tid)
+            nếu r[0] == sáng { trả _kết(0, r[1]) }
+            trả _kết(1, "gói tải: " + r[1])
+        }
+        nếu sub == "tin" {                          # ★ I1: kho này có đáng tin không, và tin theo khoá nào
+            đặt ck = kho_kiểm_ký(máy, tid)
+            đặt ng = kho_nguồn(máy, tid)
+            đặt ra = []
+            nếu loại(ng) == "ẩn" { gom(ra, "nguồn: (chưa khai)") }
+            khác { gom(ra, "nguồn: " + ng[0] + "  ·  neo tin cậy: " + ng[3]) }
+            nếu ck[0] == sáng { gom(ra, "✓ mục lục ĐÚNG chữ ký · vân tay khoá " + ck[1]) }
+            khác { gom(ra, "✗ " + ck[1]) }
+            gom(ra, "(chữ ký chống KHO GIẢ MẠO; băm từng gói chống SỬA ĐỔI — hai lớp khác nhau)")
+            trả _kết(0, _dòng_hoá(ra))
+        }
+        nếu sub == "kho" {
+            đặt ds = kho_mục_lục(máy, tid)
+            nếu dài(ds) == 0 { trả _kết(1, "gói: không đọc nổi mục lục kho") }
+            đặt ra = ["GÓI          PHIÊN   NHÓM        NĂNG LỰC        MÔ TẢ"]
+            lặp g trong ds {
+                đặt nl = nối(g[4], ",")
+                nếu nl == "" { đặt nl = "-" }
+                gom(ra, g[0] + "\t" + g[1] + "\t" + g[2] + "\t" + nl + "\t" + g[6])
+            }
+            trả _kết(0, _dòng_hoá(ra))
+        }
+        nếu sub == "xem" {
+            đặt kế = kho_kế_hoạch(máy, tid, _từ_thứ(đối, 2))
+            nếu dài(kế) > 0 { nếu kế[0] == tối { trả _kết(1, "gói: " + kế[1]) } }
+            đặt ra = ["sẽ cài " + dài(kế) + " gói (kèm VÌ SAO — apt chỉ in một bức tường tên):"]
+            lặp m trong kế { gom(ra, "  · " + m[0] + m[1]) }
+            đặt nhạy = kho_năng_lực_nhạy(máy, tid, kế)
+            lặp n trong nhạy { gom(ra, "  ⚠ " + n[0] + " đòi năng lực NHẠY CẢM: " + n[1]) }
+            trả _kết(0, _dòng_hoá(ra))
+        }
+        nếu sub == "cài" {
+            đặt ok = tối
+            nếu _từ_thứ(đối, 3) == "đồng-ý" { đặt ok = sáng }
+            đặt r = kho_cài(máy, tid, _từ_thứ(đối, 2), ok)
+            nếu r[0] == sáng { trả _kết(0, _dòng_hoá(r[1])) }
+            trả _kết(1, "gói cài: " + r[1])
+        }
+        nếu sub == "gỡ" {
+            đặt r = kho_gỡ(máy, tid, _từ_thứ(đối, 2))
+            nếu r[0] == sáng { trả _kết(0, _dòng_hoá(r[1])) }
+            trả _kết(1, "gói gỡ: " + r[1])
+        }
+        nếu sub == "nâng_cấp" {
+            đặt r = kho_nâng_cấp(máy, tid)
+            nếu r[0] == sáng { trả _kết(0, _dòng_hoá(r[1])) }
+            trả _kết(1, "gói nâng_cấp: " + r[1])
+        }
+        nếu sub == "lùi" {
+            đặt r = kho_lùi(máy, tid)
+            nếu r[0] == sáng { trả _kết(0, _dòng_hoá(r[1])) }
+            trả _kết(1, "gói lùi: " + r[1])
+        }
+        trả _kết(1, "gói: dùng `gói` · `gói kho` · `gói xem <tên>` · `gói cài <tên> [đồng-ý]` · `gói gỡ <tên>` · `gói nâng_cấp` · `gói lùi`")
+    }
+    # ---- KIỂM CẤU HÌNH TRƯỚC KHI GHI (bổ khuyết Linux #6) ----
+    nếu lệnh == "kiểm_cấu_hình" {
+        đặt đ = _từ_thứ(đối, 1)
+        nếu là_tệp_cấu_hình(đ) == sáng { } khác { trả _kết(1, "kiểm_cấu_hình: '" + đ + "' không phải tệp cấu hình có bộ kiểm") }
+        đặt nội = gọi(máy, tid, GH_ĐỌC, [đ])
+        nếu loại(nội) == "chuỗi" { } khác { trả _kết(1, "kiểm_cấu_hình: " + _báo_lỗi(máy)) }
+        đặt k = kiểm_cấu_hình(đ, nội)                       # (sáng/tối là CHUỖI — so bằng == chứ đừng dùng loại)
+        nếu k == sáng { trả _kết(0, "✓ " + đ + " hợp lệ") }
+        trả _kết(1, "✗ " + đ + " — " + k)
+    }
+    # ---- VÌ SAO BỊ CẤM (bổ khuyết Linux #2) ----
+    nếu lệnh == "vì_sao" {
+        đặt c = 4
+        nếu _từ_thứ(đối, 2) == "ghi" { đặt c = 2 }
+        nếu _từ_thứ(đối, 2) == "chạy" { đặt c = 1 }
+        trả _kết(0, gọi(máy, tid, GH_VÌ_SAO, [_từ_thứ(đối, 1), c]))
+    }
+    nếu lệnh == "nhóm" {
+        # ~ `getent group` (C2): đọc /hệ/nhóm (644) bằng quyền của CHÍNH người gõ.
+        đặt nội = gọi(máy, tid, GH_ĐỌC, ["/hệ/nhóm"])
+        nếu nội == "tối" { trả _kết(1, "nhóm: cấm đọc /hệ/nhóm") }
+        nếu loại(nội) == "ẩn" { trả _kết(1, "nhóm: không có /hệ/nhóm") }
+        đặt ds = ["NHÓM      GID    THÀNH VIÊN"]
+        lặp d trong tách_dòng(nội) {
+            nếu cắt_lề(d) != "" {
+                đặt p = tách_giữ(cắt_lề(d), ":")
+                nếu dài(p) >= 3 { gom(ds, p[0] + "\t" + p[1] + "\t" + p[2]) }
+            }
+        }
+        trả _kết(0, _dòng_hoá(ds))
+    }
+    nếu lệnh == "đổi_nhóm" {
+        # ~ chgrp (C2): đổi_nhóm <đường> <gid> — chủ tệp + thuộc nhóm đích (gốc thì tuỳ ý)
+        đặt r = gọi(máy, tid, GH_ĐỔI_NHÓM, [_từ_thứ(đối, 1), số_hoá(_từ_thứ(đối, 2))])
+        nếu r == sáng { trả _kết(0, "") }
+        trả _kết(1, "đổi_nhóm: " + _báo_lỗi(máy))
+    }
+    nếu lệnh == "tt" {
+        đặt r = gọi(máy, tid, GH_TT, [])
+        đặt ds = ["TID  TÊN            TRẠNG        NGƯỜI"]
+        lặp p trong r { gom(ds, "" + p[0] + "    " + p[1] + "  \t" + p[2] + "  \t" + p[3]) }
+        trả _kết(0, _dòng_hoá(ds))
+    }
+    nếu lệnh == "giết" {
+        đặt r = gọi(máy, tid, GH_GIẾT, [số_hoá(_từ_thứ(đối, 1))])
+        nếu r == sáng { trả _kết(0, "đã dừng tiến-trình " + _từ_thứ(đối, 1)) }
+        trả _kết(1, "giết: " + _báo_lỗi(máy))
+    }
+    nếu lệnh == "quyền" {
+        đặt r = gọi(máy, tid, GH_ĐỔI_QUYỀN, [_từ_thứ(đối, 1), số_hoá(_từ_thứ(đối, 2))])
+        nếu r == sáng { trả _kết(0, "") }
+        trả _kết(1, "quyền: " + _báo_lỗi(máy))
+    }
+    nếu lệnh == "đổichủ" {
+        đặt r = gọi(máy, tid, GH_ĐỔI_CHỦ, [_từ_thứ(đối, 1), số_hoá(_từ_thứ(đối, 2))])
+        nếu r == sáng { trả _kết(0, "") }
+        trả _kết(1, "đổichủ: " + _báo_lỗi(máy))
+    }
+    nếu lệnh == "gắntb" {
+        đặt r = gọi(máy, tid, GH_GẮN_TB, [_từ_thứ(đối, 1), 666, _từ_thứ(đối, 2)])
+        nếu r == sáng { trả _kết(0, "") }
+        trả _kết(1, "gắntb: " + _báo_lỗi(máy))
+    }
+    nếu lệnh == "soi" {
+        đặt r = gọi(máy, tid, GH_SOI, [_từ_thứ(đối, 1)])
+        nếu loại(r) == "danh_sách" {
+            trả _kết(0, r[1] + "  " + r[0] + "  chủ=" + tên_người(máy, r[2]) + "  cỡ=" + r[3])
+        }
+        trả _kết(1, "soi: " + _báo_lỗi(máy))
+    }
+    nếu lệnh == "cây" {
+        đặt d = _từ_thứ(đối, 1)
+        nếu loại(d) == "ẩn" { đặt d = "/" }
+        trả _kết(0, _dòng_hoá(_cây_vỏ(máy, tid, d, "")))
+    }
+    nếu lệnh == "tìm" {                                        # grep trên văn bản của ống
+        đặt mẫu = _từ_thứ(đối, 1)
+        đặt kq = []
+        lặp d trong tách(vào, "\n") { nếu chứa_chuỗi(d, mẫu) { gom(kq, d) } }
+        trả _kết(0, _dòng_hoá(kq))
+    }
+    nếu lệnh == "đếm" {                                        # wc -l
+        nếu dài(vào) == 0 { trả _kết(0, "0") }
+        trả _kết(0, "" + dài(tách(vào, "\n")))
+    }
+    nếu lệnh == "nhật_ký" {
+        đặt n = 12
+        nếu loại(_từ_thứ(đối, 1)) == "chuỗi" { đặt n = số_hoá(đối[1]) }
+        đặt ds = []
+        lặp d trong nhật_ký_gần(máy, n) { gom(ds, "nhịp " + d[0] + "  tt" + d[1] + "  " + d[2] + "  " + d[3]) }
+        trả _kết(0, _dòng_hoá(ds))
+    }
+    nếu lệnh == "duyệt" {
+        đặt r = duyệt(máy)
+        nếu r == sáng { trả _kết(0, "✔ đã phê duyệt và thực hiện") }
+        nếu loại(r) == "chuỗi" { trả _kết(0, r) }
+        trả _kết(1, "duyệt: " + _báo_lỗi(máy))
+    }
+    nếu lệnh == "huỷ"  { huỷ_duyệt(máy)  trả _kết(0, "đã bỏ việc đang chờ duyệt") }
+    nếu lệnh == "chờ"  {                                       # xem việc gì đang chờ phê duyệt
+        đặt cd = lấy_khoá(máy, "chờ_duyệt")
+        nếu loại(cd) == "ẩn" { trả _kết(0, "(không có việc nào chờ duyệt)") }
+        trả _kết(0, "đang chờ duyệt: " + mô_tả_lệnh(cd[1], cd[2]) + "  (tiến-trình " + cd[0] + ")")
+    }
+    nếu lệnh == "nhờ" {                                        # ★ chuyển việc cho TRỢ LÝ AI
+        đặt r = gọi(máy, tid, GH_NHỜ, [_còn_lại(đối, 1)])
+        nếu loại(r) == "chuỗi" { trả _kết(0, r) }
+        trả _kết(1, "nhờ: " + _báo_lỗi(máy))
+    }
+    # ---- CHƯƠNG TRÌNH THẬT: sinh → chạy dưới bộ lập lịch ----
+    nếu lệnh == "chạy" {                                       # chạy <chương-trình> [đối…]
+        đặt tên_ct = _từ_thứ(đối, 1)
+        nếu loại(tên_ct) == "ẩn" { trả _kết(1, "chạy: thiếu tên chương trình (gõ `việc`)") }
+        đặt có = tối
+        nếu có_ct(máy, tên_ct) == sáng { đặt có = sáng }
+        nếu có_ct_máy(máy, tên_ct) == sáng { đặt có = sáng }      # chương trình BIÊN DỊCH XUỐNG MÁY
+        nếu có == sáng { } khác {
+            trả _kết(127, "chạy: không có chương trình '" + tên_ct + "' (gõ `việc`)")
+        }
+        đặt con = gọi(máy, tid, GH_SINH, [tên_ct, 5, _đối_hoá(đối, 2)])
+        trả _kết(0, "đã sinh tt" + con + " · " + tên_ct + " — chạy nền (gõ `nhịp` để cấp thêm lượt CPU)")
+    }
+    nếu lệnh == "nhịp" {                                       # nhịp [n] — quay bánh xe lập lịch
+        đặt n = 8
+        nếu loại(_từ_thứ(đối, 1)) == "chuỗi" { đặt n = số_hoá(đối[1]) }
+        đặt đã = vòng_nhân(máy, n)
+        nếu đã == 0 { trả _kết(0, "(không có tiến-trình nào sẵn-sàng — đều đang chặn hoặc đã xong)") }
+        trả _kết(0, "đã chạy " + đã + " lát lập-lịch")
+    }
+    nếu lệnh == "việc" {                                       # chương trình có sẵn + tiến trình sống
+        đặt ds = ["chương trình cài sẵn: " + nối(danh_sách_ct(máy), " · ")]
+        đặt dsm = khoá(lấy_khoá(máy, "ct_máy"))
+        nếu dài(dsm) > 0 { gom(ds, "chương trình MÁY (biên dịch xuống GVM): " + nối(dsm, " · ")) }
+        đặt nhân = lấy_khoá(máy, "nhân")
+        đặt sẵn = dài(theo_trạng(nhân, "sẵn-sàng"))
+        đặt chặn = dài(theo_trạng(nhân, "chặn"))
+        gom(ds, "đang sống: " + số_sống(nhân) + " tiến-trình  (sẵn-sàng " + sẵn + " · chặn " + chặn + ")")
+        trả _kết(0, _dòng_hoá(ds))
+    }
+    nếu lệnh == "kể" {                                         # bật/tắt in vết lập lịch
+        đặt b = _từ_thứ(đối, 1)
+        nếu b == "tắt" { đặt_khoá(máy, "kể", tối)  trả _kết(0, "tắt kể vết lập-lịch") }
+        đặt_khoá(máy, "kể", sáng)
+        trả _kết(0, "bật kể vết lập-lịch (mỗi lát in một dòng)")
+    }
+    nếu lệnh == "ống" {                                        # ống <đường> [sức] — mkfifo
+        đặt sức = 4
+        nếu loại(_từ_thứ(đối, 2)) == "chuỗi" { đặt sức = số_hoá(đối[2]) }
+        đặt r = gọi(máy, tid, GH_ỐNG, [_từ_thứ(đối, 1), sức])
+        nếu r == sáng { trả _kết(0, "đã tạo ống " + _từ_thứ(đối, 1) + " (sức chứa " + sức + " gói)") }
+        trả _kết(1, "ống: " + _báo_lỗi(máy))
+    }
+    nếu lệnh == "đóng" {                                       # đóng <ống> — báo EOF cho bên đọc
+        đặt r = gọi(máy, tid, GH_ĐÓNG, [_từ_thứ(đối, 1)])
+        nếu r == sáng { trả _kết(0, "đã đóng đầu ghi " + _từ_thứ(đối, 1)) }
+        trả _kết(1, "đóng: " + _báo_lỗi(máy))
+    }
+    nếu lệnh == "chụp" {                                       # chụp <tệp> — ảnh JSON cả hệ
+        đặt ảnh = chụp_máy(máy)
+        đặt r = gọi(máy, tid, GH_TẠO, [_từ_thứ(đối, 1), 644, ảnh])
+        nếu r == sáng { trả _kết(0, "đã chụp cả hệ vào " + _từ_thứ(đối, 1) + " (" + dài(ảnh) + " ký tự)") }
+        trả _kết(1, "chụp: " + _báo_lỗi(máy))
+    }
+    nếu lệnh == "chọn" {                                       # chọn <n> — trả lời câu hỏi của trợ lý
+        đặt r = gọi(máy, tid, GH_CHỌN, [số_hoá(_từ_thứ(đối, 1))])
+        nếu loại(r) == "chuỗi" { trả _kết(0, r) }
+        trả _kết(1, "chọn: " + _báo_lỗi(máy))
+    }
+    nếu lệnh == "lịch" {                                       # lịch [γ|thường] — đổi bộ lập lịch
+        đặt m = _từ_thứ(đối, 1)
+        nếu loại(m) == "ẩn" {
+            nếu lấy_khoá(máy, "lịch_γ") == sáng { trả _kết(0, "đang dùng LỊCH γ (CDFL — đo độ hữu ích)") }
+            trả _kết(0, "đang dùng lịch ưu-tiên cổ điển (như `nice`)")
+        }
+        nếu m == "γ" { bật_lịch_γ(máy, sáng)  trả _kết(0, "đã bật LỊCH γ — nhân đo rồi quyết") }
+        bật_lịch_γ(máy, tối)
+        trả _kết(0, "đã về lịch ưu-tiên cổ điển")
+    }
+    nếu lệnh == "giúp" { trả _kết(0, _giúp()) }
+    nếu lệnh == "thoát" { gọi(máy, tid, GH_THOÁT, [])  trả _kết(0, "tạm biệt") }
+    trả _kết(127, "vỏ: không có lệnh '" + đối[0] + "' (gõ `giúp`)")
+}
+
+hàm _cây_vỏ(máy, tid, đường, thụt) {         # cây thư-mục — DUYỆT QUA GỌI-HỆ (không chạm VFS)
+    đặt kq = []
+    đặt ds = gọi(máy, tid, GH_LIỆT, [đường])
+    nếu loại(ds) == "danh_sách" { } khác { trả kq }
+    lặp tên trong ds {
+        đặt d = nối_đường(đường, tên)
+        đặt s = gọi(máy, tid, GH_SOI, [d])
+        đặt dấu = ""
+        nếu loại(s) == "danh_sách" {
+            nếu s[0] == "thư" { đặt dấu = "/" }
+            nếu s[0] == "thiết_bị" { đặt dấu = " ⌁" }
+        }
+        gom(kq, thụt + tên + dấu)
+        nếu dấu == "/" { lặp con trong _cây_vỏ(máy, tid, d, thụt + "   ") { gom(kq, con) } }
+    }
+    trả kq
+}
+
+hàm số_hoá(s) {                              # "755" → 755 (vỏ nhận đối số dạng chuỗi)
+    nếu loại(s) == "số" { trả s }
+    nếu loại(s) == "ẩn" { trả ẩn }
+    đặt n = 0  đặt i = 0
+    mãi {
+        nếu i >= dài(s) { dừng }
+        đặt d = mã(s[i]) - 48
+        nếu d < 0 { trả ẩn }
+        nếu d > 9 { trả ẩn }
+        đặt n = n * 10 + d
+        đặt i = i + 1
+    }
+    trả n
+}
+
+hàm _giúp() {
+    trả _dòng_hoá([
+        "LỆNH VỎ GIAO (tên Việt · bí danh Linux):",
+        "  liệt|ls [đ]   xem|cat <t>    nói|echo …    ở|pwd        về|cd <đ>",
+        "  tạothư|mkdir  sờ|touch <t>   ghi <t> …     xoá|rm <t>   soi|stat <đ>",
+        "  cây|tree [đ]  quyền|chmod <t> <số>         đổichủ|chown <t> <uid>",
+        "  tôi|whoami    tt|ps          giết|kill <tid>            nhật_ký|dmesg [n]",
+        "  tìm|grep <c>  đếm|wc         gắntb|mknod <đ> <trình>",
+        "  chuyển|mv <từ> <tới> · chép|cp <từ> <tới> — KHÔNG đè lên thứ đã có",
+        "  ★ chạy|run <chương-trình> [đối…] · nhịp|tick [n] · việc|jobs · kể|verbose [tắt]",
+        "  ★ lịch|sched [γ|thường] — đổi bộ lập lịch (γ = nhân ĐO độ hữu ích rồi quyết)",
+        "  ★ ống|mkfifo <đường> [sức] · đóng|close <ống> — ỐNG LIÊN-TIẾN-TRÌNH thật",
+        "  ★ chụp|snapshot <tệp> — chụp CẢ HỆ ra JSON (phục hồi thì dùng: chay_hdh_giao.py --nạp)",
+        "    `bơm 8 | lọc chẵn | hút /tạm/kq` = 3 TIẾN TRÌNH nối bằng ống của nhân; thêm `&` để chạy nền.",
+        "  ★ nhờ|ai <việc nói bằng lời> — giao việc cho TRỢ LÝ AI",
+        "  ★ chọn|pick <n> — trả lời khi trợ lý HỎI LẠI vì có nhiều cách hiểu",
+        "  ★ chờ · duyệt|sudo · huỷ — cổng an-toàn cho việc BẤT KHẢ HỒI",
+        "  Ống `|`, chuyển hướng `>` `>>`, nối `&&`, đường-dẫn `.` `..` đều dùng được.",
+        "  ★ dịch|cc <nguồn> <đích> — dịch ra TỆP LỆNH mang chính BYTECODE (chạy không dịch lại)",
+        "  ★ định_dạng|file [tệp] — sổ /hệ/định_dạng: magic nào chạy bằng trình nào, cần năng lực gì",
+        "  ★ MỌI lệnh đều là TỆP trong /lệnh (xem `liệt /lệnh`, `xem /lệnh/soi_hệ`).",
+        "    Viết lệnh mới lúc đang chạy:  ghi /nhà/an/lệnh/<tên> <các dòng lệnh, có $1 $2 $*>",
+        "    rồi  quyền /nhà/an/lệnh/<tên> 755  — $PATH nằm ở /hệ/đường_lệnh."
+    ])
+}
+
+# ---------------- CHẠY MỘT DÒNG (ống · chuyển hướng · nối &&) ----------------
+hàm chạy_dòng(máy, tid, dòng) {
+    # Vỏ cũng là một tiến-trình có vòng đời thật: đang xử lý dòng lệnh = "chạy"; xử lý xong =
+    # "chặn" (ngủ trên bàn phím, đúng như bash chặn ở `read()`), nên `tt`/`/tt` nói THẬT.
+    # Lời gọi LỒNG (trợ lý gõ hộ, cờ "im") không đụng trạng thái — chỉ lượt ngoài cùng mới đổi.
+    đặt bảng = lấy_khoá(lấy_khoá(máy, "nhân"), "bảng")
+    đặt ngoài_cùng = tối
+    nếu _đang_im(máy) == tối { đặt ngoài_cùng = sáng }
+    nếu ngoài_cùng == sáng { đặt_trạng(bảng, tid, "chạy") }
+
+    đặt kq = _kết(0, "")
+    lặp phần trong tách(dòng, "&&") { đặt kq = _chạy_đoạn(máy, tid, cắt_lề(phần)) }
+
+    nếu ngoài_cùng == sáng {
+        nếu trạng_của(bảng, tid) == "chết" { } khác { đặt_trạng(bảng, tid, "chặn") }
+    }
+    trả kq
+}
+
+# chạy_dòng_im: chạy nhưng KHÔNG in ra màn hình — chỉ TRẢ văn bản.
+# (Trợ lý dùng cửa này: nó gom kết quả vào báo cáo của mình thay vì in chen ngang.)
+hàm chạy_dòng_im(máy, tid, dòng) {
+    đặt cũ = lấy_khoá(máy, "im")
+    đặt_khoá(máy, "im", sáng)
+    đặt kq = chạy_dòng(máy, tid, dòng)
+    đặt_khoá(máy, "im", cũ)
+    trả kq
+}
+hàm _đang_im(máy) {
+    nếu lấy_khoá(máy, "im") == sáng { trả sáng }
+    trả tối
+}
+
+# ============================================================
+# ★ ĐƯỜNG ỐNG THẬT: `bơm 8 | lọc chẵn | hút /tạm/kq`
+# ------------------------------------------------------------
+# Nếu MỌI đoạn trong dòng đều là tệp lệnh hạng `#tt` (bệ phóng tiến trình) thì vỏ KHÔNG chuyền
+# văn bản nữa: nó tạo ỐNG CỦA NHÂN giữa từng cặp, rồi sinh N TIẾN TRÌNH THẬT chạy song song.
+# Không thì `|` vẫn là ống văn bản trong một tiến trình (tiện cho `xem … | tìm …`).
+# Kết `&` ⇒ chạy nền: vỏ trả lại dấu nhắc ngay, không chờ đường ống xong.
+# ============================================================
+hàm _bệ_phóng(máy, tid, tên) {              # tên lệnh → tên CHƯƠNG TRÌNH nếu là tệp `#tt`, không thì ẩn
+    đặt đ = tìm_lệnh(máy, tid, _chuẩn_tên(tên))
+    nếu loại(đ) == "ẩn" { trả ẩn }
+    đặt nội = gọi(máy, tid, GH_ĐỌC, [đ])
+    nếu dài(lỗi_cuối(máy)) == 0 { } khác { trả ẩn }
+    nếu bắt_đầu(nội, "#tt ") { trả cắt_lề(tách(cắt_lề(nội), " ")[1]) }
+    trả ẩn
+}
+
+hàm _toàn_bệ_phóng(máy, tid, đoạn_ds) {     # mọi đoạn đều là bệ phóng? → danh sách tên ct | ẩn
+    nếu dài(đoạn_ds) < 2 { trả ẩn }
+    đặt kq = []
+    lặp đ trong đoạn_ds {
+        nếu dài(đ) == 0 { trả ẩn }
+        đặt ct = _bệ_phóng(máy, tid, đ[0])
+        nếu loại(ct) == "ẩn" { trả ẩn }
+        gom(kq, ct)
+    }
+    trả kq
+}
+
+hàm _cắt_theo_ống(từ) {                     # ["a","1","|","b"] → [["a","1"], ["b"]]
+    đặt kq = []  đặt hiện = []
+    lặp t trong từ {
+        nếu t == "|" { gom(kq, hiện)  đặt hiện = [] } khác { gom(hiện, t) }
+    }
+    gom(kq, hiện)
+    trả kq
+}
+
+hàm _dựng_đường_ống(máy, tid, đoạn_ds, ct_ds, nền) {
+    đặt n = dài(đoạn_ds)
+    đặt ống_ds = []                                        # n-1 ống nối giữa các chặng
+    đặt gốc_tên = "/ống/p" + lấy_khoá(máy, "nhịp")
+    đặt i = 0
+    mãi {
+        nếu i >= n - 1 { dừng }
+        đặt tên_ống = gốc_tên + "_" + i
+        nếu gọi(máy, tid, GH_ỐNG, [tên_ống, 3]) == sáng { } khác {
+            trả _kết(1, "vỏ: không tạo được ống " + tên_ống + " — " + lỗi_cuối(máy))
+        }
+        gom(ống_ds, tên_ống)
+        đặt i = i + 1
+    }
+    đặt tid_ds = []
+    đặt k = 0
+    mãi {
+        nếu k >= n { dừng }
+        đặt vào = ""   đặt ra = ""
+        nếu k > 0 { đặt vào = ống_ds[k - 1] }
+        nếu k < n - 1 { đặt ra = ống_ds[k] }
+        đặt đối_ct = [vào, ra]
+        lặp x trong _đối_hoá(đoạn_ds[k], 1) { gom(đối_ct, x) }
+        gom(tid_ds, gọi(máy, tid, GH_SINH, [ct_ds[k], 5, đối_ct]))
+        đặt k = k + 1
+    }
+    đặt báo = "đường ống " + nối(ct_ds, " | ") + " → tt" + nối(tid_ds, " tt")
+    nếu nền == sáng { trả _kết(0, báo + "  [nền]") }
+    đặt số_lát = chạy_tới_hết(máy, 400)                       # tiền cảnh: vỏ CHỜ đường ống xong
+    trả _kết(0, báo + "  (xong sau " + số_lát + " lát lập-lịch)")
+}
+
+hàm _chạy_đoạn(máy, tid, dòng) {
+    đặt từ = _tách_lệnh(dòng)
+    nếu dài(từ) == 0 { trả _kết(0, "") }
+
+    # `&` ở CUỐI ⇒ chạy nền (vỏ không chờ)
+    đặt nền = tối
+    nếu từ[dài(từ) - 1] == "&" { đặt nền = sáng  đặt từ = _bỏ_cuối(từ) }
+
+    # ★ nếu MỌI đoạn đều là bệ phóng tiến trình ⇒ dựng ĐƯỜNG ỐNG THẬT của nhân
+    đặt_khoá(máy, "nền_kế", nền)            # lệnh sắp chạy có được chờ hay không
+    đặt đoạn_ct = _cắt_theo_ống(từ)
+    đặt ct_ds = _toàn_bệ_phóng(máy, tid, đoạn_ct)
+    nếu loại(ct_ds) == "ẩn" { } khác {
+        đặt kq_ống = _dựng_đường_ống(máy, tid, đoạn_ct, ct_ds, nền)
+        nếu _đang_im(máy) == tối { nếu dài(kq_ống[1]) > 0 { rọi kq_ống[1] } }
+        trả kq_ống
+    }
+
+    # tách chuyển-hướng ">" / ">>" ở CUỐI
+    đặt hướng = ẩn  đặt tệp_ra = ẩn  đặt sạch = []
+    đặt i = 0
+    mãi {
+        nếu i >= dài(từ) { dừng }
+        nếu từ[i] == ">"  { đặt hướng = "ghi"   đặt tệp_ra = _từ_thứ(từ, i + 1)  đặt i = dài(từ) }
+        khác {
+            nếu từ[i] == ">>" { đặt hướng = "thêm"  đặt tệp_ra = _từ_thứ(từ, i + 1)  đặt i = dài(từ) }
+            khác { gom(sạch, từ[i])  đặt i = i + 1 }
+        }
+    }
+
+    # chuỗi ỐNG: ra của lệnh trước = vào của lệnh sau
+    đặt vào = ""  đặt mã_ra = 0  đặt ra = ""
+    đặt đoạn = []
+    lặp t trong sạch {
+        nếu t == "|" { gom(đoạn, "|") } khác { gom(đoạn, t) }
+    }
+    đặt hiện = []
+    đặt j = 0
+    mãi {
+        nếu j > dài(đoạn) { dừng }
+        đặt hết = tối
+        nếu j == dài(đoạn) { đặt hết = sáng }
+        nếu hết == tối { nếu đoạn[j] == "|" { đặt hết = sáng } }
+        nếu hết == sáng {
+            đặt r = chạy_một_lệnh(máy, tid, hiện, vào)
+            đặt mã_ra = r[0]  đặt ra = r[1]  đặt vào = ra
+            đặt hiện = []
+        } khác { gom(hiện, đoạn[j]) }
+        đặt j = j + 1
+    }
+
+    # chuyển hướng ra tệp, hoặc in ra màn hình
+    nếu loại(tệp_ra) == "ẩn" {
+        nếu _đang_im(máy) == tối { nếu dài(ra) > 0 { rọi ra } }
+    } khác {
+        đặt g = ẩn
+        nếu hướng == "ghi" { đặt g = gọi(máy, tid, GH_TẠO, [tệp_ra, 644, ra]) }
+        khác { đặt g = gọi(máy, tid, GH_THÊM, [tệp_ra, ra]) }
+        nếu g == sáng { } khác { rọi "vỏ: " + lỗi_cuối(máy)  đặt mã_ra = 1 }
+    }
+    trả _kết(mã_ra, ra)
+}
+
+# ---------------- PHIÊN LÀM VIỆC (in dấu nhắc như bash) ----------------
+hàm nhắc(máy, tid) {
+    đặt ai = gọi(máy, tid, GH_AI, [])
+    đặt d = "$"
+    nếu ai[0] == 0 { đặt d = "#" }                 # gốc-quyền → dấu '#' (đúng nếp Unix)
+    trả ai[1] + ":" + gọi(máy, tid, GH_Ở, []) + d + " "
+}
+
+# gõ: mô phỏng NGƯỜI GÕ một dòng lệnh. Sau mỗi dòng, nhân được quay vài lát ⇒ việc nền (dịch vụ,
+# tiến trình vừa sinh) TIẾN LÊN trong lúc người dùng gõ tiếp — đúng như máy thật, không đứng hình.
+hàm gõ(máy, tid, dòng) {
+    rọi nhắc(máy, tid) + dòng
+    đặt kq = chạy_dòng(máy, tid, dòng)
+    vòng_nhân(máy, 6)
+    trả kq
+}

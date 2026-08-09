@@ -1,0 +1,20 @@
+# Kiểm lib_phân_số — Fraction/Rational (ba-trị-aware)
+nhập "lib_phân_số.giao"
+
+rọi phân_số(2, 4)                       # [1, 2]  (rút gọn)
+rọi phân_số(3, 0 - 6)                   # [-1, 2] (dấu lên tử)
+rọi phân_số(5, 0)                       # ẩn (mẫu 0)
+rọi chuỗi_ps(cộng_ps([1, 2], [1, 3]))   # 5/6
+rọi chuỗi_ps(trừ_ps([3, 4], [1, 4]))    # 1/2
+rọi chuỗi_ps(nhân_ps([2, 3], [3, 4]))   # 1/2
+rọi chuỗi_ps(chia_ps([1, 2], [3, 4]))   # 2/3
+rọi chuỗi_ps(chia_ps([1, 2], [0, 1]))   # ẩn (chia cho 0)
+rọi chuỗi_ps(nghịch_đảo([3, 4]))        # 4/3
+rọi nghịch_đảo([0, 1])                  # ẩn (0 không nghịch đảo)
+rọi chuỗi_ps([6, 3])                    # 6/3  (chưa rút gọn — biểu diễn thô)
+rọi chuỗi_ps(phân_số(6, 3))             # 2    (mẫu 1 → chỉ tử)
+rọi so_ps([1, 2], [2, 3])               # -1
+rọi bằng_ps([2, 4], [1, 2])             # sáng
+rọi bằng_ps([1, 3], [1, 2])             # tối
+rọi ps_thành_thực([1, 4])               # 0.25
+rọi cộng_ps(ẩn, [1, 2])                 # ẩn (lan-truyền)

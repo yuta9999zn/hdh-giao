@@ -1,0 +1,99 @@
+# ============================================================
+# TÍCH HỢP Ψ → LOOKAHEAD (hợp nhất transition_model + nao_cdfl) — bằng GIAO
+# Trước: lookahead mô phỏng bằng 'áp' CỐ ĐỊNH (mô hình thế giới trời-cho).
+# Giờ:   lookahead mô phỏng bằng dự_đoán(Ψ) — mô hình thế giới TỰ HỌC từ quan sát.
+# → Tác tử lập kế hoạch trên tri thức NÓ ĐÃ HỌC, không trên luật được lập trình sẵn.
+#   Nơi Ψ chưa biết (s,a) → kế hoạch KHÔNG đi vào (epistemic: chỉ tính trên cái đã biết).
+# (Đây là cách Ruby LookaheadPlanner dùng TransitionModel để roll-out.)
+# ============================================================
+
+# ---------- Ψ: mô hình chuyển trạng học được (từ transition_model.giao) ----------
+hàm khớp3(e, s, a, s2) { nếu e[0]==s { nếu e[1]==a { nếu e[2]==s2 { trả sáng } } } trả tối }
+hàm khớp2(e, s, a)     { nếu e[0]==s { nếu e[1]==a { trả sáng } } trả tối }
+hàm có(m, s, a, s2) {
+    nếu dài(m) == 0 { trả tối }
+    nếu khớp3(đầu(m), s, a, s2) { trả sáng }
+    trả có(đuôi(m), s, a, s2)
+}
+hàm tăng(m, s, a, s2) {
+    nếu dài(m) == 0 { trả [] }
+    đặt e = đầu(m)
+    nếu khớp3(e, s, a, s2) { trả ghép([[s, a, s2, e[3] + 1]], đuôi(m)) }
+    trả ghép([e], tăng(đuôi(m), s, a, s2))
+}
+hàm quan_sát(m, s, a, s2) {              # HỌC một bước chuyển (s,a)→s'
+    nếu có(m, s, a, s2) { trả tăng(m, s, a, s2) }
+    trả ghép(m, [[s, a, s2, 1]])
+}
+hàm dự_quét(m, s, a, tốt_s2, tốt_đếm) {  # s' HAY-GẶP-NHẤT từ (s,a); -1 nếu chưa học
+    nếu dài(m) == 0 { trả tốt_s2 }
+    đặt e = đầu(m)
+    nếu khớp2(e, s, a) { nếu e[3] > tốt_đếm { trả dự_quét(đuôi(m), s, a, e[2], e[3]) } }
+    trả dự_quét(đuôi(m), s, a, tốt_s2, tốt_đếm)
+}
+hàm dự_đoán(m, s, a) { trả dự_quét(m, s, a, 0 - 1, 0 - 1) }
+
+# ---------- LOOKAHEAD lái trên Ψ (thay 'áp' cố định bằng dự_đoán) ----------
+hàm khoảng(s, mt) { trả tuyệt(s - mt) }                  # heuristic: cách đích bao xa
+hàm tv_Ψ(m, s, mt, hđs, h) {
+    nếu s == mt { trả 0 }
+    nếu h == 0 { trả khoảng(s, mt) }
+    trả tv_quét_Ψ(m, s, mt, hđs, hđs, h, 999999)
+}
+hàm tv_quét_Ψ(m, s, mt, còn, tất, h, tốt) {
+    nếu dài(còn) == 0 { trả tốt }
+    đặt s2 = dự_đoán(m, s, đầu(còn))
+    nếu s2 == 0 - 1 { trả tv_quét_Ψ(m, s, mt, đuôi(còn), tất, h, tốt) }   # Ψ chưa biết → bỏ qua
+    đặt v = tv_Ψ(m, s2, mt, tất, h - 1)
+    nếu v < tốt { trả tv_quét_Ψ(m, s, mt, đuôi(còn), tất, h, v) }
+    trả tv_quét_Ψ(m, s, mt, đuôi(còn), tất, h, tốt)
+}
+# chọn hành động: triển vọng tốt nhất (chính), tie-break tiến-ngay (phụ); -1 nếu Ψ mù tịt
+hàm chọn_Ψ(m, s, mt, còn, tất, h, tốt_a, tốt_v) {
+    nếu dài(còn) == 0 { trả tốt_a }
+    đặt a = đầu(còn)
+    đặt s2 = dự_đoán(m, s, a)
+    nếu s2 == 0 - 1 { trả chọn_Ψ(m, s, mt, đuôi(còn), tất, h, tốt_a, tốt_v) }
+    đặt v = tv_Ψ(m, s2, mt, tất, h - 1) * 10000 + khoảng(s2, mt)
+    nếu v < tốt_v { trả chọn_Ψ(m, s, mt, đuôi(còn), tất, h, a, v) }
+    trả chọn_Ψ(m, s, mt, đuôi(còn), tất, h, tốt_a, tốt_v)
+}
+# vòng đi: lập kế hoạch + bước, di chuyển theo MÔ HÌNH ĐÃ HỌC (dự_đoán)
+hàm đi(m, s, mt, hđs, h, n) {
+    nếu s == mt { rọi "  ✓ tới đích " + mt  trả s }
+    nếu n == 0 { rọi "  hết bước"  trả s }
+    đặt a = chọn_Ψ(m, s, mt, hđs, hđs, h, 0 - 1, 999999)
+    nếu a == 0 - 1 { rọi "  ⛔ Ψ chưa học gì từ trạng thái " + s + " → DỪNG (không bịa đường)"  trả s }
+    đặt s2 = dự_đoán(m, s, a)
+    rọi "  trạng thái " + s + " --[hđ " + a + "]--> " + s2
+    trả đi(m, s2, mt, hđs, h, n - 1)
+}
+
+# ===================== CHẠY =====================
+# HỌC thế giới: advance(a0) chỉ tới 0→1→2→3 (cụt ở 3); jump(a1) đi tắt 0→2→4 (tới đích);
+#               lunge(a2) lao thẳng 0→3 (trông GẦN đích nhất nhưng 3 là NGÕ CỤT trong Ψ).
+đặt m = []
+đặt m = quan_sát(m, 0, 0, 1)
+đặt m = quan_sát(m, 1, 0, 2)
+đặt m = quan_sát(m, 2, 0, 3)
+đặt m = quan_sát(m, 0, 1, 2)
+đặt m = quan_sát(m, 2, 1, 4)
+đặt m = quan_sát(m, 0, 2, 3)
+rọi "Ψ học được (s,a,s',đếm): " + m
+rọi "Đích = 4. Hành động = [0 advance, 1 jump, 2 lunge]"
+rọi ""
+
+đặt hđs = [0, 1, 2]
+rọi "── THAM LAM (lookahead h=1): chọn theo 'gần đích nhất 1 bước' ──"
+đặt g = đi(m, 0, 4, hđs, 1, 8)
+rọi "  → lunge tới 3 (cách đích 1, trông ngon nhất) nhưng Ψ KHÔNG biết lối ra từ 3 → kẹt."
+rọi ""
+
+rọi "── LOOKAHEAD SÂU trên Ψ (h=4): nhìn xa, tránh ngõ cụt ──"
+đặt l = đi(m, 0, 4, hđs, 4, 8)
+rọi "  → thấy 3 là bẫy (Ψ mù lối ra), chọn jump 0→2→4. Kế hoạch lái bằng MÔ HÌNH TỰ HỌC."
+rọi ""
+
+rọi "── EPISTEMIC: xuất phát từ trạng thái 9 (chưa từng quan sát) ──"
+đặt e = đi(m, 9, 4, hđs, 4, 8)
+rọi "  → Ψ chưa học gì quanh 9 → DỪNG thay vì bịa. (Khớp coverage gate: không đủ OR thì không khái quát.)"

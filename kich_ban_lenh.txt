@@ -1,0 +1,12 @@
+liệt /lệnh
+xem /lệnh/soi_hệ
+soi_hệ
+lỗi đĩa
+rác
+đếm_số 3 /nhà/an/đ
+xem /nhà/an/đ
+ghi /nhà/an/lệnh/chào_tôi nói xin chào $1 · máy đang ở
+quyền /nhà/an/lệnh/chào_tôi 755
+chào_tôi An
+soi /lệnh/xoá
+thoát

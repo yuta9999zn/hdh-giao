@@ -1,0 +1,34 @@
+# tinh_gon.giao — PHÂN-TÍCH THỪA-THÃI Windows trên i9 → TRIỂN-KHAI GIAO TINH-GỌN tối-ưu
+# (số-liệu THẬT host dò: 142 svc chạy, 370 tiến-trình, 10.7GB RAM idle chưa-làm-gì)
+nhập "lib_trienkhai.giao"
+
+# ── SỐ-LIỆU THẬT (Windows 11 / i9-13900H, lúc IDLE) ──
+đặt sv_tổng = 142          # services đang chạy
+đặt sv_lõi = 40            # lõi tối-thiểu cho HĐH chạy việc
+đặt ram_idle = 10          # GB RAM dùng lúc IDLE (chưa làm gì)
+đặt ram_lõi = 1            # GB baseline tối-giản
+đặt tt_tổng = 370          # tiến-trình
+đặt tt_lõi = 40
+
+rọi "=== PHÂN-TÍCH THỪA-THÃI: Windows trên Intel i9-13900H (lúc IDLE) ==="
+rọi "Services THỪA : " + tỉ_lệ_thừa(sv_tổng, sv_lõi) + "%  (" + (sv_tổng - sv_lõi) + " / " + sv_tổng + " — Asus×8, DiagTrack-telemetry, SysMain, WSearch, Docker, vendor...)"
+rọi "Tiến-trình THỪA: " + tỉ_lệ_thừa(tt_tổng, tt_lõi) + "%  (" + (tt_tổng - tt_lõi) + " / " + tt_tổng + ")"
+rọi "RAM IDLE        : " + ram_idle + " GB dùng khi CHƯA làm gì (lean baseline chỉ ~" + ram_lõi + " GB)"
+rọi "Bội tốc xấp-xỉ  : ~" + nhanh_hơn(tt_tổng, tt_lõi) + "x  (bớt tranh-chấp CPU/lập-lịch khi bỏ nền thừa)"
+
+# ── ĐƯA VÀO GIAO: triển-khai TINH-GỌN dùng tài-nguyên GIẢI-PHÓNG ──
+đặt ram_giải = ram_giải_phóng(ram_idle, ram_lõi)
+rọi "=== TRIỂN-KHAI HĐH-GIAO TINH-GỌN (i9) ==="
+rọi "RAM giải-phóng  : " + ram_giải + " GB → chạy thêm " + tác_vụ_thêm(ram_giải, 32) + " tác_vụ HỮU-ÍCH (32MB/tác_vụ)"
+
+# cấu-hình GVM tối-ưu cho chip + heap lấy từ RAM ĐÃ GIẢI-PHÓNG
+đặt chip = bản()
+đặt_khoá(chip, "rộng_data", 64)  đặt_khoá(chip, "luồng", 20)
+đặt_khoá(chip, "xung_mhz", 2600)  đặt_khoá(chip, "ram_gb", ram_giải)
+đặt_khoá(chip, "l2_mb", 11)  đặt_khoá(chip, "fpga", tối)
+đặt cfg = triển_khai(chip)
+rọi "WORD máy : " + lấy_khoá(cfg, "WORD") + "-bit · Nền: " + lấy_khoá(cfg, "nền")
+rọi "Tác_vụ   : " + lấy_khoá(cfg, "NT_tác_vụ") + " · Heap: " + lấy_khoá(cfg, "heap_Ki_từ") + " Ki-từ (từ RAM giải-phóng) · Lượng-tử: " + lấy_khoá(cfg, "lượng_tử")
+rọi "→ GIAO-OS tối-giản BẨM SINH: KHÔNG telemetry (CDFL) · KHÔNG vendor-service ·"
+rọi "  capability-sandbox (service chỉ TỒN-TẠI khi cần) · γ-scheduler throttle việc vô-ích ·"
+rọi "  nhân ~chục-MB thay 10.7GB → tài-nguyên dồn cho VIỆC THẬT, không cho nền thừa."

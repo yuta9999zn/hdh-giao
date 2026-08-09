@@ -1,0 +1,9 @@
+# CHUỖI = danh-sách mã-ký-tự trên HEAP; dài/ghép biên dịch thành vòng lặp + cấp heap.
+# Tất cả chạy trên máy GVM (trit/γ, nền NAND); Python chỉ là CPU.
+
+đặt chào = ghép("Giao", " thoa")
+rọi chào                          # Giao thoa   (in bằng RỌI_CHUỖI, duyệt heap)
+rọi dài(chào)                     # 9
+
+đặt ds = [10, 20, 30, 40, 50]
+rọi dài(ds)                       # 5  (dài dùng chung cho danh sách)

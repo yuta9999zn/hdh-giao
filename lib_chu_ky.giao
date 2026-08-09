@@ -1,0 +1,90 @@
+# ============================================================
+# lib_chu_ky.giao — KIỂM CHỮ KÝ KHOÁ-CÔNG-KHAI (RSA PKCS#1 v1.5 + SHA-256)
+# ------------------------------------------------------------
+# CÒN_THIẾU I1. Trước bản này kho chỉ có BĂM ⇒ chống SỬA ĐỔI được, nhưng **kho giả mạo** thì
+# không: ai dựng được một kho khác, tự băm lại mọi gói, là qua tuốt.
+# Chữ ký giải đúng chỗ ấy: chỉ người GIỮ KHOÁ RIÊNG mới ký nổi mục lục; máy chỉ cần KHOÁ CÔNG
+# để kiểm. Đây cũng là cách apt/Kali làm (`InRelease` ký PGP, mỗi nguồn khai `Signed-By:` trỏ
+# đúng một keyring) — ta lấy đúng ý ấy.
+#
+# PHÂN VAI cho gọn và an toàn:
+#   • KÝ  — việc của người giữ kho, làm BÊN NGOÀI (`lam_khoa.py`). Khoá riêng KHÔNG bao giờ vào máy.
+#   • KIỂM — việc của HĐH, làm ở đây, chỉ cần khoá công. Máy không giữ bí mật nào cả.
+# (Đúng như đời thật: máy người dùng không có khoá riêng của Debian/Kali.)
+#
+# Khuôn EM của PKCS#1 v1.5 với SHA-256, modulus k byte:
+#   00 01 | FF × (k−54) | 00 | 3031300d060960864801650304020105000420 | băm 32 byte
+# Kiểm = giải chữ ký bằng khoá công (sig^e mod n) rồi so TỪNG BYTE với khuôn dựng lại.
+# ============================================================
+nhập "lib_so_lon.giao"
+nhập "lib_sha256.giao"
+
+# DER DigestInfo của SHA-256 — hằng số cố định của chuẩn
+đặt CK_DER = "3031300d060960864801650304020105000420"
+
+hàm _ck_ff(n) {
+    đặt s = ""
+    lặp n { đặt s = s + "ff" }
+    trả s
+}
+
+hàm khuôn_pkcs1(băm_hex, k_byte) {
+    "Dựng lại EM mong đợi (chuỗi hex 2*k ký tự). k_byte < 54+32 → ẩn (khoá quá ngắn)."
+    nếu k_byte < 86 { trả ẩn }
+    đặt đệm = k_byte - 54
+    trả "0001" + _ck_ff(đệm) + "00" + CK_DER + băm_hex
+}
+
+hàm kiểm_chữ_ký(nội, chữ_ký_hex, n_hex, e) {
+    "sáng = chữ ký ĐÚNG của khoá này trên nội dung này · tối = KHÔNG đúng · ẩn = đầu vào hỏng."
+    nếu loại(nội) == "chuỗi" { } khác { trả ẩn }
+    nếu loại(chữ_ký_hex) == "chuỗi" { } khác { trả ẩn }
+    nếu loại(n_hex) == "chuỗi" { } khác { trả ẩn }
+    đặt n = hex_sang_số(n_hex)
+    nếu loại(n) == "ẩn" { trả ẩn }
+    đặt sig = hex_sang_số(chữ_ký_hex)
+    nếu loại(sig) == "ẩn" { trả ẩn }
+    nếu sig >= n { trả tối }                       # chữ ký phải nhỏ hơn modulus
+    đặt k = dài(n_hex) // 2                        # cỡ modulus tính bằng byte
+    đặt mong = khuôn_pkcs1(sha256_hex(nội), k)
+    nếu loại(mong) == "ẩn" { trả ẩn }
+    đặt m = mũ_mod(sig, e, n)
+    nếu loại(m) == "ẩn" { trả ẩn }
+    nếu số_sang_hex(m, k * 2) == mong { trả sáng }
+    trả tối
+}
+
+# ---- KÝ (chỉ dùng cho KHOÁ MÁY) ----
+# Kho phần mềm thì GIAO chỉ KIỂM, khoá riêng của kho không bao giờ vào máy. Nhưng MÁY CHỦ thì
+# phải giữ khoá riêng của CHÍNH NÓ để tự chứng minh mình là ai (như host key của sshd) — nên
+# GIAO cần ký được. Cùng một `mũ_mod`, chỉ khác là mũ bí mật thay vì mũ công khai.
+hàm ký_chữ_ký(nội, d_hex, n_hex) {
+    "→ chuỗi hex chữ ký · ẩn nếu khoá hỏng."
+    nếu loại(nội) == "chuỗi" { } khác { trả ẩn }
+    đặt n = hex_sang_số(n_hex)
+    đặt d = hex_sang_số(d_hex)
+    nếu loại(n) == "ẩn" { trả ẩn }
+    nếu loại(d) == "ẩn" { trả ẩn }
+    đặt k = dài(n_hex) // 2
+    đặt em = khuôn_pkcs1(sha256_hex(nội), k)
+    nếu loại(em) == "ẩn" { trả ẩn }
+    đặt m = hex_sang_số(em)
+    trả số_sang_hex(mũ_mod(m, d, n), k * 2)
+}
+
+# ---- khoá công dạng tệp: "rsa|<e>|<n_hex>" ----
+hàm đọc_khoá_công(dòng) {
+    "→ [e, n_hex] · ẩn nếu không đọc được."
+    nếu loại(dòng) == "chuỗi" { } khác { trả ẩn }
+    đặt p = tách_giữ(cắt_lề(dòng), "|")
+    nếu dài(p) >= 3 { } khác { trả ẩn }
+    nếu p[0] == "rsa" { } khác { trả ẩn }
+    đặt e = số_chuỗi(p[1])
+    nếu loại(e) == "ẩn" { trả ẩn }
+    trả [e, cắt_lề(p[2])]
+}
+
+hàm vân_tay_khoá(n_hex) {
+    "Vân tay ngắn để NGƯỜI đối chiếu khoá bằng mắt (như fingerprint của GPG)."
+    trả lát_chuỗi(sha256_hex(n_hex), 0, 16)
+}

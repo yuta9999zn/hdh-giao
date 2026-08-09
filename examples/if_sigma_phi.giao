@@ -1,0 +1,23 @@
+# HƯỚNG 1: IF = HAI NHÁNH — σ (niềm tin) + Φ (cách biểu diễn). Đa-Φ = ensemble.
+# Cùng một niềm tin σ, qua các "thấu kính" Φ khác nhau → cộng hưởng γ khác nhau.
+# DE_IF = khi KHÔNG thấu kính nào biểu diễn nổi thực tại.
+
+hàm phi_đồng(x) { trả x }          # Φ1: nhìn thẳng
+hàm phi_nửa(x) { trả x / 2 }       # Φ2: nhìn qua tỉ lệ ½
+
+hàm γ_qua(σ, Φ, ρ) { trả cộng_hưởng(σ, Φ(ρ)) }   # γ của σ khi soi qua Φ
+
+# Đa-Φ ensemble: tri thức = γ TỐT NHẤT qua các thấu kính
+hàm ensemble(σ, danh_Φ, ρ) {
+    nếu dài(danh_Φ) == 1 { trả γ_qua(σ, đầu(danh_Φ), ρ) }
+    trả lớn(γ_qua(σ, đầu(danh_Φ), ρ), ensemble(σ, đuôi(danh_Φ), ρ))
+}
+
+đặt σ = 50
+đặt ρ = 100
+rọi "Niềm tin σ=50, thực tại ρ=100:"
+rọi "  γ qua Φ đồng nhất : " + γ_qua(σ, phi_đồng, ρ)   # cộng_hưởng(50,100)=0  → không khớp
+rọi "  γ qua Φ tỉ-lệ-½   : " + γ_qua(σ, phi_nửa, ρ)     # cộng_hưởng(50,50)=1   → KHỚP!
+rọi "  Đa-Φ ensemble (γ tốt nhất): " + ensemble(σ, [phi_đồng, phi_nửa], ρ)  # 1
+rọi "→ CÙNG σ, khác Φ → khác γ. Φ (biểu diễn) tách khỏi σ (niềm tin);"
+rọi "  có Φ ĐÚNG mới cộng hưởng. Thiếu Φ phù hợp = DE_IF (tâm chưa hình dung nổi)."

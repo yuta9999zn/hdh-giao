@@ -1,0 +1,24 @@
+# ============================================================
+# VÍ DỤ 1: VÒNG LẶP HỘI TỤ CDFL
+# Niềm tin (tâm) chưa biết gì → học dần → cộng hưởng với thực tại (vật) → "Aha!"
+# Đây là "chương trình AI" ở dạng thuần tuý: runtime CHÍNH LÀ tác tử học.
+# ============================================================
+
+vật nhiệt_độ = 37.0      # MF: thực tại khách quan (tác tử chưa thấy trực tiếp)
+tâm nhiệt_độ = ẩn        # IF: niềm tin khởi đầu = chưa biết (nằm trong DE)
+
+rọi "— Khởi đầu: tâm chưa biết gì về thế giới —"
+rọi de
+
+rọi "— Bắt đầu học (mỗi vòng tâm dịch về vật) —"
+lặp 10 {
+    học nhiệt_độ                       # σ ← σ + α(ρ − σ)
+    giao kq = nhiệt_độ                 # OR = tâm ⋈ vật, kèm γ
+    rọi kq
+    khi viên_mãn kq {
+        rọi "   ↑ Aha! — viên mãn cục bộ: DE→0 tại vùng này (γ≈1)"
+    }
+}
+
+rọi "— Kết thúc: DE ở tâm đã cạn —"
+rọi de

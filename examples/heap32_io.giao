@@ -1,0 +1,15 @@
+# LÕI 32-BIT GIÀU — SỐ THỰC điểm-cố-định + IN DANH SÁCH chạy GATE-LEVEL (gvm.v WORD=32).
+# ----------------------------------------------------------------------------------------
+# Dùng các opcode vừa thêm vào Verilog:
+#   FNHÂN ((a·b)/10000) · FCHIA ((a·10000)/b) — số thực ĐIỂM-CỐ-ĐỊNH, trung gian 64-bit DSP,
+#   RỌI_THỰC (in số ×10000 dạng thập phân) · RỌI_DS (duyệt heap, in danh-sách số — PEEK).
+# GVM là máy SỐ NGUYÊN, KHÔNG FPU: số thực = round(x×10000), × và ÷ qua nhân/chia 64-bit.
+
+rọi 1.5 + 2.25         # 3.75    (cùng thang → CỘNG)
+rọi 3.142 * 2.0        # 6.284   (FNHÂN)
+rọi 10.0 / 4.0         # 2.5     (FCHIA)
+rọi 2.5 - 0.75         # 1.75    (TRỪ)
+rọi 19.99 * 3.0        # 59.97   (vượt 16-bit → cần 32-bit + DSP 64-bit)
+
+đặt ds = [10, 20, 30]
+rọi_ds(ds)             # 10 20 30  (RỌI_DS: duyệt cons-cell trên heap, PEEK không pop)

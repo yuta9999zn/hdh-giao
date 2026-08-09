@@ -1,0 +1,80 @@
+# ============================================================
+# lib_toan.giao — TOÁN (Math kiểu Python/Ruby) cho GIAO
+# ------------------------------------------------------------
+# GIỮ CỐT LÕI GIAO: ba-trị (căn số-ÂM → 'ẩn' = chưa-biết trong số thực · trung_bình rỗng → ẩn ·
+#   nguyên_tố → sáng/tối) · idiom Việt · TỰ-THÂN (căn bằng Newton, không cần builtin sqrt;
+#   dựng trên nguyên/dư/tuyệt/gộp của chuẩn.giao).
+# Nạp: nhập "lib_toan.giao".  (chuẩn.giao là prelude tự nạp)
+# ============================================================
+
+# ---------------- làm tròn ----------------
+# Mọi hàm số: đối số 'ẩn' (chưa-biết) → lan-truyền 'ẩn', KHÔNG crash (hợp-đồng ba-trị GIAO).
+hàm sàn(x) { nếu loại(x) == "ẩn" { trả ẩn }  trả nguyên(x) }   # floor  (nguyên = floor: nguyên(-2.3)=-3)
+hàm trần(x) { nếu loại(x) == "ẩn" { trả ẩn }  trả 0 - nguyên(0 - x) }   # ceil = -floor(-x)
+hàm làm_tròn(x) {                                  # round (nửa → ra-xa-0)
+    nếu loại(x) == "ẩn" { trả ẩn }
+    nếu x < 0 { trả 0 - nguyên(0 - x + 0.5) }
+    trả nguyên(x + 0.5)
+}
+
+# ---------------- dấu / kẹp ----------------
+hàm dấu(x) {                                       # sign → -1 / 0 / 1 ; ẩn → ẩn
+    nếu loại(x) == "ẩn" { trả ẩn }
+    nếu x > 0 { trả 1 }
+    nếu x < 0 { trả 0 - 1 }
+    trả 0
+}
+hàm kẹp(x, lo, hi) {                               # clamp vào [lo, hi]
+    nếu loại(x) == "ẩn" { trả ẩn }
+    nếu loại(lo) == "ẩn" { trả ẩn }
+    nếu loại(hi) == "ẩn" { trả ẩn }
+    nếu x < lo { trả lo }
+    nếu x > hi { trả hi }
+    trả x
+}
+
+# ---------------- căn bậc hai (Newton) ----------------
+hàm căn(x) {                                       # sqrt; x<0 → ẩn (chưa-biết trong số thực)
+    nếu loại(x) == "ẩn" { trả ẩn }
+    nếu x < 0 { trả ẩn }
+    nếu x == 0 { trả 0 }
+    đặt g = x  đặt i = 0
+    mãi { nếu i >= 40 { dừng }  đặt g = (g + x / g) / 2  đặt i = i + 1 }
+    trả g
+}
+
+# ---------------- ước/bội chung ----------------
+hàm ưcln(a, b) {                                   # gcd (Euclid) ; ẩn → ẩn (tránh lặp vô tận)
+    nếu loại(a) == "ẩn" { trả ẩn }
+    nếu loại(b) == "ẩn" { trả ẩn }
+    đặt x = tuyệt(a)  đặt y = tuyệt(b)
+    mãi { nếu y == 0 { dừng }  đặt t = dư(x, y)  đặt x = y  đặt y = t }
+    trả x
+}
+hàm bcnn(a, b) {                                   # lcm
+    nếu loại(a) == "ẩn" { trả ẩn }
+    nếu loại(b) == "ẩn" { trả ẩn }
+    nếu a == 0 { trả 0 }
+    nếu b == 0 { trả 0 }
+    trả tuyệt(a // ưcln(a, b) * b)
+}
+
+# ---------------- thống kê đơn giản ----------------
+hàm trung_bình(ds) {                               # mean; danh-sách RỖNG → ẩn (không bịa 0)
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    nếu dài(ds) == 0 { trả ẩn }
+    trả gộp(ds) / dài(ds)
+}
+
+# ---------------- số nguyên tố (ba-trị) ----------------
+hàm nguyên_tố(n) {                                 # is_prime → sáng/tối ; ẩn → ẩn
+    nếu loại(n) == "ẩn" { trả ẩn }
+    nếu n < 2 { trả tối }
+    đặt i = 2
+    mãi {
+        nếu i * i > n { dừng }
+        nếu dư(n, i) == 0 { trả tối }
+        đặt i = i + 1
+    }
+    trả sáng
+}

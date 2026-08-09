@@ -1,0 +1,31 @@
+# Kiểm phép toán BIT (builtin — CÒN_THIẾU A1) — mở khoá SHA-256 / CRC / mã hoá
+# Số NGUYÊN chính xác mọi cỡ; số âm theo bù-hai vô hạn; ba-trị: đối ẩn → kết quả ẩn.
+
+rọi xor(12, 10)                 # 6
+rọi và_bit(12, 10)              # 8
+rọi hoặc_bit(12, 10)            # 14
+rọi dịch_trái(1, 10)            # 1024
+rọi dịch_phải(1024, 3)          # 128
+rọi dịch_phải(7, 1)             # 3
+rọi đảo_bit(0)                  # -1
+rọi đảo_bit(5)                  # -6 (bù-hai)
+
+# đảo trong khung 32-bit = xor với 2^32−1 (viên gạch cho SHA-256)
+rọi xor(305419896, 4294967295)  # 3989547399  (~0x12345678 trong 32-bit = 0xEDCBA987)
+
+# quay phải 32-bit (rotr) — phép lõi của SHA-256, dựng từ dịch + hoặc + và
+hàm quay_phải32(x, n) {
+    trả và_bit(hoặc_bit(dịch_phải(x, n), dịch_trái(x, 32 - n)), 4294967295)
+}
+rọi quay_phải32(305419896, 8)   # 0x78123456 = 2014458966
+
+# số lớn — chính xác mọi cỡ (như //)
+rọi dịch_trái(1, 100)           # 1267650600228229401496703205376
+
+# số âm: bù-hai vô hạn kiểu Python
+rọi và_bit(0 - 1, 255)          # 255
+
+# ba-trị: ẩn lan truyền, KHÔNG nổ
+rọi xor(5, ẩn)                  # ẩn
+rọi đảo_bit(ẩn)                 # ẩn
+rọi dịch_trái(ẩn, 3)            # ẩn

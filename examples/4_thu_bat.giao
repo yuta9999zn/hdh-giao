@@ -1,0 +1,33 @@
+# ============================================================
+# VÍ DỤ 4: ỔN ĐỊNH & AN TOÀN — thử/bắt + lỗi sạch + sandbox
+# GIAO không bao giờ văng "traceback" nội tạng: mọi lỗi là lỗi GIAO,
+# kèm số dòng; chương trình tự bắt và phục hồi bằng thử/bắt.
+# ============================================================
+
+rọi "— 1) Bắt lỗi và phục hồi (không sập chương trình) —"
+thử {
+    đặt l = [10, 20]
+    rọi l[9]                 # chỉ mục ngoài phạm vi → lỗi GIAO
+} bắt (lỗi) {
+    rọi "  đã bắt: " + lỗi
+}
+rọi "  ...chương trình vẫn chạy tiếp"
+
+rọi ""
+rọi "— 2) Hàm chia an toàn (ẩn thay vì nổ) —"
+hàm chia(a, b) {
+    nếu b == 0 { trả ẩn }    # tránh chia 0 — trả vùng tối
+    trả a / b
+}
+rọi chia(10, 2)
+rọi chia(10, 0)              # ẩn, không lỗi
+
+rọi ""
+rọi "— 3) Bắt lỗi gọi sai hợp đồng —"
+hàm đôi(x) { trả x * 2 }
+thử {
+    rọi đôi(3, 4)            # sai số đối → lỗi hợp đồng
+} bắt (e) {
+    rọi "  hợp đồng: " + e
+}
+rọi "  xong an toàn."

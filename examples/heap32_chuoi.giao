@@ -1,0 +1,12 @@
+# LÕI HEAP 32-BIT GIÀU — CLOSURE + CHUỖI chạy GATE-LEVEL (gvm.v WORD=32).
+# ----------------------------------------------------------------------------------------
+# Dùng 3 opcode vừa thêm vào Verilog: GỌI_CLOSURE (gọi hàm-hạng-nhất), ĐỔI (cho __cộng
+# nối chuỗi), RỌI_CHUỖI (in chuỗi = duyệt heap, xuất từng ký tự + xung HẾT-CHUỖI).
+
+hàm nhân(k){ trả hàm(x){ trả x * k } }   # nhân(k) trả về CLOSURE bắt k
+hàm áp(f, x){ trả f(x) }                  # bậc cao: gọi tham-số-hàm (→ GỌI_CLOSURE)
+
+rọi áp(nhân(3), 5)        # 15   (closure: nhân(3) bắt k=3, áp gọi nó với x=5)
+rọi nhân(7)(6)            # 42   (gọi closure tức thì)
+rọi "Gi" + "ao"           # "Giao"  (nối chuỗi __cộng → ĐỔI; in bằng RỌI_CHUỖI)
+rọi "HDH-" + "GIAO"       # "HDH-GIAO"

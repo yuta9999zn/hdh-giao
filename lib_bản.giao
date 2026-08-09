@@ -1,0 +1,170 @@
+# ============================================================
+# lib_bản.giao — BẢN (Hash/dict kiểu Python/Ruby) cho GIAO
+# ------------------------------------------------------------
+# GIỮ CỐT LÕI GIAO: ba-trị (lấy_khoá thiếu → 'ẩn' SẴN ở builtin · khoá_của không-thấy → ẩn ·
+#   có_giá_trị → sáng/tối) · idiom Việt · TỰ-THÂN (trên builtin bản/đặt_khoá/lấy_khoá/khoá/có_khoá).
+# Hàm KHÔNG-phá-huỷ: trả 'bản' MỚI (sao chép), giữ bản gốc nguyên. Nạp: nhập "lib_bản.giao".
+# ============================================================
+nhập "lib_duyet.giao"                  # cặp_sắp dùng sắp_theo (Enumerable)
+
+hàm sao_bản(m) {                       # copy
+    đặt r = bản()
+    lặp k trong m { đặt_khoá(r, k, lấy_khoá(m, k)) }
+    trả r
+}
+hàm từ_cặp(ds) {                       # [[k,v],...] → bản
+    đặt r = bản()
+    lặp p trong ds { đặt_khoá(r, p[0], p[1]) }
+    trả r
+}
+hàm cặp(m) {                           # bản → [[k,v],...]
+    đặt r = []
+    lặp k trong m { gom(r, [k, lấy_khoá(m, k)]) }
+    trả r
+}
+
+# ---------------- gộp (merge) ----------------
+hàm gộp_bản(a, b) {                    # b THẮNG khi trùng khoá
+    đặt r = sao_bản(a)
+    lặp k trong b { đặt_khoá(r, k, lấy_khoá(b, k)) }
+    trả r
+}
+hàm gộp_với(f, a, b) {                 # trùng khoá → f(giá_a, giá_b)
+    đặt r = sao_bản(a)
+    lặp k trong b {
+        nếu có_khoá(r, k) { đặt_khoá(r, k, f(lấy_khoá(r, k), lấy_khoá(b, k))) }
+        khác { đặt_khoá(r, k, lấy_khoá(b, k)) }
+    }
+    trả r
+}
+
+# ---------------- biến đổi ----------------
+hàm biến_đổi_giá_trị(f, m) {           # transform_values → {k: f(v)}
+    đặt r = bản()
+    lặp k trong m { đặt_khoá(r, k, f(lấy_khoá(m, k))) }
+    trả r
+}
+hàm biến_đổi_khoá(f, m) {              # transform_keys → {f(k): v}
+    đặt r = bản()
+    lặp k trong m { đặt_khoá(r, f(k), lấy_khoá(m, k)) }
+    trả r
+}
+hàm lọc_bản(p, m) {                    # filter theo p(k, v) sáng → giữ
+    đặt r = bản()
+    lặp k trong m {
+        đặt v = lấy_khoá(m, k)
+        nếu p(k, v) { đặt_khoá(r, k, v) }
+    }
+    trả r
+}
+hàm đảo_bản(m) {                       # invert: {v: k}
+    đặt r = bản()
+    lặp k trong m { đặt_khoá(r, lấy_khoá(m, k), k) }
+    trả r
+}
+
+# ---------------- tra cứu (ba-trị) ----------------
+hàm lấy_hoặc(m, k, mặc_định) {         # fetch với mặc-định khi thiếu khoá
+    nếu có_khoá(m, k) { trả lấy_khoá(m, k) }
+    trả mặc_định
+}
+hàm có_giá_trị(m, v) {                 # value? → sáng/tối
+    lặp k trong m { nếu lấy_khoá(m, k) == v { trả sáng } }
+    trả tối
+}
+hàm khoá_của(m, v) {                   # reverse lookup; KHÔNG có → ẩn (chưa-biết)
+    lặp k trong m { nếu lấy_khoá(m, k) == v { trả k } }
+    trả ẩn
+}
+
+# ---------------- đếm tần suất (tally/Counter) ----------------
+hàm đếm_giá_trị(ds) {                  # → bản{phần tử: số lần}
+    đặt r = bản()
+    lặp x trong ds {
+        nếu có_khoá(r, x) { đặt_khoá(r, x, lấy_khoá(r, x) + 1) }
+        khác { đặt_khoá(r, x, 1) }
+    }
+    trả r
+}
+hàm mỗi_cặp(f, m) {                    # each_pair (tác dụng phụ)
+    lặp k trong m { f(k, lấy_khoá(m, k)) }
+    trả ẩn
+}
+
+# ---------------- ĐỢT 2: chọn/bỏ khoá · lấy nhiều · khoá-max-theo-giá · gộp nhiều bản ----------------
+hàm chọn_khoá(m, ks) {                 # slice: bản MỚI chỉ giữ khoá ∈ ks (bỏ khoá không có); ẩn → ẩn
+    nếu loại(m) == "ẩn" { trả ẩn }
+    đặt r = bản()
+    lặp k trong ks { nếu có_khoá(m, k) { đặt_khoá(r, k, lấy_khoá(m, k)) } }
+    trả r
+}
+hàm bỏ_khoá(m, ks) {                   # except: bản MỚI bỏ mọi khoá ∈ ks (không-phá-huỷ); ẩn → ẩn
+    nếu loại(m) == "ẩn" { trả ẩn }
+    đặt r = bản()
+    lặp k trong m { nếu chứa(ks, k) { } khác { đặt_khoá(r, k, lấy_khoá(m, k)) } }
+    trả r
+}
+hàm lấy_nhiều(m, ks) {                 # values_at: [m[k] cho k ∈ ks]; khoá thiếu → ẩn (ba-trị, KHÔNG bịa)
+    nếu loại(m) == "ẩn" { trả ẩn }
+    đặt kq = []
+    lặp k trong ks { nếu có_khoá(m, k) { gom(kq, lấy_khoá(m, k)) } khác { gom(kq, ẩn) } }
+    trả kq
+}
+hàm khoá_lớn_nhất(m) {                 # khoá có GIÁ-TRỊ lớn nhất (max_by value); rỗng/ẩn → ẩn
+    nếu loại(m) == "ẩn" { trả ẩn }
+    đặt ps = cặp(m)
+    nếu dài(ps) == 0 { trả ẩn }
+    đặt tốt = đầu(ps)
+    lặp p trong đuôi(ps) { nếu p[1] > tốt[1] { đặt tốt = p } }
+    trả tốt[0]
+}
+hàm gộp_nhiều(ms) {                    # merge nhiều bản theo thứ-tự (bản SAU thắng khi trùng khoá); ẩn → ẩn
+    nếu loại(ms) == "ẩn" { trả ẩn }
+    đặt r = bản()
+    lặp m trong ms { lặp k trong m { đặt_khoá(r, k, lấy_khoá(m, k)) } }
+    trả r
+}
+
+# ---------------- ĐỢT 3: min-theo-giá · tổng-giá · cặp-sắp-khoá · gộp-đếm ----------------
+hàm khoá_nhỏ_nhất(m) {                 # khoá có GIÁ-TRỊ nhỏ nhất (min_by value); rỗng/ẩn → ẩn
+    nếu loại(m) == "ẩn" { trả ẩn }
+    đặt ps = cặp(m)
+    nếu dài(ps) == 0 { trả ẩn }
+    đặt tốt = đầu(ps)
+    lặp p trong đuôi(ps) { nếu p[1] < tốt[1] { đặt tốt = p } }
+    trả tốt[0]
+}
+hàm tổng_giá(m) {                      # tổng MỌI giá-trị (sum of values); ẩn → ẩn
+    nếu loại(m) == "ẩn" { trả ẩn }
+    đặt s = 0
+    lặp k trong m { đặt s = s + lấy_khoá(m, k) }
+    trả s
+}
+hàm cặp_sắp(m) {                       # [[k,v],…] SẮP tăng theo KHOÁ (ổn định); ẩn → ẩn
+    nếu loại(m) == "ẩn" { trả ẩn }
+    trả sắp_theo(hàm(p) { trả p[0] }, cặp(m))
+}
+hàm gộp_đếm(a, b) { trả gộp_với(cộng2, a, b) }   # Counter +: trùng khoá → CỘNG giá-trị (cộng2 từ chuẩn)
+
+# ---------------- ĐỢT 4: dict-từ-2-list · invert-gom-nhóm · cặp-sắp-theo-giá ----------------
+hàm từ_khoá_giá(ks, vs) {              # dict(zip(ks, vs)) — tới min độ-dài; ẩn → ẩn
+    nếu loại(ks) == "ẩn" { trả ẩn }
+    nếu loại(vs) == "ẩn" { trả ẩn }
+    đặt r = bản()  đặt i = 0  đặt n = nhỏ(dài(ks), dài(vs))
+    mãi { nếu i >= n { dừng }  đặt_khoá(r, ks[i], vs[i])  đặt i = i + 1 }
+    trả r
+}
+hàm đảo_nhóm(m) {                      # invert CHO PHÉP trùng giá-trị → {v: [khoá…]} (khác đảo_bản: 1-1 mất khoá trùng)
+    nếu loại(m) == "ẩn" { trả ẩn }
+    đặt r = bản()
+    lặp k trong m {
+        đặt v = lấy_khoá(m, k)
+        nếu có_khoá(r, v) { gom(lấy_khoá(r, v), k) }   # gom TẠI-CHỖ vào list-nhóm
+        khác { đặt_khoá(r, v, [k]) }
+    }
+    trả r
+}
+hàm cặp_sắp_giá(m) {                   # [[k,v],…] SẮP tăng theo GIÁ-TRỊ (ổn định); ẩn → ẩn
+    nếu loại(m) == "ẩn" { trả ẩn }
+    trả sắp_theo(hàm(p) { trả p[1] }, cặp(m))
+}

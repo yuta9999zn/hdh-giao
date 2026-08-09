@@ -1,0 +1,35 @@
+# trien_khai.giao — DÒ CHIP → CẤU-HÌNH TRIỂN-KHAI HĐH-GIAO TỐI-ƯU
+# Vì HĐH-GIAO xuống tận silicon, nó tự chọn cấu-hình tốt nhất cho ĐÚNG chip của máy.
+nhập "lib_trienkhai.giao"
+
+# ── đặc-tả CHIP THẬT của máy (host dò qua WMI rồi nạp vào) ──
+đặt chip = bản()
+đặt_khoá(chip, "tên", "Intel Core i9-13900H")
+đặt_khoá(chip, "rộng_data", 64)
+đặt_khoá(chip, "luồng", 20)
+đặt_khoá(chip, "xung_mhz", 2600)
+đặt_khoá(chip, "ram_gb", 16)
+đặt_khoá(chip, "l2_mb", 11)
+đặt_khoá(chip, "fpga", tối)        # không có FPGA → nền WASM
+
+đặt cfg = triển_khai(chip)
+rọi "=== KẾ HOẠCH TRIỂN-KHAI HĐH-GIAO cho " + lấy_khoá(chip, "tên") + " ==="
+rọi "WORD máy        : " + lấy_khoá(cfg, "WORD") + "-bit  (tận bus dữ-liệu chip)"
+rọi "Nền chạy        : " + lấy_khoá(cfg, "nền")
+rọi "Tác_vụ song-song: " + lấy_khoá(cfg, "NT_tác_vụ") + "  (∝ 20 luồng logic)"
+rọi "Heap GVM        : " + lấy_khoá(cfg, "heap_Ki_từ") + " Ki-từ  (∝ RAM)"
+rọi "Lượng-tử lịch   : " + lấy_khoá(cfg, "lượng_tử") + " lệnh/lượt  (∝ xung)"
+rọi "Khối nóng (L2)  : " + lấy_khoá(cfg, "khối_nóng_Ki") + " Ki-từ  (giữ trong L2, khỏi cache-miss)"
+
+# ── BA-TRỊ: chip TÍ-HON / chưa-dò-đủ → cấu-hình tương-ứng 'ẩn' (KHÔNG đoán bừa) ──
+rọi "--- chip nhúng (chưa biết RAM/xung) ---"
+đặt nhỏ = bản()
+đặt_khoá(nhỏ, "rộng_data", 16)
+đặt_khoá(nhỏ, "luồng", 1)
+đặt_khoá(nhỏ, "fpga", sáng)        # có FPGA → Verilog gate-level
+# ram_gb, xung_mhz, l2_mb = chưa dò (ẩn)
+đặt cfg2 = triển_khai(nhỏ)
+rọi "WORD     : " + lấy_khoá(cfg2, "WORD") + "-bit"
+rọi "Nền      : " + lấy_khoá(cfg2, "nền")
+rọi "Heap     : " + loại(lấy_khoá(cfg2, "heap_Ki_từ")) + "  (ẩn — CHƯA dò RAM, không đoán)"
+rọi "Lượng-tử : " + loại(lấy_khoá(cfg2, "lượng_tử")) + "  (ẩn — CHƯA dò xung)"

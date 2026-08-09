@@ -1,0 +1,20 @@
+# Kiểm lib_regex NÂNG-CAO: \d \w \s · alternation | · nhóm () · capture · findall · sub
+# (Trong chuỗi GIAO, '\' phải viết '\\' — như Python không-raw-string.)
+nhập "lib_regex.giao"
+rọi khớp("\\d+", "abc42")            # sáng
+rọi khớp("\\d+", "abc")              # tối
+rọi khớp("^\\w+$", "hello_9")        # sáng
+rọi khớp("^\\w+$", "hi there")       # tối (khoảng trắng)
+rọi khớp("a\\sb", "a b")             # sáng (\s = trắng)
+rọi khớp("\\D+", "abc")              # sáng (\D = không-số)
+rọi khớp("mèo|chó", "tôi nuôi chó")  # sáng (alternation)
+rọi khớp("mèo|chó", "tôi nuôi cá")   # tối
+rọi khớp("^(a|b)c$", "bc")           # sáng (nhóm + alt + neo)
+rọi khớp("^(ab)+$", "ababab")        # sáng (nhóm + lượng-từ)
+rọi khớp("^(ab)+$", "aba")           # tối
+rọi tìm("\\d+", "có 42 con và 7 cái")        # 42 (search → chuỗi)
+rọi tìm_tất_cả("\\d+", "có 42 con và 7 cái") # [42, 7] (findall)
+rọi thay_thế("\\d+", "x42y7z", "#")          # x#y#z (sub)
+rọi nhóm_nắm("(\\w+)@(\\w+)", "mail an@gmail nhé")   # [an@gmail, an, gmail] (capture)
+rọi nhóm_nắm("(\\d+)-(\\d+)", "khoảng 10-25 độ")     # [10-25, 10, 25]
+rọi tìm("\\d+", "không có số nào")           # ẩn (không khớp → ba-trị)

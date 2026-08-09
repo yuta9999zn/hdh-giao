@@ -1,0 +1,2 @@
+# fixture va-tên #1 — định-nghĩa 'va_thử' (bản A). Cặp với kiem_va_ten_m2.giao.
+hàm va_thử(x) { trả x + 1 }

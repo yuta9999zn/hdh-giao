@@ -1,0 +1,62 @@
+# ============================================================
+# lib_dichvu.giao — TẦNG DỊCH-VỤ cho HĐH-GIAO (học SCM của Windows, gắn cô-lập-fault của GIAO)
+# ------------------------------------------------------------
+# Windows SCM: dịch-vụ có TRẠNG-THÁI (Stopped/Running) · kiểu khởi-động (Auto/Manual) · PHỤ-THUỘC ·
+#   hành-động HỒI-PHỤC (restart khi sập). GIAO: quản-lý dịch-vụ trên 'bản' — khởi-động giải PHỤ-THUỘC
+#   đệ-quy · sập thì HỒI-PHỤC tới ngưỡng rồi CÔ-LẬP (≡ fault-isolation đã chạy gate-level: 1 dịch-vụ
+#   sập KHÔNG kéo sập hệ). GIỮ ba-trị (chưa-đăng-ký → ẩn) · idiom Việt · tự-thân (trên 'bản').
+# Bản ghi: tên → [trạng_thái, phụ_thuộc_ds, tự_động, lần_lỗi].  Nạp: nhập "lib_dichvu.giao".
+# ============================================================
+
+đặt _NGƯỠNG_LỖI = 3                    # số lần HỒI-PHỤC trước khi CÔ-LẬP (như Windows recovery)
+
+hàm tạo_ql() { trả bản() }
+hàm đăng_ký_dv(ql, tên, phụ_thuộc, tự_động) {
+    đặt_khoá(ql, tên, ["dừng", phụ_thuộc, tự_động, 0])
+    trả ql
+}
+hàm trạng_thái_dv(ql, tên) {           # chưa đăng-ký → ẩn (ba-trị)
+    nếu có_khoá(ql, tên) { trả lấy_khoá(ql, tên)[0] }
+    trả ẩn
+}
+hàm số_lỗi(ql, tên) {
+    nếu có_khoá(ql, tên) { trả lấy_khoá(ql, tên)[3] }
+    trả ẩn
+}
+hàm _đặt_tt(ql, tên, tt) {             # đổi trạng-thái, giữ phần còn lại
+    đặt r = lấy_khoá(ql, tên)
+    đặt_khoá(ql, tên, [tt, r[1], r[2], r[3]])
+}
+
+hàm khởi_dv(ql, tên) {                 # khởi-động: giải PHỤ-THUỘC trước (đệ-quy)
+    nếu có_khoá(ql, tên) { } khác { trả ẩn }       # chưa đăng-ký → ẩn
+    đặt r = lấy_khoá(ql, tên)
+    nếu r[0] == "chạy" { trả sáng }                  # đã chạy
+    nếu r[0] == "lỗi" { trả tối }                    # đã CÔ-LẬP → không khởi lại
+    lặp dep trong r[1] {                              # khởi mọi phụ-thuộc trước
+        nếu khởi_dv(ql, dep) == sáng { } khác { trả tối }   # 1 phụ-thuộc hỏng → KHÔNG khởi được
+    }
+    _đặt_tt(ql, tên, "chạy")
+    trả sáng
+}
+hàm dừng_dv(ql, tên) {
+    nếu có_khoá(ql, tên) { _đặt_tt(ql, tên, "dừng")  trả sáng }
+    trả ẩn
+}
+hàm khởi_tự_động(ql) {                 # khởi MỌI dịch-vụ tự_động (phụ-thuộc tự giải)
+    lặp tên trong ql {
+        nếu lấy_khoá(ql, tên)[2] { khởi_dv(ql, tên) }
+    }
+    trả ql
+}
+hàm báo_lỗi(ql, tên) {                 # dịch-vụ SẬP: thử HỒI-PHỤC; quá ngưỡng → CÔ-LẬP (hệ chạy tiếp)
+    nếu có_khoá(ql, tên) { } khác { trả ẩn }
+    đặt r = lấy_khoá(ql, tên)
+    đặt n = r[3] + 1
+    nếu n < _NGƯỠNG_LỖI {                            # còn cơ-hội → khởi lại
+        đặt_khoá(ql, tên, ["chạy", r[1], r[2], n])
+        trả sáng                                      # đã HỒI-PHỤC
+    }
+    đặt_khoá(ql, tên, ["lỗi", r[1], r[2], n])        # quá ngưỡng → CÔ-LẬP (≡ fault isolation)
+    trả tối
+}

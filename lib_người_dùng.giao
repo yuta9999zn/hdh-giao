@@ -1,0 +1,266 @@
+# ============================================================
+# lib_người_dùng.giao — SỔ NGƯỜI DÙNG + ĐĂNG NHẬP (kiểu /etc/passwd + /etc/shadow + /bin/login)
+# ------------------------------------------------------------
+# Hai tệp, hai mức kín — y như Linux:
+#   /hệ/người_dùng  644  "tên:uid:nhà"        ai đọc cũng được (cần để hiện tên chủ tệp)
+#   /hệ/mật_khẩu    600  "tên:$g3$…"          CHỈ gốc-quyền đọc được — bản băm nằm ở đây
+#                                              ($g3$ = ROMix khó-về-bộ-nhớ; $g2$/$g1$ cũ vẫn đọc được)
+#
+# Việc kiểm mật khẩu buộc phải đọc /hệ/mật_khẩu, nên nó chạy dưới TIẾN TRÌNH GỐC (tid 1) — đúng
+# vai của `/bin/login` setuid root. Người dùng thường KHÔNG bao giờ đọc thẳng tệp ấy được: chính
+# tầng quyền của HĐH chặn, không phải quy ước lịch sự.
+# ============================================================
+nhập "lib_mật_khẩu.giao"
+nhập "lib_gọi_hệ.giao"
+nhập "lib_bản.giao"
+
+đặt NGƯỜI_TỆP = "/hệ/người_dùng"
+đặt BÓNG_TỆP  = "/hệ/mật_khẩu"
+đặt NHÓM_TỆP  = "/hệ/nhóm"                  # 644  "tên_nhóm:gid:tv1,tv2"   ~ /etc/group   (C2)
+đặt SUDO_TỆP  = "/hệ/sudo"                  # 440  "tên: lệnh1 lệnh2 | *"   ~ /etc/sudoers (C3)
+
+# ---------------- đọc sổ ----------------
+hàm _dòng_sạch(s) {
+    đặt ra = []
+    lặp d trong tách_dòng(s) { nếu cắt_lề(d) != "" { gom(ra, cắt_lề(d)) } }
+    trả ra
+}
+
+hàm nạp_người(máy, tid_gốc) {
+    "→ [[tên, uid, nhà], …]. Đọc được bằng quyền của CHÍNH tid gọi (tệp 644 nên ai cũng đọc)."
+    đặt nội = gọi(máy, tid_gốc, GH_ĐỌC, [NGƯỜI_TỆP])
+    nếu loại(nội) != "chuỗi" { trả [] }
+    nếu nội == "tối" { trả [] }
+    đặt ra = []
+    lặp d trong _dòng_sạch(nội) {
+        đặt p = tách_giữ(d, ":")
+        nếu dài(p) >= 3 { gom(ra, [p[0], số_chuỗi(p[1]), p[2]]) }
+    }
+    trả ra
+}
+
+hàm tìm_người(máy, tid_gốc, tên) {
+    lặp ng trong nạp_người(máy, tid_gốc) { nếu ng[0] == tên { trả ng } }
+    trả ẩn
+}
+
+hàm nhà_của(máy, tid_gốc, tên) {
+    đặt ng = tìm_người(máy, tid_gốc, tên)
+    nếu loại(ng) == "ẩn" { trả "/" }
+    trả ng[2]
+}
+
+# ---------------- NHÓM người dùng (C2) ----------------
+hàm nạp_nhóm(máy, tid) {
+    "→ [[tên_nhóm, gid, [thành_viên…]], …] — tệp 644 nên ai đọc cũng được."
+    đặt nội = gọi(máy, tid, GH_ĐỌC, [NHÓM_TỆP])
+    nếu loại(nội) != "chuỗi" { trả [] }
+    đặt ra = []
+    lặp d trong _dòng_sạch(nội) {
+        đặt p = tách_giữ(d, ":")
+        nếu dài(p) >= 3 {
+            đặt tv = []
+            nếu p[2] != "" { đặt tv = tách_giữ(p[2], ",") }
+            gom(ra, [p[0], số_chuỗi(p[1]), tv])
+        }
+    }
+    trả ra
+}
+
+hàm nhóm_của_tên(máy, tid, tên) {           # các gid mà 'tên' là thành viên
+    đặt ra = []
+    lặp nh trong nạp_nhóm(máy, tid) {
+        nếu chứa(nh[2], tên) { gom(ra, nh[1]) }
+    }
+    trả ra
+}
+
+# ĐỒNG BỘ tư cách nhóm vào bảng credential của nhân (TTH_NHÓM — nơi được_phép tra).
+# Như Linux: nhóm được chốt lúc ĐĂNG NHẬP / lúc gốc sửa sổ, không phải mỗi lần mở tệp.
+hàm đồng_bộ_nhóm(máy, tid_gốc) {
+    lặp ng trong nạp_người(máy, tid_gốc) {
+        nhóm_uid_đặt(ng[1], nhóm_của_tên(máy, tid_gốc, ng[0]))
+    }
+    trả sáng
+}
+
+hàm thêm_nhóm_hệ(máy, tid_gốc, tên_nhóm, gid, tv_ds) {
+    "Khai một nhóm mới (ghi sổ 644 cần quyền gốc) rồi đồng bộ ngay."
+    đặt cũ = gọi(máy, tid_gốc, GH_ĐỌC, [NHÓM_TỆP])
+    nếu loại(cũ) != "chuỗi" { trả tối }
+    đặt dòng = tên_nhóm + ":" + gid + ":" + nối(tv_ds, ",")
+    nếu cũ != "" { đặt dòng = cũ + "\n" + dòng }
+    nếu gọi(máy, tid_gốc, GH_GHI, [NHÓM_TỆP, dòng]) != sáng { trả tối }
+    trả đồng_bộ_nhóm(máy, tid_gốc)
+}
+
+# ---------------- SUDO (C3) ----------------
+# `duyệt` hỏi "việc này có hoàn tác được không" · `sudo` hỏi "anh là ai" — HAI CỔNG BỔ NHAU:
+# sudo cấp danh tính gốc cho MỘT lệnh, nhưng lệnh bất-khả-hồi vẫn phải qua duyệt như thường.
+hàm sudo_được(máy, tid_gốc, tên, lệnh_đầu) {
+    "sáng = được · tối = có trong sổ nhưng lệnh ấy không được cấp · ẩn = không có trong sổ"
+    đặt nội = gọi(máy, tid_gốc, GH_ĐỌC, [SUDO_TỆP])
+    nếu loại(nội) != "chuỗi" { trả ẩn }
+    lặp d trong _dòng_sạch(nội) {
+        đặt i = vị_trí(d, ":")
+        nếu loại(i) == "ẩn" { } khác {
+            nếu cắt_lề(lát_chuỗi(d, 0, i)) == tên {
+                đặt phần = cắt_lề(lát_chuỗi(d, i + 1, dài(d)))
+                nếu phần == "*" { trả sáng }
+                nếu chứa(tách(phần, " "), lệnh_đầu) { trả sáng }
+                trả tối
+            }
+        }
+    }
+    trả ẩn
+}
+
+# ---------------- bóng (chỉ gốc-quyền) ----------------
+hàm _nạp_bóng(máy, tid_gốc) {
+    đặt nội = gọi(máy, tid_gốc, GH_ĐỌC, [BÓNG_TỆP])
+    nếu loại(nội) != "chuỗi" { trả ẩn }
+    nếu nội == "tối" { trả ẩn }                     # KHÔNG phải gốc-quyền ⇒ không đọc nổi
+    đặt b = bản()
+    lặp d trong _dòng_sạch(nội) {
+        đặt i = vị_trí(d, ":")
+        nếu loại(i) != "ẩn" { đặt_khoá(b, lát_chuỗi(d, 0, i), lát_chuỗi(d, i + 1, dài(d))) }
+    }
+    trả b
+}
+
+hàm _ghi_bóng(máy, tid_gốc, b) {
+    đặt ds = []
+    lặp c trong cặp(b) { gom(ds, c[0] + ":" + c[1]) }
+    trả gọi(máy, tid_gốc, GH_GHI, [BÓNG_TỆP, nối(ds, "\n")])
+}
+
+# ---------------- xác thực ----------------
+# BẢN GHI GIẢ để băm CHO ĐỦ THỜI GIAN khi không có người ấy / tài khoản bị khoá.
+# Dựng từ MK_N3 nên nâng N thì bản giả tự theo — không có chuyện quên đồng bộ.
+đặt BÓNG_GIẢ = "$g3$" + MK_N3 + "$0123456789abcdef$0000000000000000000000000000000000000000000000000000000000000000"
+
+hàm xác_thực(máy, tid_gốc, tên, mật_khẩu) {
+    "sáng = đúng · tối = sai mật khẩu · ẩn = không có người ấy (hoặc không đọc nổi sổ bóng)"
+    đặt b = _nạp_bóng(máy, tid_gốc)
+    nếu loại(b) == "ẩn" { trả ẩn }
+    đặt bóng = lấy_khoá(b, tên)
+    # ---- CHỐNG RÒ RỈ THEO THỜI GIAN (đo được trước khi vá: có-thật ~750ms · không-có ~0ms) ----
+    # Ta vẫn nói "sai tên đăng nhập HOẶC mật khẩu" để khỏi chỉ điểm — nhưng nếu người không có thì
+    # trả lời TỨC THÌ còn người có thật thì đợi ba phần tư giây, kẻ dò chỉ cần BẤM GIỜ là đếm sạch
+    # tài khoản. Giấu ở lời nói mà hở ở đồng hồ thì coi như không giấu.
+    # Cách chữa đúng (OpenSSH gọi là "fake password hashing"): không có người ấy thì vẫn băm một
+    # BẢN GHI GIẢ rồi vứt kết quả — mọi ngả đều trả đúng ngần ấy công. Tài khoản bị KHOÁ cũng phải
+    # đi qua đây, kẻo lại lộ "tài khoản này có thật, đang bị khoá".
+    nếu loại(bóng) == "ẩn" { khớp_mk(mật_khẩu, BÓNG_GIẢ)  trả ẩn }
+    nếu bóng == "*" { khớp_mk(mật_khẩu, BÓNG_GIẢ)  trả tối }
+    trả khớp_mk(mật_khẩu, bóng)
+}
+
+hàm đặt_mk(máy, tid_gốc, tên, mk_mới, hạt) {
+    đặt b = _nạp_bóng(máy, tid_gốc)
+    nếu loại(b) == "ẩn" { trả tối }
+    đặt_khoá(b, tên, bóng_mới(mk_mới, hạt))
+    trả _ghi_bóng(máy, tid_gốc, b)
+}
+
+hàm khoá_người(máy, tid_gốc, tên) {
+    đặt b = _nạp_bóng(máy, tid_gốc)
+    nếu loại(b) == "ẩn" { trả tối }
+    đặt_khoá(b, tên, "*")
+    trả _ghi_bóng(máy, tid_gốc, b)
+}
+
+# ---------------- CHỐNG DÒ MẬT KHẨU (C4-④ + C5) ----------------
+# Sổ đếm SAI theo TÊN, sống trong bộ nhớ của máy đang chạy (như pam_faillock của Linux):
+#   • từ lần sai thứ DÒ_NGƯỠNG_CHẬM trở đi, mỗi lần sai bắt CHỜ GẤP ĐÔI (2s, 4s, 8s… trần 60s)
+#     — kẻ dò tự động bị bóp còn vài phép thử mỗi phút, người gõ nhầm thật thì chỉ vướng nhẹ;
+#   • sai liên tiếp tới DÒ_NGƯỠNG_KHOÁ thì KHOÁ hẳn tài khoản (bóng = "*", C5) — trừ `gốc`:
+#     khoá gốc là tự chặt chân mình, kẻ dò chỉ cần gõ bừa 10 lần là chủ máy mất cửa vào
+#     (Linux pam_faillock cũng chừa root vì đúng lý do này); gốc vẫn bị CHẬM DẦN như thường.
+# Chờ-theo-giây cần đồng hồ (năng lực `giờ`); máy không cấp `giờ` thì vẫn ĐẾM để khoá,
+# chỉ không đo được quãng chờ. Đăng nhập ĐÚNG (ngoài quãng chờ) thì xoá sổ — chỉ phạt chuỗi sai
+# LIÊN TIẾP, không phạt người hay quên.
+đặt DÒ_SỔ = bản()                 # tên → [số_lần_sai_liên_tiếp, mốc_epoch_được_thử_lại]
+đặt DÒ_NGƯỠNG_CHẬM = 3
+đặt DÒ_NGƯỠNG_KHOÁ = 10
+đặt DÒ_TRẦN_CHỜ = 60
+
+hàm _dò_giờ() { thử { trả giờ_hệ() } bắt (e) { trả ẩn } }
+
+hàm dò_phải_chờ(tên) {
+    "→ 0 = được thử ngay · n > 0 = còn phải chờ n giây (đang trong quãng chậm dần)."
+    đặt r = lấy_khoá(DÒ_SỔ, tên)
+    nếu loại(r) == "ẩn" { trả 0 }
+    đặt g = _dò_giờ()
+    nếu loại(g) == "ẩn" { trả 0 }
+    nếu g < r[1] { trả r[1] - g }
+    trả 0
+}
+
+hàm dò_ghi_sai(máy, tid_gốc, tên) {
+    "Ghi MỘT lần sai. → ['chờ', giây] · ['khoá', lần] · ['thường', lần]."
+    đặt r = lấy_khoá(DÒ_SỔ, tên)
+    đặt sai = 1
+    nếu loại(r) == "ẩn" { } khác { đặt sai = r[0] + 1 }
+    đặt chờ = 0
+    nếu sai >= DÒ_NGƯỠNG_CHẬM {
+        đặt chờ = dịch_trái(1, sai - DÒ_NGƯỠNG_CHẬM + 1)
+        nếu chờ > DÒ_TRẦN_CHỜ { đặt chờ = DÒ_TRẦN_CHỜ }
+    }
+    đặt mốc = 0
+    đặt g = _dò_giờ()
+    nếu loại(g) == "ẩn" { } khác { đặt mốc = g + chờ }
+    đặt_khoá(DÒ_SỔ, tên, [sai, mốc])
+    nếu sai >= DÒ_NGƯỠNG_KHOÁ {
+        nếu tên == "gốc" { } khác {
+            nếu loại(tìm_người(máy, tid_gốc, tên)) == "ẩn" { } khác {
+                khoá_người(máy, tid_gốc, tên)
+                trả ["khoá", sai]
+            }
+        }
+    }
+    nếu chờ > 0 { trả ["chờ", chờ] }
+    trả ["thường", sai]
+}
+
+hàm dò_xoá(tên) {
+    nếu có_khoá(DÒ_SỔ, tên) { xoá_khoá(DÒ_SỔ, tên) }
+    trả sáng
+}
+
+# ---------------- thêm người ----------------
+hàm thêm_người_hệ(máy, tid_gốc, tên, uid, mk, hạt) {
+    "Tạo tài khoản THẬT: ghi sổ, băm mật khẩu, dựng thư mục nhà 700 rồi trao chủ."
+    nếu loại(tìm_người(máy, tid_gốc, tên)) != "ẩn" { trả "đã có người tên ấy" }
+    đặt nhà = "/nhà/" + tên
+    đặt cũ = gọi(máy, tid_gốc, GH_ĐỌC, [NGƯỜI_TỆP])
+    nếu loại(cũ) != "chuỗi" { trả "không đọc nổi sổ người dùng" }
+    gọi(máy, tid_gốc, GH_GHI, [NGƯỜI_TỆP, cũ + "\n" + tên + ":" + uid + ":" + nhà])
+    nếu đặt_mk(máy, tid_gốc, tên, mk, hạt) != sáng { trả "không ghi nổi sổ bóng" }
+    thêm_người(máy, uid, tên)                        # cho nhân biết uid ↔ tên
+    gọi(máy, tid_gốc, GH_TẠO_THƯ, [nhà, 700])
+    gọi(máy, tid_gốc, GH_TẠO_THƯ, [nhà + "/lệnh", 755])
+    gọi(máy, tid_gốc, GH_ĐỔI_CHỦ, [nhà, uid])        duyệt(máy)
+    gọi(máy, tid_gốc, GH_ĐỔI_CHỦ, [nhà + "/lệnh", uid])   duyệt(máy)
+    trả sáng
+}
+
+# ---------------- ĐĂNG NHẬP: đổi mật khẩu đúng lấy MỘT PHIÊN VỎ ----------------
+hàm đăng_nhập(máy, tid_gốc, tên, mật_khẩu) {
+    "→ tid của vỏ mới nếu đúng · tối nếu sai mật khẩu · ẩn nếu không có người ấy"
+    nếu dò_phải_chờ(tên) > 0 { trả tối }             # đang chậm dần — KHÔNG xét, kể cả gõ đúng
+    đặt kq = xác_thực(máy, tid_gốc, tên, mật_khẩu)
+    nếu loại(kq) == "ẩn" { dò_ghi_sai(máy, tid_gốc, tên)  trả ẩn }
+    nếu kq == tối { dò_ghi_sai(máy, tid_gốc, tên)  trả tối }
+    dò_xoá(tên)                                      # chuỗi sai LIÊN TIẾP đứt là tha
+    đồng_bộ_nhóm(máy, tid_gốc)                       # chốt tư cách NHÓM lúc đăng nhập (như Linux)
+    đặt ng = tìm_người(máy, tid_gốc, tên)
+    đặt V = sinh_tt(máy, "vỏ", 5, ng[1], ng[2])      # phiên chạy DƯỚI uid của người ấy
+    đặt_khoá(máy, "vỏ_hiện", V)
+    trả V
+}
+
+hàm đăng_xuất(máy, tid) {
+    gọi(máy, tid, GH_THOÁT, [])
+    trả sáng
+}

@@ -1,0 +1,240 @@
+# ============================================================
+# lib_tu_xa.giao — ĐĂNG NHẬP TỪ XA (CÒN_THIẾU C4), dựng trên mạng-ra-host (B1')
+# ------------------------------------------------------------
+# Đây là chỗ ba thứ đã dựng trước gặp nhau, không phải tính năng mới đứng riêng:
+#   • B1' cho ổ cắm TCP thật (cùng API với mạng trong-máy);
+#   • C1 cho sổ mật khẩu băm `$g2$` — người từ xa xác thực bằng ĐÚNG sổ ấy, không có cửa riêng;
+#   • C2/C3 cho uid/nhóm — phiên từ xa chạy dưới ĐÚNG uid của người ấy, quyền y hệt ngồi tại máy.
+#
+# Khác `sshd` ở hai điểm ĐÁNG NÓI:
+#   ① `sshd` chạy dưới ROOT suốt phiên rồi mới hạ quyền; ở đây tiến trình phục vụ chỉ mượn tiến
+#      trình gốc ĐÚNG LÚC đọc sổ bóng (như `/bin/login`), còn phiên thì chạy dưới uid người dùng.
+#   ② Mọi lệnh từ xa đi qua ĐÚNG vỏ và ĐÚNG tầng gọi-hệ ⇒ cổng bất-khả-hồi, audit, thùng rác…
+#      vẫn nguyên. Không có "đường tắt cho phiên từ xa".
+#
+# Đường truyền MÃ HOÁ từ v0.21.0 (ChaCha20 + HMAC, lib_kenh) · bí mật chuyển tiếp từ v0.22.0
+# (Diffie-Hellman, lib_dh) · ĐỔI KHOÁ GIỮA PHIÊN + CHỐNG DÒ mật khẩu từ bản này.
+# ⚠ TRUNG THỰC: chưa qua thẩm định mật mã, và vẫn kẹp 127.0.0.1 — mở ra LAN là chuyện khác hẳn.
+# ============================================================
+nhập "lib_người_dùng.giao"
+nhập "lib_vỏ.giao"
+nhập "lib_kenh.giao"          # ★ mã hoá đường truyền: ChaCha20 + HMAC
+nhập "lib_dh.giao"            # ★ Diffie-Hellman: BÍ MẬT CHUYỂN TIẾP
+
+đặt TX_CỔNG = 2222
+
+# ---- HẠN ĐỔI KHOÁ, ép từ phía MÁY CHỦ (học `RekeyLimit` của sshd, và vá chỗ nó hở) ----
+# Quan sát máy thật (Kali 2026.2, `man 5 sshd_config`): sshd đổi khoá theo **KHỐI LƯỢNG DỮ LIỆU**
+# (mặc định 1G–4G) kèm hạn thời gian. Cái đáng học không phải con số mà là: **hạn nằm ở CẢ HAI
+# đầu**. Bản trước của ta chỉ có khách tự đổi mỗi 32 khung — tức là an toàn của phiên treo vào
+# THIỆN CHÍ của phần mềm đầu kia. Khách viết cẩu thả (hay cố tình) cứ dùng mãi một khoá thì máy
+# chủ chiều tuốt. Nay máy chủ ĐẾM và TỪ CHỐI PHỤC VỤ khi quá hạn mà chưa đổi khoá.
+#
+# Vì sao ta đếm KHUNG còn sshd đếm BYTE: khung SSH to nhỏ rất chênh (16 byte tới 32 KB) nên đếm
+# khung ở đó vô nghĩa. Ở đây khung là DÒNG LỆNH, và ta **chặn thẳng khung quá dài** — nên
+# "số khung × cỡ tối đa" là một cận trên THẬT cho lượng dữ liệu giữa hai lần đổi khoá
+# (64 × 8 KB = 512 KB), đúng tinh thần RekeyLimit mà không phải đếm byte rời rạc.
+đặt TX_HẠN_KHUNG = 64            # quá chừng này khung chưa đổi khoá ⇒ máy chủ ngừng phục vụ
+đặt TX_KHUNG_TỐI_ĐA = 8192       # ĐỘ DÀI KHUNG TRÊN DÂY (bản mã là hex ⇒ lệnh thật ~4000 ký tự,
+                                 # thừa sức cho một dòng lệnh); dài hơn thì bỏ thẳng, chưa giải
+đặt TX_KHOÁ_MÁY = "/hệ/khoá_máy"        # 600 — khoá RIÊNG của máy, chỉ gốc-quyền đọc
+đặt TX_KHOÁ_CÔNG = "/hệ/khoá_máy.công"  # 644 — khách xem vân tay ở đây (TOFU)
+
+hàm _tx_dòng_sạch(s) {
+    đặt r = ""
+    lặp c trong s { nếu mã(c) < 32 { } khác { đặt r = r + c } }
+    trả cắt_lề(r)
+}
+
+# Trạng thái mỗi khách: [giai_đoạn, tên_đã_gõ, tid_vỏ]
+#   giai_đoạn: "tên" → đang chờ tên · "mk" → chờ mật khẩu · "vỏ" → đã vào, đang gõ lệnh
+hàm mở_cổng_xa(máy, tid_gốc, cổng) {
+    đặt r = gọi(máy, tid_gốc, GH_NGHE, [cổng, 600, "ngoài"])
+    nếu r == sáng { trả sáng }
+    trả tối
+}
+
+# Gửi: phiên nào đã bắt tay xong thì gói vào KHUNG KÍN, chưa thì gửi trần (chỉ giai đoạn chào hỏi).
+hàm _tx_gửi(máy, tid_gốc, mã, chữ) { trả gọi(máy, tid_gốc, GH_GỬI_GÓI, [mã, chữ]) }
+
+hàm _tx_gửi_kín(máy, tid_gốc, phiên, mã, chữ) {
+    đặt p = lấy_khoá(phiên, mã)
+    nếu loại(p) == "ẩn" { trả tối }
+    nếu dài(p) < 6 { trả _tx_gửi(máy, tid_gốc, mã, chữ) }        # chưa có khoá → còn đang chào hỏi
+    đặt kp = p[3]
+    đặt đếm = p[5]
+    đặt_khoá(phiên, mã, [p[0], p[1], p[2], p[3], p[4], đếm + 1])
+    trả _tx_gửi(máy, tid_gốc, mã, đóng_khung(kn_khoá_xuống(kp), kn_khoá_mac(kp), đếm, chữ) + "\n")
+}
+
+hàm vân_tay_máy(máy, tid_gốc) {
+    "Vân tay khoá CÔNG của máy — khách xem cái này để biết mình đang nói với ai (TOFU)."
+    đặt kc = gọi(máy, tid_gốc, GH_ĐỌC, [TX_KHOÁ_CÔNG])
+    đặt k = đọc_khoá_công(kc)
+    nếu loại(k) == "ẩn" { trả "chưa-có-khoá-máy" }
+    trả vân_tay_khoá(k[1])
+}
+
+hàm phục_vụ_xa(máy, tid_gốc, cổng, phiên, hạt) {
+    "Một NHỊP phục vụ. `phiên`: mã → [giai_đoạn, tên, tid_vỏ, khoá_phiên, đếm_lên_kỳ_vọng, đếm_xuống]."
+    đặt g = gọi(máy, tid_gốc, GH_NHẬN_GÓI, [cổng])
+    nếu loại(g) == "danh_sách" { } khác { trả tối }
+    nếu g[0] == "nối" {
+        # ★ BẮT TAY DIFFIE-HELLMAN. Máy sinh khoá TẠM cho RIÊNG phiên này, gửi phần công khai A
+        # kèm CHỮ KÝ bằng khoá máy (để khách biết A đúng là của mình — chống kẻ đứng giữa).
+        # Khoá riêng của máy KHÔNG tham gia tạo bí mật ⇒ lộ về sau cũng không giải nổi phiên này.
+        đặt a = dh_riêng()
+        nếu loại(a) == "ẩn" {
+            _tx_gửi(máy, tid_gốc, g[1], "máy chưa được cấp năng lực `ngẫu_nhiên` — không mở kênh kín được\n")
+            trả tối
+        }
+        đặt km = đọc_khoá_máy(gọi(máy, tid_gốc, GH_ĐỌC, [TX_KHOÁ_MÁY]))
+        nếu loại(km) == "ẩn" {
+            _tx_gửi(máy, tid_gốc, g[1], "máy chưa có khoá riêng — không chứng minh được mình là ai\n")
+            trả tối
+        }
+        đặt A_hex = số_sang_hex(dh_công(a), 512)
+        đặt ký = ký_chữ_ký(A_hex, km[0], km[1])
+        đặt_khoá(phiên, g[1], ["dh", "", 0, a, 0, 0])
+        _tx_gửi(máy, tid_gốc, g[1], "GIAO-DH " + vân_tay_máy(máy, tid_gốc) + " " + A_hex + " " + ký + "\n")
+        trả sáng
+    }
+    nếu g[0] == "đóng" {
+        nếu có_khoá(phiên, g[1]) { xoá_khoá(phiên, g[1]) }
+        trả sáng
+    }
+    đặt mã = g[0]
+    nếu có_khoá(phiên, mã) { } khác { trả tối }
+    đặt p = lấy_khoá(phiên, mã)
+
+    # ---- GIAI ĐOẠN 1: nhận B của khách → tính bí mật chung → VỨT khoá tạm ----
+    nếu p[0] == "dh" {
+        đặt B = hex_sang_số(_tx_dòng_sạch(g[1]))
+        nếu loại(B) == "ẩn" {
+            _tx_gửi(máy, tid_gốc, mã, "giá trị DH của khách hỏng\n")
+            xoá_khoá(phiên, mã)
+            trả tối
+        }
+        đặt chung = dh_chung(B, p[3])
+        nếu loại(chung) == "ẩn" {
+            _tx_gửi(máy, tid_gốc, mã, "giá trị DH không hợp lệ (biên)\n")
+            xoá_khoá(phiên, mã)
+            trả tối
+        }
+        đặt kp = dh_khoá_phiên(chung)
+        # khoá TẠM `a` bị bỏ ngay tại đây — không lưu ở đâu nữa. Đó CHÍNH LÀ bí mật chuyển tiếp:
+        # về sau có lấy được khoá riêng của máy cũng không dựng lại nổi khoá phiên này.
+        đặt_khoá(phiên, mã, ["tên", "", 0, kp, 0, 0])
+        _tx_gửi_kín(máy, tid_gốc, phiên, mã, "HĐH-GIAO từ xa (kênh MÃ HOÁ, có bí mật chuyển tiếp). Tên đăng nhập: ")
+        trả sáng
+    }
+
+    # ---- từ đây MỌI gói đều là KHUNG KÍN ----
+    đặt kp = p[3]
+    đặt thô = _tx_dòng_sạch(g[1])
+    nếu dài(thô) > TX_KHUNG_TỐI_ĐA {          # khung quá dài: bỏ TRƯỚC khi giải, khỏi ngốn bộ nhớ
+        _tx_gửi_kín(máy, tid_gốc, phiên, mã, "khung quá dài (> " + TX_KHUNG_TỐI_ĐA + " ký tự) — bỏ\n")
+        trả tối
+    }
+    đặt mk = mở_khung(kn_khoá_lên(kp), kn_khoá_mac(kp), thô)
+    nếu mk[0] == sáng { } khác {
+        _tx_gửi_kín(máy, tid_gốc, phiên, mã, "gói hỏng: " + mk[1] + "\n")
+        trả tối
+    }
+    nếu mk[2] >= p[4] { } khác {                 # số đếm phải TIẾN — chặn phát lại/đảo thứ tự
+        _tx_gửi_kín(máy, tid_gốc, phiên, mã, "gói LẶP LẠI (đếm " + mk[2] + " ≤ đã nhận) — bỏ\n")
+        trả tối
+    }
+    đặt_khoá(phiên, mã, [p[0], p[1], p[2], p[3], mk[2] + 1, p[5]])
+    đặt p = lấy_khoá(phiên, mã)
+    đặt gói = _tx_dòng_sạch(mk[1])
+
+    # ---- ĐỔI KHOÁ GIỮA PHIÊN (rekey): DH mới NGAY TRONG kênh cũ ----
+    # Phiên dài thì một khoá dùng mãi là mục tiêu béo: càng nhiều bản mã cùng khoá càng dễ soi,
+    # và lộ khoá phiên là lộ CẢ phiên. Đổi khoá cắt phiên thành từng khúc — lộ một khúc không
+    # đọc được khúc trước/sau. KHÔNG cần ký lại giá trị DH: khung này đi TRONG kênh cũ đã xác
+    # thực bằng HMAC (khoá chỉ hai bên biết) nên kẻ đứng giữa không chèn nổi — đúng lối SSH
+    # rekey bên trong transport đang mã. Trả lời đi dưới khoá CŨ, từ khung SAU mới dùng khoá
+    # mới, hai bên cùng đưa số đếm về 0.
+    nếu bắt_đầu(gói, "ĐỔI_KHOÁ ") {
+        đặt B2 = hex_sang_số(cắt_lề(lát_chuỗi(gói, 9, dài(gói))))
+        nếu loại(B2) == "ẩn" {
+            _tx_gửi_kín(máy, tid_gốc, phiên, mã, "đổi khoá: giá trị DH hỏng\n")
+            trả tối
+        }
+        đặt a2 = dh_riêng()
+        nếu loại(a2) == "ẩn" {
+            _tx_gửi_kín(máy, tid_gốc, phiên, mã, "đổi khoá: máy không sinh nổi khoá tạm\n")
+            trả tối
+        }
+        đặt chung2 = dh_chung(B2, a2)
+        nếu loại(chung2) == "ẩn" {
+            _tx_gửi_kín(máy, tid_gốc, phiên, mã, "đổi khoá: giá trị DH không hợp lệ (biên)\n")
+            trả tối
+        }
+        đặt A2 = số_sang_hex(dh_công(a2), 512)
+        _tx_gửi_kín(máy, tid_gốc, phiên, mã, "ĐỔI_KHOÁ_OK " + A2 + "\n")   # dòng CUỐI dưới khoá cũ
+        đặt p = lấy_khoá(phiên, mã)
+        đặt_khoá(phiên, mã, [p[0], p[1], p[2], dh_khoá_phiên(chung2), 0, 0])
+        trả sáng
+    }
+
+    # ---- ÉP ĐỔI KHOÁ: quá hạn mà khách chưa đổi thì máy chủ NGỪNG PHỤC VỤ ----
+    # Đặt SAU nhánh ĐỔI_KHOÁ ở trên, nên đường thoát duy nhất là đổi khoá — không có cách nào
+    # gõ tiếp lệnh với khoá cũ. (Số đếm do khách mang lên nhưng MAC phủ nó và nó phải TIẾN,
+    # nên khách không thể khai lùi để né hạn.)
+    nếu p[4] > TX_HẠN_KHUNG {
+        _tx_gửi_kín(máy, tid_gốc, phiên, mã,
+            "CẦN ĐỔI KHOÁ: đã " + p[4] + " khung trên cùng một khoá (hạn " + TX_HẠN_KHUNG + "). Gửi `ĐỔI_KHOÁ <B>` rồi gõ tiếp.\n")
+        trả tối
+    }
+
+    nếu p[0] == "tên" {
+        đặt_khoá(phiên, mã, ["mk", gói, p[2], p[3], p[4], p[5]])
+        _tx_gửi_kín(máy, tid_gốc, phiên, mã, "Mật khẩu: ")
+        trả sáng
+    }
+    nếu p[0] == "mk" {
+        # ---- CHỐNG DÒ (C4-④): đang trong quãng chậm dần thì KHÔNG xét, kể cả gõ đúng ----
+        đặt chờ = dò_phải_chờ(p[1])
+        nếu chờ > 0 {
+            đặt_khoá(phiên, mã, ["tên", "", p[2], p[3], p[4], p[5]])
+            _tx_gửi_kín(máy, tid_gốc, phiên, mã,
+                "Sai nhiều lần — chậm dần: thử lại sau " + chờ + " giây.\nTên đăng nhập: ")
+            trả sáng
+        }
+        # xác thực bằng ĐÚNG sổ /hệ/mật_khẩu — không có sổ riêng cho người từ xa
+        đặt V = đăng_nhập(máy, tid_gốc, p[1], gói)
+        nếu loại(V) == "số" {
+            đặt_khoá(phiên, mã, ["vỏ", p[1], V, p[3], p[4], p[5]])
+            _tx_gửi_kín(máy, tid_gốc, phiên, mã, "Xin chào " + p[1] + ". Phiên vỏ là tiến-trình " + V + ".\n" + nhắc(máy, V))
+            trả sáng
+        }
+        # KHÔNG nói rõ sai tên hay sai mật khẩu — y như màn đăng nhập tại máy.
+        # Đếm sai theo KẾT NỐI: 3 lần là NGẮT — kẻ dò phải tốn công bắt tay DH lại từ đầu,
+        # còn sổ chậm-dần theo TÊN (lib_người_dùng) thì nối lại cũng không thoát.
+        đặt sai_kn = p[2] + 1
+        nếu sai_kn >= 3 {
+            _tx_gửi_kín(máy, tid_gốc, phiên, mã, "Sai quá nhiều lần — ngắt.\n")
+            xoá_khoá(phiên, mã)
+            trả sáng
+        }
+        đặt_khoá(phiên, mã, ["tên", "", sai_kn, p[3], p[4], p[5]])
+        _tx_gửi_kín(máy, tid_gốc, phiên, mã, "Sai tên đăng nhập hoặc mật khẩu.\nTên đăng nhập: ")
+        trả sáng
+    }
+    # đã vào rồi: mọi dòng đi qua ĐÚNG vỏ, dưới ĐÚNG uid của người ấy
+    đặt V = p[2]
+    nếu gói == "" { _tx_gửi_kín(máy, tid_gốc, phiên, mã, nhắc(máy, V))  trả sáng }
+    nếu gói == "thoát" {
+        gọi(máy, V, GH_THOÁT, [])
+        _tx_gửi_kín(máy, tid_gốc, phiên, mã, "tạm biệt\n")
+        xoá_khoá(phiên, mã)
+        trả sáng
+    }
+    đặt kq = chạy_dòng_im(máy, V, gói)
+    đặt ra = kq[1]
+    nếu ra == "" { } khác { đặt ra = ra + "\n" }
+    _tx_gửi_kín(máy, tid_gốc, phiên, mã, ra + nhắc(máy, V))
+    trả sáng
+}

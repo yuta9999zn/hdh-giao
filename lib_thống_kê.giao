@@ -1,0 +1,112 @@
+# ============================================================
+# lib_thống_kê.giao — THỐNG KÊ (Statistics kiểu Python `statistics` / Ruby) cho GIAO
+# ------------------------------------------------------------
+# GIỮ CỐT LÕI GIAO: ba-trị (danh-sách RỖNG → 'ẩn' = chưa-biết, KHÔNG bịa 0 ·
+#   phương_sai_mẫu cần ≥2 phần tử, thiếu → ẩn · trung_bình_điều_hòa gặp phần tử ≤0 → ẩn) ·
+#   idiom Việt · TỰ-THÂN (dựng trên lib_toan `căn` + lib_duyet `sắp_xếp` + builtin/chuẩn.giao).
+# Nạp: nhập "lib_thống_kê.giao".
+# ============================================================
+nhập "lib_toan.giao"      # căn (Newton), trung_bình
+nhập "lib_duyet.giao"     # sắp_xếp (merge sort)
+
+# ---------------- trung tâm (central tendency) ----------------
+# trung_bình(ds) có sẵn ở lib_toan (mean; rỗng → ẩn).
+
+hàm trung_vị(ds) {                       # median; rỗng → ẩn
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    đặt n = dài(ds)
+    nếu n == 0 { trả ẩn }
+    đặt s = sắp_xếp(ds)
+    đặt giữa = n // 2
+    nếu dư(n, 2) == 1 { trả s[giữa] }     # lẻ → phần tử giữa
+    trả (s[giữa - 1] + s[giữa]) / 2        # chẵn → trung bình hai phần tử giữa
+}
+
+hàm mốt(ds) {                            # mode: phần tử xuất hiện NHIỀU nhất; hoà → cái GẶP-ĐẦU; rỗng → ẩn
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    nếu dài(ds) == 0 { trả ẩn }
+    đặt đếm = bản()                       # O(n): đếm tần-suất 1 lượt (thay vòng-lồng O(n²))
+    lặp x trong ds {
+        đặt c = lấy_khoá(đếm, x)
+        nếu loại(c) == "ẩn" { đặt_khoá(đếm, x, 1) }  khác { đặt_khoá(đếm, x, c + 1) }
+    }
+    đặt tốt = ds[0]  đặt đếm_tốt = 0      # lượt 2: phần-tử ĐẦU-TIÊN đạt max (giữ "hoà → gặp-đầu")
+    lặp x trong ds {
+        đặt c = lấy_khoá(đếm, x)
+        nếu c > đếm_tốt { đặt đếm_tốt = c  đặt tốt = x }
+    }
+    trả tốt
+}
+
+# ---------------- độ phân tán (spread) ----------------
+hàm khoảng_biến_thiên(ds) {              # range = max - min; rỗng → ẩn
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    nếu dài(ds) == 0 { trả ẩn }
+    đặt s = sắp_xếp(ds)
+    trả s[dài(s) - 1] - s[0]
+}
+
+hàm tổng_lệch_bình(ds, tb) {             # Σ(xᵢ - tb)²  (nội bộ)
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    đặt t = 0
+    lặp x trong ds { đặt d = x - tb  đặt t = t + d * d }
+    trả t
+}
+
+hàm phương_sai(ds) {                     # variance TỔNG-THỂ (chia n); rỗng → ẩn
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    đặt n = dài(ds)
+    nếu n == 0 { trả ẩn }
+    trả tổng_lệch_bình(ds, trung_bình(ds)) / n
+}
+hàm phương_sai_mẫu(ds) {                 # variance MẪU (chia n-1); cần ≥2 phần tử, thiếu → ẩn
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    đặt n = dài(ds)
+    nếu n < 2 { trả ẩn }
+    trả tổng_lệch_bình(ds, trung_bình(ds)) / (n - 1)
+}
+hàm độ_lệch_chuẩn(ds) {                  # population stdev = căn(phương_sai); rỗng → ẩn
+    đặt v = phương_sai(ds)
+    nếu loại(v) == "ẩn" { trả ẩn }
+    trả căn(v)
+}
+hàm độ_lệch_chuẩn_mẫu(ds) {              # sample stdev; cần ≥2 → ẩn
+    đặt v = phương_sai_mẫu(ds)
+    nếu loại(v) == "ẩn" { trả ẩn }
+    trả căn(v)
+}
+
+# ---------------- trung bình khác ----------------
+hàm trung_bình_điều_hòa(ds) {            # harmonic mean = n / Σ(1/xᵢ); gặp phần tử ≤0 → ẩn (không xác định)
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    đặt n = dài(ds)
+    nếu n == 0 { trả ẩn }
+    đặt t = 0
+    lặp x trong ds {
+        nếu x <= 0 { trả ẩn }            # 1/0 và số ≤0 → không xác định
+        đặt t = t + 1 / x
+    }
+    trả n / t
+}
+
+# ---------------- phân vị (quantile / percentile) ----------------
+hàm phân_vị(ds, p) {                     # percentile p∈[0..100], nội-suy tuyến tính; rỗng → ẩn
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    nếu loại(p) == "ẩn" { trả ẩn }
+    nếu p < 0 { trả ẩn }                  # p ngoài [0..100] → không xác định (tránh chỉ-mục âm)
+    nếu p > 100 { trả ẩn }
+    đặt n = dài(ds)
+    nếu n == 0 { trả ẩn }
+    nếu n == 1 { trả ds[0] }
+    đặt s = sắp_xếp(ds)
+    đặt hạng = p / 100 * (n - 1)          # vị trí phân số trên [0..n-1]
+    đặt lo = nguyên(hạng)
+    nếu lo >= n - 1 { trả s[n - 1] }      # p=100 (hoặc tràn) → phần tử cuối
+    đặt phần = hạng - lo
+    trả s[lo] + phần * (s[lo + 1] - s[lo])
+}
+hàm tứ_phân_vị(ds) {                     # [Q1, Q2(median), Q3]; rỗng → ẩn
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    nếu dài(ds) == 0 { trả ẩn }
+    trả [phân_vị(ds, 25), phân_vị(ds, 50), phân_vị(ds, 75)]
+}

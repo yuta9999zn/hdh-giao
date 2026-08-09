@@ -1,0 +1,7 @@
+# synth_ice40.ys — map gvm.v lên primitive iCE40 (LUT4/DFF/CARRY/MAC16). Chạy:
+#   yosys -s synth_ice40.ys   (cần oss-cad-suite/bin + /lib trên PATH)
+# -dsp: map nhân vào SB_MAC16 (giảm ~22% LUT: 23168→17986 ở MEM=64,WORD=16).
+read_verilog gvm.v
+chparam -set MEM 64 gvm
+synth_ice40 -dsp -top gvm
+stat

@@ -1,0 +1,11 @@
+việc
+ống /ống/thử 2
+soi /ống/thử
+bơm 6 | lọc chẵn | hút /tạm/kq
+xem /tạm/kq
+bơm 4 | hút /tạm/kq2 &
+tt
+nhịp 12
+xem /tạm/kq2
+liệt /ống
+thoát

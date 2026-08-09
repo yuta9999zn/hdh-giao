@@ -1,0 +1,22 @@
+# Kiểm lib_hàng (deque) + phổ_biến_nhất (Counter.most_common) — ba-trị
+nhập "lib_hàng.giao"
+rọi thêm_cuối([1, 2], 3)            # [1, 2, 3]
+rọi thêm_đầu([1, 2], 0)            # [0, 1, 2]
+rọi xem_đầu([5, 6, 7])             # 5
+rọi xem_cuối([5, 6, 7])            # 7
+rọi xem_đầu([])                    # ẩn
+rọi xem_cuối([])                   # ẩn
+đặt a = bỏ_đầu([1, 2, 3])          # popleft
+rọi a[0]                           # 1
+rọi a[1]                           # [2, 3]
+đặt b = bỏ_cuối([1, 2, 3])         # pop
+rọi b[0]                           # 3
+rọi b[1]                           # [1, 2]
+rọi bỏ_đầu([])                     # ẩn
+rọi xoay([1, 2, 3, 4], 1)          # [4, 1, 2, 3]  (dồn phải)
+rọi xoay([1, 2, 3, 4], 0 - 1)      # [2, 3, 4, 1]  (dồn trái)
+rọi xoay([1, 2, 3], 3)             # [1, 2, 3]  (xoay đủ vòng)
+rọi rỗng_hàng([])                  # sáng
+rọi rỗng_hàng([1])                 # tối
+rọi phổ_biến_nhất([1, 1, 2, 3, 3, 3, 2], 2)   # [[3, 3], [1, 2]]  (3×3, 1×2)
+rọi phổ_biến_nhất(["a", "b", "a", "c", "b", "a"], 1)  # [[a, 3]]

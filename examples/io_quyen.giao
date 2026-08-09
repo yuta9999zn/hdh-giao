@@ -1,0 +1,45 @@
+# ============================================================
+# I/O THEO NĂNG LỰC — GIAO CHẠM THỰC TẠI DỰ ÁN THẬT rồi quyết định (CDFL)
+# ------------------------------------------------------------
+# Chạy (host CẤP quyền tường minh; không cấp ⇒ các builtin này KHÔNG tồn tại):
+#   python giao.py examples/io_quyen.giao --cho-đọc . --cho-chạy "python --version"
+#
+# Quyền I/O là object-capability: phạm vi do host định, chương trình KHÔNG tự nới.
+#   • từ chối quyền / ngoài phạm vi → lỗi SẠCH (bắt được bằng thử/bắt)
+#   • I/O thất bại (tệp hỏng, lệnh lỗi) → `ẩn` (thực tại chưa phơi) — không crash
+# ============================================================
+
+# 1) QUAN SÁT thực tại: đọc một tệp THẬT của dự án, đo kích thước → vật (ρ_MF)
+đặt nội = đọc_tệp("chuẩn.giao")
+vật cỡ = dài(nội)
+rọi "Quan sát thật: chuẩn.giao dài " + (vật cỡ) + " ký tự."
+
+# 2) CHẠY một lệnh THẬT (trong allowlist) → thực tại phơi thêm
+đặt pv = chạy("python", ["--version"])
+rọi "Chạy thật: " + pv
+
+# 3) SUY LUẬN CDFL trên thực tại vừa chạm: ta TIN cỡ ~ 9000; đo γ
+tâm cỡ = 9000
+giao kq = cỡ
+rọi kq
+nếu cộng_hưởng(9000, (vật cỡ)) < 0 {
+    rọi "→ Niềm tin lệch xa thực tại (đốm tối) — phải soi lại."
+} khác {
+    rọi "→ Niềm tin cộng hưởng với thực tại đo được."
+}
+
+# 4) PHẠM VI được THỰC THI: đọc ngoài gốc cho phép → CHẶN sạch (bắt được)
+thử {
+    đặt cấm = đọc_tệp("C:/Windows/System32/drivers/etc/hosts")
+    rọi "đọc được?! (không nên)"
+} bắt (e) {
+    rọi "✦ Cổng phạm vi chặn: " + e
+}
+
+# 5) Quyền KHÔNG được cấp ⇒ tên không tồn tại (ocap): ghi_tệp chưa cấp → lỗi sạch
+thử {
+    ghi_tệp("x.txt", "thử")
+    rọi "ghi được?! (không nên — chưa cấp quyền ghi)"
+} bắt (e) {
+    rọi "✦ Chưa cấp quyền ghi: " + e
+}

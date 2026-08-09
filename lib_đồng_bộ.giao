@@ -1,0 +1,89 @@
+# ============================================================
+# lib_đồng_bộ.giao — ĐỒNG-BỘ-HOÁ (lock/semaphore/condvar) cho HĐH-GIAO
+# ------------------------------------------------------------
+# HỌC TỪ WINDOWS: critical-section/mutex · semaphore · condition-variable (+ wait-queue).
+# VƯỢT bằng CDFL: (1) BA-TRỊ — khoá RẢNH → chủ='ẩn' (KHÔNG sentinel "none" giả); thao-tác trên ẩn → ẩn.
+#   (2) đánh-thức γ-CÔNG-BẰNG — `khoá_mở_γ` trao khoá cho waiter TIN-CẬY σ CAO nhất (Windows: FIFO / priority TĨNH).
+# Hàng-chờ = list tid (gom O(1) đuôi, bỏ-đầu qua đuôi()). Trạng-thái = 'bản' đột-biến (đặt_khoá tại-chỗ).
+# Nạp: nhập "lib_đồng_bộ.giao".
+# ============================================================
+nhập "lib_bản.giao"          # lấy_hoặc (σ mặc-định khi waiter chưa khai σ)
+
+# ---------------- LOCK (mutex / critical section) ----------------
+hàm khoá_tạo() { đặt L = bản()  đặt_khoá(L, "chủ", ẩn)  đặt_khoá(L, "chờ", [])  trả L }
+hàm khoá_chủ(L) { nếu loại(L) == "ẩn" { trả ẩn }  trả lấy_khoá(L, "chủ") }   # tid đang giữ; RẢNH → ẩn
+hàm khoá_rảnh(L) {
+    nếu loại(L) == "ẩn" { trả ẩn }
+    nếu loại(lấy_khoá(L, "chủ")) == "ẩn" { trả sáng }
+    trả tối
+}
+hàm khoá_lấy(L, tid) {                       # acquire: RẢNH → GIỮ (sáng) · BẬN → xếp-hàng-chờ (tối)
+    nếu loại(L) == "ẩn" { trả ẩn }
+    nếu loại(lấy_khoá(L, "chủ")) == "ẩn" { đặt_khoá(L, "chủ", tid)  trả sáng }
+    gom(lấy_khoá(L, "chờ"), tid)  trả tối
+}
+hàm khoá_mở(L, tid) {                         # release (FIFO): trao cho waiter ĐẦU → trả chủ-MỚI (ẩn nếu hết chờ)
+    nếu loại(L) == "ẩn" { trả ẩn }
+    nếu lấy_khoá(L, "chủ") == tid {
+        đặt q = lấy_khoá(L, "chờ")
+        nếu dài(q) > 0 { đặt kế = đầu(q)  đặt_khoá(L, "chờ", đuôi(q))  đặt_khoá(L, "chủ", kế)  trả kế }
+        đặt_khoá(L, "chủ", ẩn)
+    }
+    trả ẩn
+}
+hàm khoá_mở_γ(L, tid, σ_bản) {                # release CÔNG-BẰNG-γ: trao cho waiter σ CAO nhất (σ_bản: tid→σ); ★ vượt Win
+    nếu loại(L) == "ẩn" { trả ẩn }
+    nếu lấy_khoá(L, "chủ") == tid {
+        đặt q = lấy_khoá(L, "chờ")
+        nếu dài(q) > 0 {
+            đặt tốt = đầu(q)  đặt điểm = lấy_hoặc(σ_bản, tốt, 0)
+            lặp t trong đuôi(q) {
+                đặt e = lấy_hoặc(σ_bản, t, 0)
+                nếu e > điểm { đặt tốt = t  đặt điểm = e }
+            }
+            đặt q2 = []  đặt đã = tối           # bỏ MỘT `tốt` khỏi hàng-chờ
+            lặp t trong q {
+                nếu đã { gom(q2, t) }
+                khác { nếu t == tốt { đặt đã = sáng } khác { gom(q2, t) } }
+            }
+            đặt_khoá(L, "chờ", q2)  đặt_khoá(L, "chủ", tốt)  trả tốt
+        }
+        đặt_khoá(L, "chủ", ẩn)
+    }
+    trả ẩn
+}
+
+# ---------------- SEMAPHORE (đếm tài-nguyên) ----------------
+hàm sem_tạo(n) { đặt S = bản()  đặt_khoá(S, "đếm", n)  đặt_khoá(S, "chờ", [])  trả S }
+hàm sem_đếm(S) { nếu loại(S) == "ẩn" { trả ẩn }  trả lấy_khoá(S, "đếm") }
+hàm sem_xuống(S, tid) {                       # P/wait/acquire: đếm>0 → đếm-- (sáng) · else xếp-hàng (tối)
+    nếu loại(S) == "ẩn" { trả ẩn }
+    nếu lấy_khoá(S, "đếm") > 0 { đặt_khoá(S, "đếm", lấy_khoá(S, "đếm") - 1)  trả sáng }
+    gom(lấy_khoá(S, "chờ"), tid)  trả tối
+}
+hàm sem_lên(S) {                              # V/signal/release: có waiter → WAKE FIFO (trả tid, đếm GIỮ) · else đếm++ (ẩn)
+    nếu loại(S) == "ẩn" { trả ẩn }
+    đặt q = lấy_khoá(S, "chờ")
+    nếu dài(q) > 0 { đặt kế = đầu(q)  đặt_khoá(S, "chờ", đuôi(q))  trả kế }
+    đặt_khoá(S, "đếm", lấy_khoá(S, "đếm") + 1)  trả ẩn
+}
+
+# ---------------- CONDITION VARIABLE (chờ điều-kiện + báo-thức) ----------------
+hàm cv_tạo() { đặt C = bản()  đặt_khoá(C, "chờ", [])  trả C }
+hàm cv_chờ(C, L, tid) {                       # wait: NHẢ khoá L + xếp tid vào C; trả chủ-MỚI-của-L (ẩn nếu hết)
+    nếu loại(C) == "ẩn" { trả ẩn }
+    gom(lấy_khoá(C, "chờ"), tid)
+    trả khoá_mở(L, tid)
+}
+hàm cv_báo(C) {                               # signal: WAKE một waiter (FIFO) → trả tid (ẩn nếu không có)
+    nếu loại(C) == "ẩn" { trả ẩn }
+    đặt q = lấy_khoá(C, "chờ")
+    nếu dài(q) > 0 { đặt kế = đầu(q)  đặt_khoá(C, "chờ", đuôi(q))  trả kế }
+    trả ẩn
+}
+hàm cv_báo_hết(C) {                           # broadcast: WAKE tất cả → trả [tids] (rỗng nếu không có)
+    nếu loại(C) == "ẩn" { trả ẩn }
+    đặt q = lấy_khoá(C, "chờ")
+    đặt_khoá(C, "chờ", [])
+    trả q
+}

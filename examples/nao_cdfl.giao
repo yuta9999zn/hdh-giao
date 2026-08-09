@@ -1,0 +1,90 @@
+# ============================================================
+# BỘ NÃO CDFL — port từ Ruby cdfl_harness VÀO GIAO (làm trong project này)
+# 1) LOOKAHEAD PLANNER  : chọn theo triển vọng ĐA BƯỚC (thay tham-lam 1 bước)
+# 2) COVERAGE GATE      : "học-1-hiểu-10" — đủ OR → khái quát; thiếu → TỪ CHỐI (chống bịa, K-3)
+# 3) CONSENT GATE       : empowerment — hành động BẤT KHẢ HỒI (thu hẹp OR) → xin phê duyệt
+# Thế giới [v0..vn]; hành động = [hiệu_ứng_vector, khả_hồi(0/1)].
+# ============================================================
+
+hàm áp(tg, e) {
+    nếu dài(tg) == 0 { trả [] }
+    trả ghép([lớn(đầu(tg) + đầu(e), 0)], áp(đuôi(tg), đuôi(e)))
+}
+hàm lệch(tg, mt) {
+    nếu dài(tg) == 0 { trả 0 }
+    trả lớn(đầu(tg) - đầu(mt), 0) + lệch(đuôi(tg), đuôi(mt))
+}
+hàm eff(hđ) { trả hđ[0] }          # vector hiệu ứng
+hàm khả_hồi(hđ) { trả hđ[1] }      # 0 = khả hồi, 1 = bất khả hồi
+
+# ---------- 1) LOOKAHEAD: lệch tốt nhất đạt được trong h bước ----------
+hàm triển_vọng(tg, mt, hđs, h) {
+    nếu lệch(tg, mt) == 0 { trả 0 }
+    nếu h == 0 { trả lệch(tg, mt) }
+    trả tv_quét(tg, mt, hđs, hđs, h, 999999)
+}
+hàm tv_quét(tg, mt, còn, tất, h, tốt) {
+    nếu dài(còn) == 0 { trả tốt }
+    đặt v = triển_vọng(áp(tg, eff(đầu(còn))), mt, tất, h - 1)
+    nếu v < tốt { trả tv_quét(tg, mt, đuôi(còn), tất, h, v) }
+    trả tv_quét(tg, mt, đuôi(còn), tất, h, tốt)
+}
+# chọn hành động dẫn tới triển vọng tốt nhất; HOÀ thì ưu tiên lệch tức thời nhỏ (tiến ngay)
+hàm chọn_la(tg, mt, còn, tất, h, tốt, tốt_v) {
+    nếu dài(còn) == 0 { trả tốt }
+    đặt s = áp(tg, eff(đầu(còn)))
+    đặt v = triển_vọng(s, mt, tất, h - 1) * 10000 + lệch(s, mt)   # chính: triển vọng; phụ: tiến ngay
+    nếu v < tốt_v { trả chọn_la(tg, mt, đuôi(còn), tất, h, đầu(còn), v) }
+    trả chọn_la(tg, mt, đuôi(còn), tất, h, tốt, tốt_v)
+}
+
+# ---------- 2) COVERAGE GATE "học-1-hiểu-10" ----------
+hàm cổng_phủ(phủ, ngưỡng) {        # phủ OR (0..100) ≥ ngưỡng → 1 khái quát; <  → 0 từ chối
+    nếu phủ >= ngưỡng { trả 1 }
+    trả 0
+}
+
+# ---------- 3) CONSENT GATE (empowerment) ----------
+hàm cần_phê_duyệt(hđ) {            # bất khả hồi → cần phê duyệt
+    nếu khả_hồi(hđ) == 1 { trả 1 }
+    trả 0
+}
+
+# ---------- NHÂN-AI THÔNG MINH: gộp cả ba ----------
+hàm nhân(tg, mt, hđs, h, n, phủ_OR) {
+    nếu n == 0 { trả tg }
+    nếu lệch(tg, mt) == 0 { rọi "  ✓ viên mãn: MF = " + tg  trả tg }
+    nếu cổng_phủ(phủ_OR, 60) == 0 {
+        rọi "  ⛔ TỪ CHỐI (coverage gate): phủ OR=" + phủ_OR + " < 60 → không bịa"  trả tg
+    }
+    đặt hđ = chọn_la(tg, mt, hđs, hđs, h, đầu(hđs), 999999)
+    nếu cần_phê_duyệt(hđ) {
+        rọi "  ⚠ XIN PHÊ DUYỆT (empowerment): hành động BẤT KHẢ HỒI " + eff(hđ) + " (thu hẹp OR)"  trả tg
+    }
+    đặt tg2 = áp(tg, eff(hđ))
+    rọi "  lệch " + lệch(tg, mt) + " → (lookahead h=" + h + ") CHỌN " + eff(hđ) + " → MF = " + tg2
+    trả nhân(tg2, mt, hđs, h, n - 1, phủ_OR)
+}
+
+# ===================== CHẠY =====================
+rọi "── 2) COVERAGE GATE ──"
+rọi "  phủ 75 ≥ 60 → khái quát?  " + cổng_phủ(75, 60)   # 1
+rọi "  phủ 30 ≥ 60 → khái quát?  " + cổng_phủ(30, 60)   # 0
+
+đặt hđs = [
+    [[0 - 30, 0, 0], 0],    # đóng tiến trình (KHẢ HỒI)
+    [[0, 0 - 40, 0], 0],    # giải phóng cache (KHẢ HỒI)
+    [[0, 0, 0 - 60], 1]     # XOÁ dữ liệu (BẤT KHẢ HỒI)
+]
+
+rọi ""
+rọi "── A) Đủ phủ (75) + mục tiêu đạt bằng hành động KHẢ HỒI ──"
+đặt a = nhân([85, 70, 0], [30, 40, 0], hđs, 3, 8, 75)
+
+rọi ""
+rọi "── B) Cần giảm tài nguyên 3 → buộc hành động BẤT KHẢ HỒI → xin phê duyệt ──"
+đặt b = nhân([85, 70, 50], [30, 40, 0], hđs, 3, 8, 75)
+
+rọi ""
+rọi "── C) Thiếu phủ (30) → TỪ CHỐI thay vì bịa ──"
+đặt c = nhân([85, 70, 0], [30, 40, 0], hđs, 3, 8, 30)

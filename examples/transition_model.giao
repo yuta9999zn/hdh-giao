@@ -1,0 +1,71 @@
+# ============================================================
+# TRANSITION MODEL Ψ — mô hình thế giới HỌC ĐƯỢC (port từ Ruby transition_model.rb)
+# Bảng P(s'|s,a) học từ quan sát. Mô hình = danh sách [s, a, s', đếm].
+# (Ruby: thành phần TỐI QUAN TRỌNG, ablation −31.6pp.)
+# GIAO không có RNG → dự_đoán lấy s' HAY-GẶP-NHẤT (argmax đếm) — bản tất định.
+# ============================================================
+
+hàm khớp3(e, s, a, s2) {
+    nếu e[0] == s { nếu e[1] == a { nếu e[2] == s2 { trả sáng } } }
+    trả tối
+}
+hàm khớp2(e, s, a) {
+    nếu e[0] == s { nếu e[1] == a { trả sáng } }
+    trả tối
+}
+hàm có(m, s, a, s2) {
+    nếu dài(m) == 0 { trả tối }
+    nếu khớp3(đầu(m), s, a, s2) { trả sáng }
+    trả có(đuôi(m), s, a, s2)
+}
+hàm tăng(m, s, a, s2) {
+    nếu dài(m) == 0 { trả [] }
+    đặt e = đầu(m)
+    nếu khớp3(e, s, a, s2) { trả ghép([[s, a, s2, e[3] + 1]], đuôi(m)) }
+    trả ghép([e], tăng(đuôi(m), s, a, s2))
+}
+# HỌC: quan sát một bước chuyển (s, a) → s'
+hàm quan_sát(m, s, a, s2) {
+    nếu có(m, s, a, s2) { trả tăng(m, s, a, s2) }
+    trả ghép(m, [[s, a, s2, 1]])
+}
+# đếm một chuyển; tổng các chuyển từ (s,a)
+hàm đếm(m, s, a, s2) {
+    nếu dài(m) == 0 { trả 0 }
+    nếu khớp3(đầu(m), s, a, s2) { trả đầu(m)[3] }
+    trả đếm(đuôi(m), s, a, s2)
+}
+hàm tổng_sa(m, s, a) {
+    nếu dài(m) == 0 { trả 0 }
+    đặt e = đầu(m)
+    nếu khớp2(e, s, a) { trả e[3] + tổng_sa(đuôi(m), s, a) }
+    trả tổng_sa(đuôi(m), s, a)
+}
+# DỰ ĐOÁN: s' hay gặp nhất từ (s, a)
+hàm dự_đoán(m, s, a) { trả dự_quét(m, s, a, 0 - 1, 0 - 1) }
+hàm dự_quét(m, s, a, tốt_s2, tốt_đếm) {
+    nếu dài(m) == 0 { trả tốt_s2 }
+    đặt e = đầu(m)
+    nếu khớp2(e, s, a) {
+        nếu e[3] > tốt_đếm { trả dự_quét(đuôi(m), s, a, e[2], e[3]) }
+    }
+    trả dự_quét(đuôi(m), s, a, tốt_s2, tốt_đếm)
+}
+
+# ===================== CHẠY: học rồi dự đoán =====================
+đặt m = []
+rọi "Quan sát: (s=0,a=1)→2 ba lần, (0,1)→3 một lần, (2,1)→5 hai lần"
+đặt m = quan_sát(m, 0, 1, 2)
+đặt m = quan_sát(m, 0, 1, 2)
+đặt m = quan_sát(m, 0, 1, 2)
+đặt m = quan_sát(m, 0, 1, 3)
+đặt m = quan_sát(m, 2, 1, 5)
+đặt m = quan_sát(m, 2, 1, 5)
+rọi "Mô hình Ψ học được: " + m
+rọi ""
+rọi "Dự đoán s' từ (0,1) [hay gặp nhất]: " + dự_đoán(m, 0, 1)      # 2
+rọi "  P((0,1)→2) = đếm/tổng = " + đếm(m,0,1,2) + "/" + tổng_sa(m,0,1)   # 3/4
+rọi "  P((0,1)→3) = " + đếm(m,0,1,3) + "/" + tổng_sa(m,0,1)              # 1/4
+rọi "Dự đoán s' từ (2,1): " + dự_đoán(m, 2, 1)                    # 5
+rọi "Dự đoán s' từ (9,9) [chưa học]: " + dự_đoán(m, 9, 9)         # -1 (chưa biết)
+rọi "→ Ψ HỌC từ kinh nghiệm: tác tử dùng nó mô phỏng nhiều bước (lookahead) thay vì biết trước."

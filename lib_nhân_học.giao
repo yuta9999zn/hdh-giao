@@ -1,0 +1,92 @@
+# ============================================================
+# lib_nhân_học.giao — NHÂN THÍCH-NGHI cho HĐH-GIAO (γ-scheduler BIẾT-HỌC ⊗ bảng tiến-trình)
+# ------------------------------------------------------------
+# HỢP-NHẤT hai nhánh đã chạy riêng:
+#   • lib_lịch_học.giao — γ-scheduler PROGRAMMABLE: mỗi tid có σ (niềm-tin); HỌC σ ← σ+(ρ−σ)//4;
+#       CHỌN = argmax σ (kẻ tín-nhiệm CAO nhất chạy trước). → CPU theo MERIT HỌC-ĐƯỢC.
+#   • lib_tiến_trình.giao — bảng tiến-trình: tên + vòng-đời trạng ("sẵn-sàng"/"chạy"/"chặn"/"chết").
+# NHÂN = bản{ "học": lịch_học(), "bảng": bảng_tt() } — GIỮ ĐỒNG-BỘ hai mặt cho mỗi tid.
+#   ⇒ Lương-tâm γ điều-phối: CPU KHÔNG phân theo ưu-tiên TĨNH mà theo tín-nhiệm tác-vụ TỰ HỌC.
+#
+# ĐIỂM TINH-Ý (điều_phối bỏ-qua-chết): `chọn_học` chỉ NHÌN σ — KHÔNG biết "chết". Vì loại_bỏ chỉ
+#   đặt trạng "chết" (σ vẫn còn), ta KHÔNG dựa `chọn_học` đơn-thuần. `điều_phối_học` TỰ DUYỆT lịch-học,
+#   lấy tid σ-lớn-nhất MÀ trạng_của ≠ "chết". Rỗng / toàn-chết → ẩn (ba-trị: không bịa).
+#
+# GIỮ CỐT LÕI GIAO: ba-trị (truy-vấn lạ → 'ẩn') · idiom Việt · nhân là 'bản' (lấy_khoá "học"/"bảng").
+# Nạp: nhập "lib_nhân_học.giao".
+# ============================================================
+nhập "lib_lịch_học.giao"
+nhập "lib_tiến_trình.giao"
+nhập "lib_nhân_lõi.giao"      # truy-vấn CHUNG: trạng · tên · số_sống · theo_trạng (lõi nhân dùng-chung)
+
+# ---------------- dựng nhân ----------------
+hàm tạo_nhân() {                          # NHÂN rỗng: lịch-học rỗng + bảng tiến-trình rỗng
+    đặt nhân = bản()
+    đặt_khoá(nhân, "học", lịch_học())
+    đặt_khoá(nhân, "bảng", bảng_tt())
+    trả nhân
+}
+
+# ---------------- sinh tiến-trình (đồng-bộ HAI mặt) ----------------
+# sinh_tt: đăng-ký tiến-trình MỚI ở CẢ bảng (tên/trạng/ưu) LẪN lịch-học (σ0 niềm-tin ban-đầu).
+#   σ0 dùng làm 'ưu' để HIỂN-THỊ (ưu_của) đồng thời làm σ khởi-đầu cho γ-scheduler.
+hàm sinh_tt(nhân, tid, tên, σ0) {
+    đặt bảng = lấy_khoá(nhân, "bảng")
+    đặt bộ = lấy_khoá(nhân, "học")        # 'học' là TỪ-KHOÁ → biến cục-bộ đặt tên 'bộ' (bộ lập-lịch)
+    tạo_tt(bảng, tid, tên, σ0)            # trạng "sẵn-sàng", ưu = σ0 (để hiển-thị)
+    thêm_học(bộ, tid, σ0)                # niềm-tin γ ban-đầu = σ0
+    trả nhân
+}
+
+# ---------------- điều-phối (γ chọn CPU theo MERIT, bỏ-qua kẻ "chết") ----------------
+# điều_phối_học: chọn tid có σ LỚN NHẤT mà trạng_của ≠ "chết" (TỰ DUYỆT lịch-học, KHÔNG dựa chọn_học
+#   đơn-thuần vì nó không biết "chết"). Rỗng / toàn-chết → ẩn. Kẻ được chọn → đặt_trạng "chạy".
+hàm điều_phối_học(nhân) {
+    đặt bộ = lấy_khoá(nhân, "học")        # 'học' là TỪ-KHOÁ → biến cục-bộ 'bộ'
+    đặt bảng = lấy_khoá(nhân, "bảng")
+    đặt tốt = ẩn
+    đặt cao = 0
+    lặp k trong bộ {
+        nếu trạng_của(bảng, k) == "chết" { } khác {     # BỎ QUA kẻ "chết" (lọc trước khi argmax)
+            đặt s = lấy_khoá(bộ, k)
+            nếu loại(tốt) == "ẩn" {                      # ứng-viên SỐNG đầu tiên → nhận làm mốc
+                đặt tốt = k
+                đặt cao = s
+            }
+            khác {
+                nếu s > cao {                            # so SỐ (không so list) → giữ σ cao nhất
+                    đặt tốt = k
+                    đặt cao = s
+                }
+            }
+        }
+    }
+    nếu loại(tốt) == "ẩn" { trả ẩn }                     # rỗng / toàn-chết → ẩn (ba-trị)
+    đặt_trạng(bảng, tốt, "chạy")                         # kẻ thắng MERIT → lên CPU
+    trả tốt
+}
+
+# ---------------- phản-hồi (HỌC hành-vi vừa rồi + nhả CPU) ----------------
+# phản_hồi: tác-vụ vừa chạy báo ρ (100=có-ích / 0=spin) → γ HỌC σ; rồi đặt lại "sẵn-sàng" (nhả CPU).
+hàm phản_hồi(nhân, tid, ρ) {
+    đặt bộ = lấy_khoá(nhân, "học")        # 'học' là TỪ-KHOÁ → biến cục-bộ 'bộ'
+    đặt bảng = lấy_khoá(nhân, "bảng")
+    học_hành_vi(bộ, tid, ρ)              # σ ← σ + (ρ − σ)//4 (cập-nhật tín-nhiệm theo hành-vi)
+    đặt_trạng(bảng, tid, "sẵn-sàng")     # trả về hàng (tid lạ → đặt_trạng tự bỏ qua)
+    trả nhân
+}
+
+# ---------------- truy-vấn (ba-trị: tid lạ → ẩn) ----------------
+hàm tín(nhân, tid) {                     # credit γ = σ//4; tid lạ → ẩn
+    trả tín_nhiệm(lấy_khoá(nhân, "học"), tid)
+}
+hàm σ(nhân, tid) {                       # niềm-tin σ thô; tid lạ → ẩn
+    trả σ_của(lấy_khoá(nhân, "học"), tid)
+}
+# (trạng · số_sống · tên · theo_trạng → lib_nhân_lõi.giao, dùng-chung với lib_hệ)
+
+# ---------------- loại-bỏ (giết: trạng "chết"; σ-học GIỮ lại, điều_phối tự bỏ-qua) ----------------
+hàm loại_bỏ(nhân, tid) {
+    giết(lấy_khoá(nhân, "bảng"), tid)    # trạng → "chết" (σ vẫn còn ở lịch-học; điều_phối_học lọc)
+    trả nhân
+}

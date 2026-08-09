@@ -1,0 +1,86 @@
+# ============================================================
+# lib_ngày.giao — NGÀY-GIỜ (Date math kiểu Python/Ruby) cho GIAO
+# ------------------------------------------------------------
+# THUẦN TOÁN (không cần năng-lực/đồng-hồ hệ thống) — lịch Gregory qua Số-Ngày-Julius (JDN).
+# GIỮ CỐT LÕI GIAO: ba-trị (ngày KHÔNG hợp-lệ → 'ẩn' · năm_nhuận/hợp_lệ → sáng/tối) · idiom Việt ·
+#   TỰ-THÂN (dựng trên // và dư của chuẩn.giao). Nạp: nhập "lib_ngày.giao".
+# ============================================================
+
+hàm năm_nhuận(n) {                     # leap year → sáng/tối ; ẩn → ẩn
+    nếu loại(n) == "ẩn" { trả ẩn }
+    nếu dư(n, 400) == 0 { trả sáng }
+    nếu dư(n, 100) == 0 { trả tối }
+    nếu dư(n, 4) == 0 { trả sáng }
+    trả tối
+}
+hàm ngày_trong_tháng(năm, tháng) {
+    nếu loại(năm) == "ẩn" { trả ẩn }               # đối số ẩn → ẩn (không rớt về mặc-định 31 SAI)
+    nếu loại(tháng) == "ẩn" { trả ẩn }
+    nếu tháng == 2 { nếu năm_nhuận(năm) { trả 29 }  trả 28 }
+    nếu tháng == 4 { trả 30 }
+    nếu tháng == 6 { trả 30 }
+    nếu tháng == 9 { trả 30 }
+    nếu tháng == 11 { trả 30 }
+    trả 31
+}
+hàm hợp_lệ(năm, tháng, ngày) {         # valid date → sáng/tối ; đối số ẩn → ẩn (không bịa "sáng")
+    nếu loại(năm) == "ẩn" { trả ẩn }
+    nếu loại(tháng) == "ẩn" { trả ẩn }
+    nếu loại(ngày) == "ẩn" { trả ẩn }
+    nếu tháng < 1 { trả tối }
+    nếu tháng > 12 { trả tối }
+    nếu ngày < 1 { trả tối }
+    nếu ngày > ngày_trong_tháng(năm, tháng) { trả tối }
+    trả sáng
+}
+
+# --- Số-Ngày-Julius (JDN) — nền cho mọi phép tính ngày ---
+hàm số_ngày(năm, tháng, ngày) {        # JDN; ngày KHÔNG hợp-lệ → ẩn (không bịa)
+    nếu hợp_lệ(năm, tháng, ngày) { } khác { trả ẩn }
+    đặt a = (14 - tháng) // 12
+    đặt y = năm + 4800 - a
+    đặt m = tháng + 12 * a - 3
+    trả ngày + (153 * m + 2) // 5 + 365 * y + y // 4 - y // 100 + y // 400 - 32045
+}
+hàm từ_số_ngày(j) {                    # JDN → [năm, tháng, ngày] ; ẩn → ẩn
+    nếu loại(j) == "ẩn" { trả ẩn }
+    đặt a = j + 32044
+    đặt b = (4 * a + 3) // 146097
+    đặt c = a - 146097 * b // 4
+    đặt d = (4 * c + 3) // 1461
+    đặt e = c - 1461 * d // 4
+    đặt m = (5 * e + 2) // 153
+    đặt ngày = e - (153 * m + 2) // 5 + 1
+    đặt tháng = m + 3 - 12 * (m // 10)
+    đặt năm = 100 * b + d - 4800 + m // 10
+    trả [năm, tháng, ngày]
+}
+
+# --- số học ngày ---
+hàm khoảng_ngày(n1, t1, ng1, n2, t2, ng2) {   # số ngày giữa hai mốc (d2 - d1)
+    trả số_ngày(n2, t2, ng2) - số_ngày(n1, t1, ng1)
+}
+hàm cộng_ngày(năm, tháng, ngày, k) {   # date + k ngày → [năm, tháng, ngày]
+    đặt j = số_ngày(năm, tháng, ngày)
+    nếu loại(j) == "ẩn" { trả ẩn }
+    trả từ_số_ngày(j + k)
+}
+
+# --- thứ trong tuần ---
+đặt _THỨ = ["Chủ nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"]
+hàm thứ(năm, tháng, ngày) {            # tên thứ; ngày sai → ẩn
+    đặt j = số_ngày(năm, tháng, ngày)
+    nếu loại(j) == "ẩn" { trả ẩn }
+    trả _THỨ[dư(j + 1, 7)]
+}
+hàm thứ_số(năm, tháng, ngày) {         # 0=CN..6=T7; ngày sai → ẩn
+    đặt j = số_ngày(năm, tháng, ngày)
+    nếu loại(j) == "ẩn" { trả ẩn }
+    trả dư(j + 1, 7)
+}
+
+# --- định dạng ISO "YYYY-MM-DD" ---
+hàm _đệm2(n) { nếu n < 10 { trả "0" + n }  trả "" + n }
+hàm định_dạng(năm, tháng, ngày) {
+    trả ("" + năm) + "-" + _đệm2(tháng) + "-" + _đệm2(ngày)
+}

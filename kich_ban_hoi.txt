@@ -1,0 +1,7 @@
+nói "việc cần làm" > /nhà/an/sổ_tay
+nhờ xem rồi xoá tệp sổ tay
+chọn 1
+nhờ xem rồi xoá tệp sổ tay
+chọn 2
+liệt /nhà/an
+thoát

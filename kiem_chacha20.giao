@@ -1,0 +1,37 @@
+# kiem_chacha20.giao — đối chiếu ChaCha20 với VECTOR CHÍNH THỨC của RFC 8439
+# Không tự nghĩ ra phép thử: lấy đúng vector §2.3.2 (khối) và §2.4.2 (mã một câu) của chuẩn.
+nhập "lib_kenh.giao"
+
+đặt K = []
+đặt i = 0
+lặp 32 { gom(K, i)  đặt i = i + 1 }
+
+rọi "-- RFC 8439 §2.3.2: khoá 00..1f · nonce 00000009 0000004a 00000000 · đếm 1 --"
+đặt N = [0, 0, 0, 9, 0, 0, 0, 74, 0, 0, 0, 0]
+đặt kd = chacha20_khối(K, N, 1)
+rọi byte_sang_hex(kn_phần(kd, 0, 16))
+# mong: 10f1e7e4d13b5915500fdd1fa32071c4
+rọi byte_sang_hex(kn_phần(kd, 48, 64))
+# mong: 4f1a2b0d7b4f9c8a... (16 byte cuối của khối)
+
+rọi "-- RFC 8439 §2.4.2: mã câu 'Ladies and Gentlemen...' · nonce 000000000000004a00000000 · đếm 1 --"
+đặt N2 = [0, 0, 0, 0, 0, 0, 0, 74, 0, 0, 0, 0]
+đặt tin = "Ladies and Gentlemen of the class of '99: If I could offer you only one tip for the future, sunscreen would be it."
+đặt ct = chacha20_mã(K, N2, 1, utf8_mã(tin))
+rọi byte_sang_hex(kn_phần(ct, 0, 16))
+# mong: 6e2e359a2568f98041ba0728dd0d6981
+
+rọi "-- mã rồi giải lại phải ra ĐÚNG nguyên văn (mã và giải là một phép) --"
+rọi utf8_giải(chacha20_mã(K, N2, 1, ct)) == tin
+
+rọi "-- tiếng Việt qua kênh: đóng khung rồi mở ra nguyên vẹn --"
+đặt KP = []
+đặt j = 0
+lặp 96 { gom(KP, dư(j * 13 + 5, 256))  đặt j = j + 1 }
+đặt kh = đóng_khung(kn_khoá_lên(KP), kn_khoá_mac(KP), 3, "nói \"sen vàng nở sớm\"")
+đặt r = mở_khung(kn_khoá_lên(KP), kn_khoá_mac(KP), kh)
+rọi r[0] + " · " + r[1]
+
+rọi "-- HMAC-SHA256 khớp chuẩn (khoá 'khoá', tin 'abc') --"
+rọi byte_sang_hex(hmac_sha256(utf8_mã("khoá"), utf8_mã("abc")))
+# mong: b1023d4b4f71e65241a5c9905ded8aa60428a0db49adc95d93e2fbd5f5345d16

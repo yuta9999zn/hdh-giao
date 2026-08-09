@@ -1,0 +1,53 @@
+# ============================================================
+# ĐỘ ĐO HILBERT |OR| = I(I:M)  (port từ Ruby hilbert_metric.rb) — bằng GIAO
+# Thông tin tương hỗ I(I:M) = S(ρ_I) + S(ρ_M) − S(ρ_IM): "lượng GIAO THOA" giữa
+# tâm I và vật M. Ruby: ĐO LƯỜNG/CHẨN ĐOÁN, KHÔNG trên đường 'chọn' (v11).
+#
+# Bản đầy đủ cần eigensolver Hermitian phức. Nhưng với ρ CHÉO (cổ điển) — đúng
+# trường hợp dùng để chẩn đoán — entropy von Neumann S(ρ)=−Σλ ln λ rút gọn thành
+# entropy Shannon, và I(I:M) thành THÔNG TIN TƯƠNG HỖ CỔ ĐIỂN trên phân phối kết hợp.
+# Dùng toán GIAO tự xây: ln (chuỗi atanh). KHÔNG thư viện ngoài.
+# ============================================================
+
+# S(p) = −Σ p ln p  (entropy; bỏ p=0 vì 0·ln0 = 0)
+hàm entropy(ps) {
+    nếu dài(ps) == 0 { trả 0 }
+    đặt p = đầu(ps)
+    nếu p > 0 { trả 0 - p * ln(p) + entropy(đuôi(ps)) }
+    trả entropy(đuôi(ps))
+}
+
+# joint = ma trận P(i,m) = [[hàng i0], [hàng i1], ...]  (mỗi hàng theo m)
+hàm lề_I(joint) { trả bản_đồ(gộp, joint) }            # P_I(i) = Σ_m P(i,m)  (tổng mỗi hàng)
+hàm cột_đầu(m) { trả bản_đồ(đầu, m) }                  # phần tử đầu mỗi hàng → 1 cột
+hàm bỏ_cột(m) { trả bản_đồ(đuôi, m) }                  # bỏ phần tử đầu mỗi hàng
+hàm chuyển_vị(m) {                                     # transpose
+    nếu dài(đầu(m)) == 0 { trả [] }
+    trả ghép([cột_đầu(m)], chuyển_vị(bỏ_cột(m)))
+}
+hàm lề_M(joint) { trả bản_đồ(gộp, chuyển_vị(joint)) }  # P_M(m) = Σ_i P(i,m)  (tổng mỗi cột)
+hàm phẳng(joint) { trả gấp(ghép, [], joint) }          # nối các hàng → 1 danh sách xác suất
+
+# |OR| = I(I:M) = S(ρ_I) + S(ρ_M) − S(ρ_IM)
+hàm I_IM(joint) {
+    trả entropy(lề_I(joint)) + entropy(lề_M(joint)) - entropy(phẳng(joint))
+}
+
+# ===================== CHẠY =====================
+# (A) Tích thuần |I0><I0|⊗|M0><M0| — Ruby make_pure_product_state: I(I:M)=0
+đặt độc_lập = [[0.25, 0.25], [0.25, 0.25]]   # I, M độc lập (tích P_I·P_M)
+rọi "Độc lập [[.25,.25],[.25,.25]]: I(I:M) = " + I_IM(độc_lập)
+rọi "  → 0: tâm I và vật M KHÔNG giao thoa (không tri thức chung)."
+rọi ""
+# (B) Tương quan hoàn toàn: I biết → M biết
+đặt tương_quan = [[0.5, 0], [0, 0.5]]
+rọi "Tương quan [[.5,0],[0,.5]]:    I(I:M) = " + I_IM(tương_quan)
+rọi "  → ln2≈0.693 (cực đại 2×2): I và M GIAO THOA hoàn toàn — biết I là biết M."
+rọi ""
+# (C) Tương quan một phần
+đặt một_phần = [[0.4, 0.1], [0.1, 0.4]]
+rọi "Một phần  [[.4,.1],[.1,.4]]:   I(I:M) = " + I_IM(một_phần)
+rọi "  → giữa 0 và ln2: giao thoa MỘT PHẦN."
+rọi ""
+rọi "→ I(I:M) chính là |OR| MÔ TẢ: đo lượng tri thức chung tâm–vật. Càng cao,"
+rọi "  niềm tin I càng 'nói đúng' về thực tại M. Thước đo chẩn đoán, không lái 'chọn'."

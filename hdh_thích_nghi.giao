@@ -1,0 +1,81 @@
+# ============================================================
+# hdh_thích_nghi.giao — CHỨNG: CPU phân theo MERIT HỌC-ĐƯỢC (NHÂN THÍCH-NGHI = γ-scheduler ⊗ bảng-tt)
+# ------------------------------------------------------------
+# Kịch-bản DETERMINISTIC: sinh 3 tiến-trình σ0=50 — "worker" / "daemon" / "zombie".
+# Lặp 6 lượt: mỗi lượt điều_phối_học → in tid được CPU; rồi phản_hồi theo HÀNH-VI THẬT:
+#     "worker" ← ρ=100 (luôn có-ích)  ·  "daemon" ← ρ=55 (vừa)  ·  "zombie" ← ρ=0 (treo/spin).
+# Đếm SỐ-LƯỢT mỗi tid được CPU. KỲ VỌNG: "worker" ÁP-ĐẢO (σ leo), "zombie" gần-như-không-bao-giờ (σ tụt).
+# Sau đó loại_bỏ("worker") → "chết" → điều_phối_học KHÔNG còn chọn worker → CHUYỂN sang "daemon".
+# Chạy: PYTHONIOENCODING=utf-8 PYTHONUTF8=1 python giao.py hdh_thích_nghi.giao
+# ============================================================
+nhập "lib_nhân_học.giao"
+
+đặt nhân = tạo_nhân()
+sinh_tt(nhân, "worker", "công-nhân", 50)
+sinh_tt(nhân, "daemon", "thường-trú", 50)
+sinh_tt(nhân, "zombie", "thây-ma",   50)
+
+# bộ đếm SỐ-LƯỢT-ĐƯỢC-CPU mỗi tid (bản: tid → số lần điều_phối chọn)
+đặt đếm = bản()
+đặt_khoá(đếm, "worker", 0)
+đặt_khoá(đếm, "daemon", 0)
+đặt_khoá(đếm, "zombie", 0)
+
+rọi "== σ ban đầu (worker, daemon, zombie) =="
+rọi σ(nhân, "worker")        # 50
+rọi σ(nhân, "daemon")        # 50
+rọi σ(nhân, "zombie")        # 50
+
+# ---- 6 lượt: điều_phối_học (in tid lên CPU) → phản_hồi theo hành-vi ----
+lặp i trong [1, 2, 3, 4, 5, 6] {
+    rọi "-- lượt --"
+    rọi i
+    đặt ai = điều_phối_học(nhân)        # tid được CPU (σ cao nhất, sống)
+    rọi "CPU ->"
+    rọi ai
+    đặt_khoá(đếm, ai, lấy_khoá(đếm, ai) + 1)   # +1 cho kẻ được chọn
+    phản_hồi(nhân, "worker", 100)        # có-ích → σ tăng
+    phản_hồi(nhân, "daemon", 55)         # vừa     → σ ~55
+    phản_hồi(nhân, "zombie", 0)          # treo    → σ tụt (bị bóp)
+}
+
+rọi "== σ CUỐI (worker, daemon, zombie) =="
+rọi σ(nhân, "worker")
+rọi σ(nhân, "daemon")
+rọi σ(nhân, "zombie")
+
+rọi "== tín-nhiệm CUỐI (σ//4) =="
+rọi tín(nhân, "worker")
+rọi tín(nhân, "daemon")
+rọi tín(nhân, "zombie")
+
+rọi "== SỐ-LƯỢT được CPU (worker / daemon / zombie) =="
+rọi lấy_khoá(đếm, "worker")             # KỲ VỌNG: áp-đảo
+rọi lấy_khoá(đếm, "daemon")
+rọi lấy_khoá(đếm, "zombie")             # KỲ VỌNG: ~0
+
+rọi "== số_sống TRƯỚC loại_bỏ =="
+rọi số_sống(nhân)                       # 3
+
+# ---- loại_bỏ worker → "chết"; điều_phối_học KHÔNG còn chọn worker, chuyển daemon ----
+loại_bỏ(nhân, "worker")
+rọi "== trạng SAU loại_bỏ (worker / daemon / zombie) =="
+rọi trạng(nhân, "worker")               # chết
+rọi trạng(nhân, "daemon")               # sẵn-sàng (vừa phản_hồi)
+rọi trạng(nhân, "zombie")               # sẵn-sàng
+
+rọi "== điều_phối_học SAU loại_bỏ (worker chết → daemon lên CPU) =="
+đặt sau = điều_phối_học(nhân)
+rọi sau                                 # KỲ VỌNG: daemon (KHÔNG còn worker)
+rọi "trạng kẻ-lên-CPU ->"
+rọi trạng(nhân, sau)                    # chạy
+
+rọi "== số_sống SAU loại_bỏ =="
+rọi số_sống(nhân)                       # 2
+
+rọi "== ba-trị: tid lạ =="
+rọi σ(nhân, "ma")                       # ẩn
+rọi tín(nhân, "ma")                     # ẩn
+rọi trạng(nhân, "ma")                   # ẩn
+
+rọi "== KẾT LUẬN: CPU phân theo merit học-được; loại_bỏ → bỏ-qua-chết =="

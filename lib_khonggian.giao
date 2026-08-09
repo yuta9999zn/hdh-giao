@@ -1,0 +1,78 @@
+# ============================================================
+# lib_khonggian.giao — KHÔNG-GIAN-TÊN tài-nguyên cho HĐH-GIAO (học Object Manager của Windows)
+# ------------------------------------------------------------
+# Windows: mọi thứ là ĐỐI-TƯỢNG CÓ-TÊN trong namespace phân-cấp '\' (\Device, \BaseNamedObjects…),
+#   tra bằng đường-dẫn. GIAO: một CÂY 'bản' gốc — tài-nguyên (thiết_bị/tiến_trình/sự_kiện…) gắn ở
+#   ĐƯỜNG-DẪN, tra qua MỘT cổng thống-nhất. GIỮ CỐT LÕI: tra KHÔNG-thấy → 'ẩn' (chưa-phơi, không lỗi) ·
+#   idiom Việt · tự-thân (trên builtin bản + tách).
+# Nút: THƯ-MỤC = 'bản' lồng · LÁ = [loại, giá_trị]. Nạp: nhập "lib_khonggian.giao".
+# ============================================================
+
+hàm _phân(đường) {                     # "/a/b/c" → ["a","b","c"] (bỏ đoạn rỗng)
+    đặt kq = []
+    lặp p trong tách(đường, "/") { nếu dài(p) > 0 { gom(kq, p) } }
+    trả kq
+}
+hàm tạo_kg() { trả bản() }             # không-gian gốc (rỗng)
+
+hàm gắn(kg, đường, loại_tn, giá_trị) { # mount tài-nguyên ở ĐƯỜNG-DẪN (tạo thư-mục trung-gian) — `loại_tn` (KHÔNG đặt `loại`: che builtin loại())
+    nếu loại(kg) == "ẩn" { trả ẩn }
+    nếu loại(đường) == "ẩn" { trả ẩn }
+    đặt phần = _phân(đường)
+    đặt cur = kg  đặt i = 0
+    mãi {
+        nếu i >= dài(phần) - 1 { dừng }
+        nếu có_khoá(cur, phần[i]) { } khác { đặt_khoá(cur, phần[i], bản()) }
+        đặt cur = lấy_khoá(cur, phần[i])
+        đặt i = i + 1
+    }
+    đặt_khoá(cur, phần[dài(phần) - 1], [loại_tn, giá_trị])    # LÁ = [loại_tn, giá_trị]
+    trả kg
+}
+hàm tra_kg(kg, đường) {                   # → nút ([loại,giá_trị] lá | bản thư-mục); KHÔNG-thấy → ẩn
+    nếu loại(kg) == "ẩn" { trả ẩn }
+    nếu loại(đường) == "ẩn" { trả ẩn }
+    đặt phần = _phân(đường)
+    đặt cur = kg
+    lặp tên trong phần {
+        nếu loại(cur) == "bản" { } khác { trả ẩn }     # gặp lá GIỮA đường → vô hiệu
+        nếu có_khoá(cur, tên) { } khác { trả ẩn }       # không có khoá → ẩn (ba-trị)
+        đặt cur = lấy_khoá(cur, tên)
+    }
+    trả cur
+}
+hàm tra_trị(kg, đường) {               # giá-trị tài-nguyên; lá→giá_trị · thư-mục→bản · thiếu→ẩn
+    đặt nút = tra_kg(kg, đường)
+    nếu loại(nút) == "ẩn" { trả ẩn }
+    nếu loại(nút) == "danh_sách" { trả nút[1] }
+    trả nút
+}
+hàm loại_của(kg, đường) {              # loại tài-nguyên; thư-mục→"thư_mục"; thiếu→ẩn
+    đặt nút = tra_kg(kg, đường)
+    nếu loại(nút) == "danh_sách" { trả nút[0] }
+    nếu loại(nút) == "bản" { trả "thư_mục" }
+    trả ẩn
+}
+hàm có(kg, đường) {                    # tồn tại? → sáng/tối
+    nếu loại(tra_kg(kg, đường)) == "ẩn" { trả tối }
+    trả sáng
+}
+hàm liệt_kg(kg, đường) {               # liệt-kê con của THƯ-MỤC; không phải thư-mục → ẩn
+    đặt nút = tra_kg(kg, đường)
+    nếu loại(nút) == "bản" { trả khoá(nút) }
+    trả ẩn
+}
+hàm gỡ(kg, đường) {                    # unmount; thành công → sáng, không có → tối
+    nếu loại(kg) == "ẩn" { trả ẩn }
+    nếu loại(đường) == "ẩn" { trả ẩn }
+    đặt phần = _phân(đường)
+    đặt cur = kg  đặt i = 0
+    mãi {
+        nếu i >= dài(phần) - 1 { dừng }
+        nếu có_khoá(cur, phần[i]) { } khác { trả tối }
+        đặt cur = lấy_khoá(cur, phần[i])
+        đặt i = i + 1
+    }
+    nếu có_khoá(cur, phần[dài(phần) - 1]) { xoá_khoá(cur, phần[dài(phần) - 1])  trả sáng }
+    trả tối
+}

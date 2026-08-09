@@ -1,0 +1,24 @@
+# ============================================================
+# nhật_ký_máy.giao — DỊCH VỤ NỀN chạy bằng BYTECODE trên GVM (biên dịch xuống máy)
+# ------------------------------------------------------------
+# Đây là bản MÁY của dịch vụ `nhật_ký_hệ` (trước nay là closure ở tầng thông dịch):
+#   • `gọi_hệ(19)` = NHẬN tin. Hộp thư RỖNG → nhân TRẢ −1 **và ĐỖ tiến trình sang trạng "chặn"**
+#     ⇒ dịch vụ NGỦ, không đốt CPU. Ai `gửi` tin thì nhân đánh thức, máy chạy tiếp ngay sau trap.
+#   • có tin → `gọi_hệ(3, "/hệ/nhật_ký", …)` = THÊM vào nhật ký hệ (qua đúng cổng: uid, quyền, audit).
+# Đây chính là mô hình daemon của Linux — chờ trên hàng đợi, không quay vòng bận — nhưng thân là
+# bytecode chạy trên chính cái máy dựng từ NAND.
+# CHỈ DÀNH CHO MÁY (chuỗi = danh sách mã ký tự; xem đầu `vỏ_máy.giao`).
+# ============================================================
+
+hàm phục_vụ(còn) {
+    nếu còn == 0 { trả 0 }
+
+    đặt tin = gọi_hệ(19)                       # ── NHẬN (rỗng → −1 và bị ĐỖ cho ngủ) ──
+    nếu tin == 0 - 1 { trả phục_vụ(còn) }      # chưa có tin: thử lại KHI ĐƯỢC ĐÁNH THỨC
+
+    gọi_hệ(3, "/hệ/nhật_ký", ghép("\n[máy] ", tin))    # ghi vào nhật ký hệ
+    rọi tin                                    # ρ=1: có làm việc thật (cho lịch γ)
+    trả phục_vụ(còn - 1)
+}
+
+rọi phục_vụ(8)

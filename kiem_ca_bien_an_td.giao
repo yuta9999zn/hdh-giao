@@ -1,0 +1,21 @@
+# ============================================================
+# kiem_ca_bien_an_td.giao — CHỐT-REGRESSION ca-biên 'ẩn' cho lib_thập_phân (decimal)
+# ------------------------------------------------------------
+# Tách riêng vì lib_thập_phân định-nghĩa lại làm_tròn/căn (2-đối) che lib_toan (1-đối) — namespace phẳng.
+# Trước vá: thập_phân(ẩn) crash ở `dài`; luỹ_thừa(_, ẩn) & _mười_mũ(ẩn) lặp tới MAX_STEPS (abort).
+# ============================================================
+nhập "lib_thập_phân.giao"
+
+rọi thập_phân(ẩn)                  # ẩn (không crash ở `dài`)
+rọi _mười_mũ(ẩn)                   # ẩn (không lặp vô tận ở `i >= k`)
+rọi luỹ_thừa(thập_phân("2"), ẩn)   # ẩn (số-mũ ẩn — không lặp vô tận)
+rọi chuỗi_td(luỹ_thừa(thập_phân("2"), 10))   # 1024 (đường thường vẫn đúng)
+
+# --- thang = ẩn (Group 3): trả ẩn, KHÔNG [ẩn,ẩn] malformed ---
+rọi căn(thập_phân("2"), ẩn)        # ẩn
+rọi pi(ẩn)                         # ẩn
+rọi sin(thập_phân("1"), ẩn)        # ẩn
+rọi từ_nguyên(ẩn)                  # ẩn
+rọi chuỗi_td(căn(thập_phân("2"), 10))   # 1.4142135624 (đường thường đúng)
+
+rọi "=== CA-BIÊN ẨN decimal: HẾT (không abort) ==="

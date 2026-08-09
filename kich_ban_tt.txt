@@ -1,0 +1,13 @@
+việc
+chạy đếm 3 /nhà/an/tiến_độ
+tt
+xem /nhà/an/tiến_độ
+kể
+chạy chào xin-chào-máy
+nhịp 4
+kể tắt
+chạy soi_rác
+nhịp 6
+xem /tạm/báo_cáo_rác
+tt
+thoát

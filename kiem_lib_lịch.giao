@@ -1,0 +1,28 @@
+# Kiểm lib_lịch — lập-lịch ưu-tiên + IPC (ba-trị)
+nhập "lib_lịch.giao"
+
+# --- lập-lịch theo ưu-tiên (số NHỎ = chạy trước) ---
+đặt l = tạo_lịch()
+nạp_tt(l, "web", 5)
+nạp_tt(l, "khẩn", 1)        # ưu-tiên cao nhất
+nạp_tt(l, "nền", 9)
+rọi có_việc(l)              # sáng
+rọi xem_kế(l)              # khẩn (không lấy ra)
+rọi chọn_kế(l)             # khẩn (ưu-tiên 1)
+rọi chọn_kế(l)             # web  (ưu-tiên 5)
+rọi chọn_kế(l)             # nền  (ưu-tiên 9)
+rọi có_việc(l)             # tối (hết)
+rọi chọn_kế(l)             # ẩn (rỗng → không-có)
+
+# --- IPC: hộp-thư FIFO ---
+đặt h = tạo_lịch()
+gửi(h, "in", "trang1")
+gửi(h, "in", "trang2")     # FIFO
+gửi(h, "log", "khởi động")
+rọi có_tin(h, "in")        # sáng
+rọi nhận(h, "in")          # trang1 (đầu hàng)
+rọi nhận(h, "in")          # trang2
+rọi nhận(h, "in")          # ẩn (hết)
+rọi có_tin(h, "in")        # tối
+rọi nhận(h, "log")         # khởi động
+rọi nhận(h, "chưa_ai")     # ẩn (tid chưa có hộp)

@@ -1,0 +1,95 @@
+# ============================================================
+# HĐH-GIAO — HỆ ĐIỀU HÀNH viết BẰNG CHÍNH GIAO, chạy TRÊN GVM (máy ảo)
+# ------------------------------------------------------------
+# "Ảo hóa như Linux": Linux = nhân (C) chạy trên phần cứng/hypervisor.
+# HĐH-GIAO = nhân (GIAO) chạy trên GVM (máy ảo của GIAO) — GVM là tầng ảo hóa.
+#
+# Có: BẢNG TIẾN TRÌNH · BỘ LẬP LỊCH hợp tác (cooperative) · SYSCALL (in/sinh) ·
+#     đa nhiệm (tiến trình interleave) · CỔNG AN TOÀN cho syscall bất-khả-hồi.
+# Tiến trình = MÁY TRẠNG THÁI: một closure bước() giữ state riêng (lexical), mỗi
+# lần nhân gọi → chạy MỘT lát rồi nhường (trả "chạy") hoặc kết thúc (trả "xong").
+# ============================================================
+
+# ───────── TRẠNG THÁI NHÂN (bản = tham chiếu, chia sẻ toàn cục) ─────────
+đặt K = bản()
+đặt_khoá(K, "bảng", [])          # bảng tiến trình
+đặt_khoá(K, "vòng", 0)           # số vòng lập lịch (đồng hồ nhân)
+
+# ───────── SYSCALL ─────────
+hàm in(x) { rọi x  trả ẩn }                      # ghi ra console
+
+hàm sinh(tên, bước) {                            # tạo & nạp tiến trình
+    đặt p = bản()
+    đặt_khoá(p, "tên", tên)
+    đặt_khoá(p, "bước", bước)
+    đặt_khoá(p, "sống", sáng)
+    đặt_khoá(K, "bảng", ghép(lấy_khoá(K, "bảng"), [p]))   # mutate bản K (toàn cục)
+    in("[nhân] sinh tiến trình  " + tên)
+}
+
+hàm nguy_hiểm(việc) {                            # SYSCALL bất-khả-hồi → CỔNG AN TOÀN chặn
+    in("[cổng] '" + việc + "' BẤT KHẢ HỒI → CHẶN (xin phép người, không tự thực thi)")
+}
+
+# ───────── BỘ LẬP LỊCH hợp tác (round-robin) ─────────
+hàm lập_lịch() {
+    mãi {
+        đặt còn = tối
+        lặp p trong lấy_khoá(K, "bảng") {
+            nếu lấy_khoá(p, "sống") {
+                đặt kq = (lấy_khoá(p, "bước"))()     # gọi closure bước của tiến trình
+                nếu kq == "xong" {
+                    đặt_khoá(p, "sống", tối)
+                    in("[nhân] " + lấy_khoá(p, "tên") + " kết thúc")
+                } khác { đặt còn = sáng }
+            }
+        }
+        đặt_khoá(K, "vòng", lấy_khoá(K, "vòng") + 1)
+        nếu còn == tối { dừng }                       # mọi tiến trình đã xong
+        nếu lấy_khoá(K, "vòng") > 10000 { dừng }      # an toàn
+    }
+    in("[nhân] DỪNG — mọi tiến trình kết thúc sau " + lấy_khoá(K, "vòng") + " vòng lập lịch")
+}
+
+# ───────── TIẾN TRÌNH = MÁY TRẠNG THÁI (closure giữ state lexical) ─────────
+hàm tt_đếm(tên, đích) {
+    đặt s = bản()  đặt_khoá(s, "i", 0)
+    trả hàm() {
+        đặt i = lấy_khoá(s, "i") + 1
+        đặt_khoá(s, "i", i)
+        in("  " + tên + " · đếm " + i)
+        nếu i >= đích { trả "xong" }
+        trả "chạy"
+    }
+}
+hàm tt_fib(tên, n) {
+    đặt s = bản()  đặt_khoá(s, "a", 0)  đặt_khoá(s, "b", 1)  đặt_khoá(s, "k", 0)
+    trả hàm() {
+        đặt a = lấy_khoá(s, "a")  đặt k = lấy_khoá(s, "k")
+        in("  " + tên + " · fib[" + k + "] = " + a)
+        đặt_khoá(s, "a", lấy_khoá(s, "b"))
+        đặt_khoá(s, "b", a + lấy_khoá(s, "b"))
+        đặt_khoá(s, "k", k + 1)
+        nếu k >= n { trả "xong" }
+        trả "chạy"
+    }
+}
+hàm tt_giám_sát(đích) {                            # tiến trình HỆ THỐNG: chạm syscall nguy hiểm → bị chặn
+    đặt s = bản()  đặt_khoá(s, "i", 0)
+    trả hàm() {
+        đặt i = lấy_khoá(s, "i") + 1  đặt_khoá(s, "i", i)
+        nếu i == 2 { nguy_hiểm("format ổ đĩa") }
+        nếu i >= đích { trả "xong" }
+        trả "chạy"
+    }
+}
+
+# ───────── "init" — giao diện làm việc: nạp các tiến trình rồi trao quyền cho nhân ─────────
+in("=== HĐH-GIAO khởi động (nhân viết bằng GIAO, chạy trên GVM = ảo hóa) ===")
+sinh("đếm-A", tt_đếm("đếm-A", 3))
+sinh("fib-B", tt_fib("fib-B", 5))
+sinh("đếm-C", tt_đếm("đếm-C", 2))
+sinh("giám-sát", tt_giám_sát(3))
+in("--- trao quyền cho BỘ LẬP LỊCH (đa nhiệm hợp tác) ---")
+lập_lịch()
+in("→ Nhiều tiến trình INTERLEAVE dưới một nhân GIAO; syscall bất-khả-hồi bị cổng chặn.")

@@ -1,0 +1,39 @@
+# kiem_lib_tệp_hệ.giao — nghiệm thu HỆ-TỆP kiểu Linux (cây · quyền · ba-trị errno)
+nhập "lib_tệp_hệ.giao"
+
+đặt fs = tạo_tth()
+rọi "-- dựng cây --"
+rọi tth_tạo_thư(fs, 0, "/nhà", 755)                 # sáng
+rọi tth_tạo_thư(fs, 0, "/nhà/an", 700)              # sáng (thư riêng)
+rọi tth_đổi_chủ(fs, 0, "/nhà/an", 1000)             # sáng
+rọi tth_tạo_thư(fs, 0, "/hệ", 755)                  # sáng
+rọi tth_tạo_tệp(fs, 0, "/hệ/mật_khẩu", 600, "an:x:1000")   # sáng (chỉ gốc-quyền đọc)
+
+rọi "-- ba-trị errno --"
+rọi tth_đọc(fs, 0, "/hệ/mật_khẩu")                  # nội dung (gốc-quyền)
+rọi tth_đọc(fs, 1000, "/hệ/mật_khẩu")               # tối = TỪ CHỐI (600, không phải chủ)
+rọi tth_đọc(fs, 1000, "/hệ/không_có")               # ẩn = KHÔNG BIẾT
+rọi tth_ghi(fs, 1000, "/hệ/mật_khẩu", "hack")       # tối = chặn leo thang
+
+rọi "-- người dùng thường trong nhà mình --"
+rọi tth_tạo_tệp(fs, 1000, "/nhà/an/ghi_chú", 644, "xin chào")   # sáng
+rọi tth_đọc(fs, 1000, "/nhà/an/ghi_chú")            # "xin chào"
+rọi tth_thêm_nội(fs, 1000, "/nhà/an/ghi_chú", " · thêm dòng")
+rọi tth_đọc(fs, 1000, "/nhà/an/ghi_chú")
+rọi tth_liệt(fs, 1000, "/nhà/an")                   # ["ghi_chú"]
+rọi tth_liệt(fs, 1001, "/nhà/an")                   # tối = 700, người khác không xem được
+rọi tth_soi(fs, 1000, "/nhà/an/ghi_chú")            # ["tệp","rw-r--r--",1000,20]
+
+rọi "-- xoá cần quyền GHI trên THƯ-MỤC CHA --"
+rọi tth_xoá(fs, 1000, "/hệ/mật_khẩu")               # tối (không ghi được /hệ)
+rọi tth_xoá(fs, 1000, "/nhà/an/ghi_chú")            # sáng
+rọi tth_xoá(fs, 0, "/nhà")                          # tối = thư-mục KHÔNG rỗng
+
+rọi "-- thiết bị (/dev) --"
+rọi tth_tạo_thư(fs, 0, "/tb", 755)
+rọi tth_gắn_thiết_bị(fs, 0, "/tb/màn", 666, "màn_hình")
+rọi tth_gắn_thiết_bị(fs, 1000, "/tb/lén", 666, "lén")   # tối = chỉ gốc-quyền mknod
+rọi tth_là_thiết_bị(fs, "/tb/màn")                  # sáng
+rọi tth_trình(fs, "/tb/màn")                        # "màn_hình"
+rọi chuỗi_quyền(tra_nút(fs, "/tb/màn"))             # rw-rw-rw-
+rọi tth_cây(fs, 0, "/")

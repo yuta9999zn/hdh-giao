@@ -1,0 +1,164 @@
+# ============================================================
+# lib_dinh_dang.giao — SỔ ĐĂNG KÝ ĐỊNH DẠNG CHẠY ĐƯỢC (CÒN_THIẾU B2)
+# ------------------------------------------------------------
+# QUAN SÁT MÁY THẬT TRƯỚC (Kali 2026.2, 2026-07-31): đếm `/bin` ra **1540 tệp ELF nhưng 897 tệp là
+# kịch bản có `#!`**. Tức Linux thật cũng PHA TRỘN văn bản với nhị phân — nên đích của B2 KHÔNG
+# phải "bỏ văn bản đi". Cái đáng học nằm ở `binfmt_misc`: nhân giữ một **SỔ ĐĂNG KÝ** ánh xạ
+# *byte đầu tệp (magic) → trình chạy*, và `#!` chỉ là MỘT MỤC trong sổ ấy. Làm theo hình dạng đó
+# thì thêm bytecode chỉ là **thêm một dòng**, không phải thay cả cơ chế.
+#
+# Trước bản này, `chạy_một_lệnh` GHI CỨNG ba nhánh (`#nội-trú` · `#tt ` · còn lại là kịch bản).
+# Muốn thêm định dạng thì phải sửa vỏ — đúng cái bệnh mà `binfmt_misc` sinh ra để chữa.
+#
+# ★ BA CHỖ `binfmt_misc` YẾU, VÀ Ở ĐÂY LÀM KHÁC:
+#   ① **Đăng ký sai là hỏng đường chạy CẢ MÁY.** `binfmt_misc` cho ghi thẳng vào /proc, không ai
+#      kiểm; ghi nhầm một mục là mọi thứ khớp magic ấy hết chạy, mà chỉ báo "Exec format error".
+#      Ở đây: sổ đi qua **bộ kiểm cấu hình H6 ở tầng gọi-hệ** (sai → từ chối, nói rõ dòng, tệp cũ
+#      còn nguyên), VÀ **luôn có NGẢ LUI**: sổ mất/hỏng/rỗng thì `dạng_mặc_định()` vẫn cho máy
+#      chạy như cũ. **Không có cách nào làm máy câm bằng cách phá sổ.**
+#   ② **Không nói được VÌ SAO.** Linux chỉ ném `ENOEXEC`. Ở đây `vì_sao_dạng` chỉ đúng nấc hỏng:
+#      khớp định dạng nào · trình chạy là gì · thiếu năng lực nào · và cách đi tiếp.
+#   ③ **Định dạng KHÔNG khai được nó cần gì.** Đăng ký một trình thông dịch cho magic nào đó là
+#      trao trọn quyền, không ai hỏi. Ở đây mỗi dòng **TỰ KHAI NĂNG LỰC** (như gói phần mềm tự
+#      khai từ v0.18.0): thiếu năng lực thì từ chối **và nói ra**, chứ không chạy nửa vời rồi hỏng.
+#
+# SỔ: /hệ/định_dạng (644) — bốn cột ngăn bằng `|`
+#     tên|magic|trình|năng_lực
+#   • tên      — để người đọc và để `vì_sao` gọi tên
+#   • magic    — TIỀN TỐ nhận dạng ở đầu tệp; `*` = ngả lui (khớp mọi thứ, phải là dòng CUỐI)
+#   • trình    — bộ xử lý: nội_trú · tiến_trình · mã_máy · kịch_bản
+#   • năng_lực — năng lực phải có mới chạy được, `-` là không cần
+# ============================================================
+nhập "lib_gọi_hệ.giao"
+nhập "lib_chuoi.giao"
+
+đặt DD_TỆP = "/hệ/định_dạng"
+
+# NGẢ LUI dựng SẴN TRONG MÃ, không đọc từ đâu cả. Đây là chỗ khác `binfmt_misc` rõ nhất: sổ có thể
+# mất, hỏng, bị xoá — máy vẫn chạy được lệnh, vì bốn dòng này không nằm trên đĩa.
+hàm dạng_mặc_định() {
+    trả [["nội_trú",   "#nội-trú", "nội_trú",   "-"],
+         ["tiến_trình", "#tt ",     "tiến_trình", "-"],
+         ["mã_máy",     "#!mã-máy", "mã_máy",     "máy"],
+         ["kịch_bản",   "*",        "kịch_bản",   "-"]]
+}
+
+hàm dd_dòng_sổ() {
+    "Sổ mặc định ở dạng VĂN BẢN — dùng để cài lúc boot."
+    đặt ds = ["# /hệ/định_dạng — định dạng nào chạy bằng trình nào (xem lib_dinh_dang.giao)",
+              "# tên|magic|trình|năng_lực   ·   magic '*' = ngả lui, phải là dòng CUỐI"]
+    lặp d trong dạng_mặc_định() { gom(ds, d[0] + "|" + d[1] + "|" + d[2] + "|" + d[3]) }
+    trả nối(ds, "\n")
+}
+
+hàm _dd_đọc_sổ(máy, tid) {
+    "Đọc sổ trên đĩa → danh sách dòng. Không đọc nổi / rỗng / hỏng ⇒ NGẢ LUI dựng sẵn."
+    đặt nội = gọi(máy, tid, GH_ĐỌC, [DD_TỆP])
+    nếu loại(nội) == "chuỗi" { } khác { trả dạng_mặc_định() }
+    nếu dài(lỗi_cuối(máy)) == 0 { } khác { trả dạng_mặc_định() }
+
+    # ★ NHỚ BẢN ĐÃ PHÂN TÍCH — khoá theo CHÍNH nội dung thô.
+    # Tra sổ nằm trên đường đi của MỌI lệnh, nên tách dòng + tách cột mỗi lần là quá đắt: bản
+    # trình diễn `hdh_giao.giao` chạm trần 5 triệu bước ngay lần chạy đầu (đúng cái bẫy mà procfs
+    # và tra $PATH đã vấp trước đây — xem §5.5). Khoá bằng nội dung THÔ chứ không bằng cờ "đã đổi":
+    # sổ đổi một ký tự là bản nhớ tự hết hiệu lực, nên KHÔNG ai phải nhớ đi xoá bộ nhớ đệm, và
+    # không có cửa nào để quên xoá rồi chạy theo sổ cũ.
+    đặt nhớ = lấy_khoá(máy, "dd_nhớ")
+    nếu loại(nhớ) == "ẩn" { } khác { nếu nhớ[0] == nội { trả nhớ[1] } }
+
+    đặt ra = []
+    lặp d trong tách_dòng(nội) {
+        đặt s = cắt_lề(d)
+        nếu s == "" { } khác { nếu bắt_đầu(s, "#") { } khác {
+            đặt p = tách_giữ(s, "|")
+            nếu dài(p) == 4 { gom(ra, [cắt_lề(p[0]), p[1], cắt_lề(p[2]), cắt_lề(p[3])]) }
+        } }
+    }
+    nếu dài(ra) == 0 { trả dạng_mặc_định() }        # sổ rỗng KHÔNG được làm máy câm
+    đặt_khoá(máy, "dd_nhớ", [nội, ra])
+    trả ra
+}
+
+hàm _dd_có_năng_lực(nl) {
+    nếu nl == "-" { trả sáng }
+    nếu nl == "máy" { trả có_máy() }
+    trả tối                                          # năng lực lạ ⇒ coi như KHÔNG có (chặt, không lỏng)
+}
+
+hàm dạng_của(máy, tid, nội) {
+    "Tra sổ theo TIỀN TỐ nội dung → [tên, magic, trình, năng_lực] · ẩn nếu không dòng nào khớp."
+    lặp d trong _dd_đọc_sổ(máy, tid) {
+        nếu d[1] == "*" { trả d }                    # ngả lui: khớp mọi thứ
+        nếu bắt_đầu(nội, d[1]) { trả d }
+    }
+    trả ẩn
+}
+
+hàm vì_sao_dạng(máy, tid, đường) {
+    "Nói RÕ vì sao tệp này chạy được / không chạy được — thứ `Exec format error` của Linux không nói."
+    đặt nội = gọi(máy, tid, GH_ĐỌC, [đường])
+    nếu loại(nội) == "chuỗi" { } khác { trả "không đọc nổi " + đường }
+    nếu dài(lỗi_cuối(máy)) == 0 { } khác { trả "không đọc nổi " + đường + ": " + lỗi_cuối(máy) }
+    đặt d = dạng_của(máy, tid, nội)
+    nếu loại(d) == "ẩn" {
+        trả đường + ": KHÔNG định dạng nào khớp, mà sổ cũng không có ngả lui '*' — thêm một dòng '…|*|kịch_bản|-' vào " + DD_TỆP
+    }
+    đặt r = đường + ": khớp định dạng '" + d[0] + "'"
+    nếu d[1] == "*" { đặt r = r + " (ngả lui — không tệp nào khai magic riêng)" }
+    khác { đặt r = r + " (magic '" + d[1] + "')" }
+    đặt r = r + ", chạy bằng trình '" + d[2] + "'"
+    nếu d[3] == "-" { trả r + ", không cần năng lực gì." }
+    nếu _dd_có_năng_lực(d[3]) == sáng { trả r + ", cần năng lực '" + d[3] + "' — máy CÓ cấp." }
+    trả r + ", cần năng lực '" + d[3] + "' — máy CHƯA cấp, nên KHÔNG chạy được. Bật bằng cờ --cho-" + d[3] + " lúc khởi động."
+}
+
+# ---------------- MÃ MÁY: bytecode nằm THẲNG trong tệp lệnh ----------------
+# Tệp `#!mã-máy <bit>` + các từ-lệnh. Đây chính là điều B2 đòi: `/lệnh/<tên>` mang CHÍNH bytecode,
+# vỏ nạp thẳng lên GVM, KHÔNG biên dịch lại lúc chạy.
+#
+# ⚠ TRUNG THỰC về "nhị phân": hệ-tệp GIAO chứa CHUỖI, nên các từ-lệnh được viết ra dưới dạng SỐ
+# THẬP PHÂN cách nhau bằng khoảng trắng. Cái đã thay đổi thật sự là **tệp mang MÃ chứ không mang
+# NGUỒN** — chạy nó không đụng tới trình biên dịch. Còn cách mã hoá thì vẫn là văn bản, và nói
+# "nhị phân" ở đây là nói quá.
+hàm mã_sang_tệp(mã) {
+    "danh sách từ-lệnh (đuôi mang −bit) → nội dung tệp lệnh."
+    đặt bit = 16
+    đặt thân = mã
+    nếu dài(mã) > 0 {
+        nếu mã[dài(mã) - 1] < 0 {
+            đặt bit = 0 - mã[dài(mã) - 1]
+            đặt thân = lát(mã, 0, dài(mã) - 1)
+        }
+    }
+    đặt ds = []
+    lặp w trong thân { gom(ds, "" + w) }
+    trả "#!mã-máy " + bit + "\n" + nối(ds, " ") + "\n"
+}
+
+hàm tệp_sang_mã(nội) {
+    "Nội dung tệp → danh sách từ-lệnh cho `máy_nạp` · ẩn nếu hỏng (KHÔNG đoán bừa)."
+    đặt dòng = tách_dòng(nội)
+    nếu dài(dòng) >= 2 { } khác { trả ẩn }
+    đặt đầu = tách(cắt_lề(dòng[0]), " ")
+    nếu dài(đầu) >= 2 { } khác { trả ẩn }
+    đặt bit = số_chuỗi(cắt_lề(đầu[1]))
+    nếu loại(bit) == "ẩn" { trả ẩn }
+    nếu bit == 16 { } khác { nếu bit == 32 { } khác { trả ẩn } }   # chỉ hai độ rộng GVM biết
+    đặt ra = []
+    đặt i = 1
+    mãi {
+        nếu i >= dài(dòng) { dừng }
+        lặp t trong tách(cắt_lề(dòng[i]), " ") {
+            đặt s = cắt_lề(t)
+            nếu s == "" { } khác {
+                đặt v = số_chuỗi(s)
+                nếu loại(v) == "ẩn" { trả ẩn }
+                gom(ra, v)
+            }
+        }
+        đặt i = i + 1
+    }
+    nếu dài(ra) == 0 { trả ẩn }
+    gom(ra, 0 - bit)                                  # trả lại đuôi −bit đúng khuôn `máy_nạp`
+    trả ra
+}

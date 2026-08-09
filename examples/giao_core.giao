@@ -1,0 +1,64 @@
+# ============================================================
+# TỰ THÂN HOÁ NGÔN NGỮ — TRÌNH DIỄN GIẢI GIAO VIẾT BẰNG GIAO
+# (metacircular evaluator, kiểu eval của Lisp)
+# ------------------------------------------------------------
+# Chương trình GIAO-Core được biểu diễn bằng DANH SÁCH GIAO (đồng hình):
+#     số           → chính nó                    vd  7
+#     biến         → ["biến", "x"]
+#     phép toán    → ["+", a, b]  ["-", a, b]  ["*", a, b]
+#     điều kiện    → ["nếu", c, nhánh_đúng, nhánh_sai]
+#     ràng buộc    → ["để", tên, biểu_thức, thân]      (let)
+#     giao thoa    → ["giao", niềm_tin, thực_tại]      (sáng nếu khớp, tối nếu lệch)
+# Môi trường = danh sách các cặp ["tên", giá_trị].
+# Khi GIAO tự diễn giải được GIAO ⇒ ngôn ngữ đủ sức mô tả chính ngữ nghĩa của nó.
+# ============================================================
+
+# Tra cứu tên trong môi trường (đệ quy)
+hàm tra_cứu(môi_trường, tên) {
+    đặt cặp = đầu(môi_trường)
+    nếu cặp[0] == tên { trả cặp[1] }
+    trả tra_cứu(đuôi(môi_trường), tên)
+}
+
+# Lõi: diễn giải một biểu thức GIAO-Core trong môi trường
+hàm eval(nút, mt) {
+    nếu là_số(nút) { trả nút }                    # số → chính nó
+    đặt thẻ = nút[0]
+    nếu thẻ == "biến" { trả tra_cứu(mt, nút[1]) }
+    nếu thẻ == "+" { trả eval(nút[1], mt) + eval(nút[2], mt) }
+    nếu thẻ == "-" { trả eval(nút[1], mt) - eval(nút[2], mt) }
+    nếu thẻ == "*" { trả eval(nút[1], mt) * eval(nút[2], mt) }
+    nếu thẻ == "nếu" {
+        đặt đk = eval(nút[1], mt)
+        nếu đk { trả eval(nút[2], mt) }
+        trả eval(nút[3], mt)
+    }
+    nếu thẻ == "để" {                              # let: ràng tên rồi diễn giải thân
+        đặt giá = eval(nút[2], mt)
+        đặt mt2 = ghép([[nút[1], giá]], mt)
+        trả eval(nút[3], mt2)
+    }
+    nếu thẻ == "giao" {                            # giao thoa IF ⋈ MF
+        nếu eval(nút[1], mt) == eval(nút[2], mt) { trả sáng }
+        trả tối
+    }
+    trả ẩn                                          # thẻ lạ → vùng tối
+}
+
+# ---------------- CHẠY THỬ ----------------
+đặt mt = [["x", 10], ["y", 5]]
+
+rọi "1) x + y*3  (mong đợi 25):"
+rọi eval(["+", ["biến","x"], ["*", ["biến","y"], 3]], mt)
+
+rọi "2) giao thoa niềm-tin 36 vs thực-tại 37 (lệch → tối):"
+rọi eval(["giao", 36, 37], mt)
+
+rọi "3) giao thoa 37 vs 37 (khớp → sáng):"
+rọi eval(["giao", 37, 37], mt)
+
+rọi "4) để z=7 trong (nếu z thì 100 ngược lại 200)  (mong đợi 100):"
+rọi eval(["để", "z", 7, ["nếu", ["biến","z"], 100, 200]], mt)
+
+rọi "5) lồng nhau: để a=2 trong (a*(x+a))  (mong đợi 24):"
+rọi eval(["để", "a", 2, ["*", ["biến","a"], ["+", ["biến","x"], ["biến","a"]]]], mt)

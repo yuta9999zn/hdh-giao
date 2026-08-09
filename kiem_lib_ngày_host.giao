@@ -1,0 +1,9 @@
+nhập "lib_ngày_host.giao"
+nhập "lib_ngày.giao"
+# kiểm JDN 1970-01-01
+rọi số_ngày(1970, 1, 1)          # 2440588
+đặt h = hôm_nay()
+nếu loại(h) == "ẩn" { rọi "CHUA-CAP" } khác {
+    nếu h[0] >= 2025 { rọi "OK-NGAY-HOP-LE" } khác { rọi "SAI-NAM" }
+    rọi "năm=" + h[0]
+}

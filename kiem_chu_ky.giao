@@ -1,0 +1,85 @@
+# kiem_chu_ky.giao — nghiệm thu CHỮ KÝ KHOÁ-CÔNG-KHAI cho kho (CÒN_THIẾU I1)
+# Điểm mấu chốt: BĂM chống SỬA ĐỔI, nhưng KHÔNG chống KHO GIẢ MẠO — ai dựng được kho khác rồi
+# tự băm lại mọi gói là qua tuốt. Chữ ký vá đúng chỗ ấy: chỉ người giữ KHOÁ RIÊNG mới ký nổi.
+nhập "lib_vỏ.giao"
+
+# Ba khoá + chữ ký dưới đây do `lam_khoa.py` sinh BÊN NGOÀI (khoá riêng không bao giờ vào máy).
+# Bài kiểm dùng chúng như dữ liệu chết, không tự sinh khoá — đúng vai: máy chỉ KIỂM.
+nhập "kiem_chu_ky_dulieu.giao"
+
+đặt M = khởi_máy()
+thêm_người(M, 0, "gốc")  thêm_người(M, 1000, "an")
+đặt khởi = sinh_tt(M, "khởi", 0, 0, "/")
+gọi(M, khởi, GH_TẠO_THƯ, ["/hệ", 755])
+gọi(M, khởi, GH_TẠO_THƯ, ["/nhà", 755])
+gọi(M, khởi, GH_TẠO_THƯ, ["/lệnh", 755])
+gọi(M, khởi, GH_TẠO_THƯ, ["/thùng_rác", 777])
+gọi(M, khởi, GH_TẠO_THƯ, ["/hệ/kho", 755])
+gọi(M, khởi, GH_TẠO_THƯ, ["/hệ/kho/gói", 755])
+gọi(M, khởi, GH_TẠO_THƯ, ["/nhà/an", 755])
+gọi(M, khởi, GH_TẠO_THƯ, ["/nhà/an/lệnh", 755])
+gọi(M, khởi, GH_ĐỔI_CHỦ, ["/nhà/an", 1000])  duyệt(M)
+gọi(M, khởi, GH_ĐỔI_CHỦ, ["/nhà/an/lệnh", 1000])  duyệt(M)
+gọi(M, khởi, GH_TẠO, ["/hệ/đường_lệnh", 644, "/lệnh:/nhà/an/lệnh"])
+gọi(M, khởi, GH_TẠO, ["/hệ/kho/gói/nền", 644, CK_THÂN])
+gọi(M, khởi, GH_TẠO, ["/hệ/kho/mục_lục", 644, CK_MỤC])
+gọi(M, khởi, GH_TẠO, ["/hệ/kho/khoá_công", 644, CK_KHOÁ])
+gọi(M, khởi, GH_TẠO, ["/hệ/kho/mục_lục.ký", 644, CK_KÝ])
+gọi(M, khởi, GH_TẠO, ["/hệ/kho/nguồn", 644, "kho-thử|/hệ/kho/mục_lục|/hệ/kho/mục_lục.ký|/hệ/kho/khoá_công"])
+gọi(M, khởi, GH_TẠO, ["/hệ/gói_đã_cài", 644, ""])
+đặt V = gọi(M, khởi, GH_SINH, ["vỏ", 5])
+đặt_khoá(lấy_khoá(lấy_khoá(M, "cred"), V), "uid", 1000)
+đặt_khoá(lấy_khoá(lấy_khoá(M, "cred"), V), "thư", "/nhà/an")
+
+rọi "══ RSA-2048 KIỂM ĐƯỢC NGAY TRONG GIAO ══"
+đặt ck = kho_kiểm_ký(M, V)
+rọi ck[0]
+rọi "vân tay khoá đã neo: " + ck[1]
+rọi "-- kho đúng chữ ký thì cài được --"
+đặt r = kho_cài(M, V, "nền", tối)
+rọi r[0]
+
+rọi "══ ① SỬA MỤC LỤC → chữ ký gãy ngay ══"
+gọi(M, khởi, GH_GHI, ["/hệ/kho/mục_lục", CK_MỤC_SỬA])
+đặt ck = kho_kiểm_ký(M, V)
+rọi ck[0]
+rọi ck[1]
+rọi "-- và KHÔNG cài được gì từ kho ấy --"
+đặt r = kho_cài(M, V, "nền2", tối)
+rọi r[1]
+rọi "-- nâng cấp cũng chặn --"
+đặt r = kho_nâng_cấp(M, V)
+rọi r[1]
+gọi(M, khởi, GH_GHI, ["/hệ/kho/mục_lục", CK_MỤC])          # trả lại bản thật
+
+rọi "══ ★★ ② KHO GIẢ MẠO: mục lục hợp lệ, băm đúng, KÝ BẰNG KHOÁ KHÁC ══"
+rọi "(đây chính là chỗ BĂM KHÔNG cứu được — kẻ giả mạo tự băm lại hết là xong)"
+gọi(M, khởi, GH_GHI, ["/hệ/kho/mục_lục", CK_MỤC_GIẢ])
+gọi(M, khởi, GH_GHI, ["/hệ/kho/mục_lục.ký", CK_KÝ_GIẢ])
+đặt ck = kho_kiểm_ký(M, V)
+rọi ck[0]
+rọi ck[1]
+rọi "-- băm của gói giả VẪN ĐÚNG, nhưng chữ ký sai nên vẫn KHÔNG cài --"
+đặt r = kho_cài(M, V, "cửa_sau", tối)
+rọi r[1]
+
+rọi "══ ③ ĐỔI LUÔN KHOÁ NEO sang khoá của kẻ giả mạo → lúc ấy mới qua ══"
+rọi "(nghĩa là: an toàn nằm ở chỗ NEO TIN CẬY, không nằm ở chỗ có chữ ký hay không)"
+gọi(M, khởi, GH_GHI, ["/hệ/kho/khoá_công", CK_KHOÁ_GIẢ])
+đặt ck = kho_kiểm_ký(M, V)
+rọi ck[0]
+rọi "vân tay khoá nay là: " + ck[1]
+rọi "-- vân tay ĐỔI ⇒ người soi bằng mắt là thấy ngay mình đang tin kho khác --"
+rọi vân_tay_khoá(CK_N) + " (thật) ≠ " + vân_tay_khoá(CK_N_GIẢ) + " (giả)"
+
+rọi "══ ④ CHỮ KÝ HỎNG ĐỊNH DẠNG → tối, không nổ ══"
+gọi(M, khởi, GH_GHI, ["/hệ/kho/mục_lục.ký", "khong-phai-hex"])
+rọi kho_kiểm_ký(M, V)[0]
+gọi(M, khởi, GH_XOÁ, ["/hệ/kho/mục_lục.ký"])  duyệt(M)
+rọi kho_kiểm_ký(M, V)[1]
+
+rọi "══ ⑤ KHO CỤC BỘ (chưa khai nguồn) — cho qua nhưng NÓI RÕ đang tin theo cái gì ══"
+gọi(M, khởi, GH_XOÁ, ["/hệ/kho/nguồn"])  duyệt(M)
+đặt ck = kho_kiểm_ký(M, V)
+rọi ck[0]
+rọi ck[1]

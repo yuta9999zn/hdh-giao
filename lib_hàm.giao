@@ -1,0 +1,98 @@
+# ============================================================
+# lib_hàm.giao — TỔ-HỢP HÀM (functional combinators kiểu Python functools / Ruby)
+# ------------------------------------------------------------
+# GIỮ CỐT LÕI GIAO: hàm-hạng-nhất + bao-đóng (closure) THẬT (trả `hàm(...) {…}` bắt biến ngoài) ·
+#   ba-trị (phủ_định giữ ẩn → ẩn, KHÔNG bịa) · idiom Việt · TỰ-THÂN.
+# Nạp: nhập "lib_hàm.giao".
+# ============================================================
+
+hàm đồng_nhất(x) { trả x }                        # identity
+hàm hằng_hàm(x) { trả hàm(bỏ) { trả x } }          # const: tạo hàm LUÔN trả x (bỏ đối)
+hàm kết_hợp(f, g) { trả hàm(x) { trả f(g(x)) } }   # compose: (f∘g)(x) = f(g(x))
+hàm lật(f) { trả hàm(a, b) { trả f(b, a) } }       # flip: đổi thứ-tự hai đối
+hàm bán_phần(f, a) { trả hàm(b) { trả f(a, b) } }  # partial: gắn đối ĐẦU
+hàm bán_phần2(f, a, b) { trả hàm(c) { trả f(a, b, c) } }   # gắn HAI đối đầu (hàm 3-đối)
+
+hàm lặp_hàm(f, n, x) {                             # áp f n lần: f(f(...f(x))) ; n ẩn → ẩn (tránh lặp vô tận)
+    nếu loại(n) == "ẩn" { trả ẩn }
+    đặt v = x  đặt i = 0
+    mãi { nếu i >= n { dừng }  đặt v = f(v)  đặt i = i + 1 }
+    trả v
+}
+
+hàm phủ_định(p) {                                  # negate vị-từ: sáng↔tối ; GIỮ ba-trị: p(x) ẩn → ẩn
+    trả hàm(x) {
+        đặt r = p(x)
+        nếu loại(r) == "ẩn" { trả ẩn }
+        nếu r { trả tối }
+        trả sáng
+    }
+}
+
+# ---------------- ĐỢT 2: juxt · until · compose-list ----------------
+hàm áp_hết(fs, x) {                                # juxt: áp MỌI hàm trong fs lên x → [f0(x), f1(x), …]
+    nếu loại(fs) == "ẩn" { trả ẩn }
+    đặt kq = []
+    lặp f trong fs { gom(kq, f(x)) }
+    trả kq
+}
+hàm cho_đến(p, f, x) {                             # iterate f từ x tới khi p(v) sáng (Haskell `until`); p(v) ẩn → ẩn (chặn lặp vô tận)
+    đặt v = x
+    mãi {
+        đặt c = p(v)
+        nếu loại(c) == "ẩn" { trả ẩn }
+        nếu c { dừng }
+        đặt v = f(v)
+    }
+    trả v
+}
+hàm kết_hợp_nhiều(fs) {                            # compose danh-sách hàm: kết_hợp_nhiều([f,g,h]) = x ↦ f(g(h(x)))
+    trả hàm(x) {
+        đặt v = x
+        lặp f trong đảo(fs) { đặt v = f(v) }
+        trả v
+    }
+}
+
+# ---------------- ĐỢT 3: ifelse · coalesce · memoize ----------------
+hàm điều_kiện(p, f, g) {                           # ifelse: x ↦ (p(x) sáng → f(x) | tối → g(x)); p(x) ẩn → ẩn (KHÔNG bịa nhánh)
+    trả hàm(x) {
+        đặt c = p(x)
+        nếu loại(c) == "ẩn" { trả ẩn }
+        nếu c { trả f(x) }
+        trả g(x)
+    }
+}
+hàm dùng_mặc(v, mặc) {                             # coalesce (?? / `or`): v ẩn → mặc, ngược lại v
+    nếu loại(v) == "ẩn" { trả mặc }
+    trả v
+}
+hàm ghi_nhớ(f) {                                   # memoize: cache f(x) theo x (x VÔ-HƯỚNG). Bao-đóng GIỮ `bản` cache (đột-biến object bền).
+    đặt cache = bản()
+    trả hàm(x) {
+        nếu có_khoá(cache, x) { trả lấy_khoá(cache, x) }
+        đặt v = f(x)
+        đặt_khoá(cache, x, v)
+        trả v
+    }
+}
+
+# ---------------- ĐỢT 4: apply-to-pair · fixpoint · first-clear (ba-trị) ----------------
+hàm áp_đôi(f) { trả hàm(c) { trả f(c[0], c[1]) } }   # spread cặp: dùng f 2-đối lên 1 cặp [a,b] (vd với khoá_kéo)
+hàm điểm_bất_động(f, x) {                          # iterate f tới khi f(v)==v (fixed point); f PHẢI hội-tụ (như vòng while)
+    đặt v = x
+    mãi {
+        đặt w = f(v)
+        nếu w == v { dừng }
+        đặt v = w
+    }
+    trả v
+}
+hàm đầu_rõ(fs, x) {                                # thử fs lần-lượt, trả f(x) KHÔNG-ẩn ĐẦU-tiên (alternative/coalesce-hàm); tất cả ẩn → ẩn
+    nếu loại(fs) == "ẩn" { trả ẩn }
+    lặp f trong fs {
+        đặt r = f(x)
+        nếu loại(r) == "ẩn" { } khác { trả r }
+    }
+    trả ẩn
+}

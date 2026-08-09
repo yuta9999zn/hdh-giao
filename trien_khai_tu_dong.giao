@@ -1,0 +1,27 @@
+# trien_khai_tu_dong.giao — TỰ-ĐỘNG dò chip THẬT (qua capability) → cấu-hình triển-khai HĐH-GIAO
+# ------------------------------------------------------------
+# Khác trien_khai.giao (nhập-tay specs): ở đây GIAO TỰ DÒ chip của máy qua năng-lực `phần_cứng()`.
+# CAPABILITY (sandbox bẩm sinh): `phần_cứng` CHỈ tồn tại khi host cấp →
+#     python giao.py trien_khai_tu_dong.giao --cho-phần-cứng
+# Chưa cấp ⇒ `phần_cứng` KHÔNG tồn tại (chương trình không tự dò lén được).
+# BA-TRỊ: thông-số host KHÔNG dò được (vd L2) → khoá trống → cấu-hình tương-ứng 'ẩn' (KHÔNG đoán bừa).
+# ============================================================
+nhập "lib_trienkhai.giao"
+
+đặt chip = phần_cứng()                      # DÒ THẬT chip của máy (host-cấp)
+đặt cfg = triển_khai(chip)
+
+rọi "=== TỰ-DÒ CHIP → KẾ HOẠCH TRIỂN-KHAI HĐH-GIAO ==="
+rọi "Chip (host dò) : " + ("" + lấy_khoá(chip, "tên"))
+rọi "Bus dữ-liệu   : " + ("" + lấy_khoá(chip, "rộng_data")) + "-bit"
+rọi "Luồng logic   : " + ("" + lấy_khoá(chip, "luồng"))
+rọi "RAM           : " + ("" + lấy_khoá(chip, "ram_gb")) + " GB"
+rọi "Xung          : " + ("" + lấy_khoá(chip, "xung_mhz")) + " MHz"
+rọi "--- cấu-hình GVM tối-ưu cho ĐÚNG chip này ---"
+rọi "WORD máy        : " + ("" + lấy_khoá(cfg, "WORD")) + "-bit"
+rọi "Nền chạy        : " + ("" + lấy_khoá(cfg, "nền"))
+rọi "Tác_vụ song-song: " + ("" + lấy_khoá(cfg, "NT_tác_vụ"))
+rọi "Heap GVM        : " + ("" + lấy_khoá(cfg, "heap_Ki_từ")) + " Ki-từ"
+rọi "Lượng-tử lịch   : " + ("" + lấy_khoá(cfg, "lượng_tử")) + " lệnh/lượt"
+rọi "Khối nóng (L2)  : (ẩn nếu host chưa dò được L2) →"
+rọi lấy_khoá(cfg, "khối_nóng_Ki")

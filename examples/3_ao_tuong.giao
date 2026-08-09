@@ -1,0 +1,25 @@
+# ============================================================
+# VÍ DỤ 3: ĐỐM TỐI (ảo tưởng, γ<0) vs ĐỐM SÁNG (tri thức thật, γ>0)
+# Bài toán AN TOÀN AI: một niềm tin có thể "tự tin mà SAI".
+# GIAO đo γ để PHÂN BIỆT tri thức thật với ảo tưởng — thứ logic nhị phân
+# (chỉ True/False) không làm được.
+# ============================================================
+
+vật giá_vàng = 100        # thực tại
+
+# Niềm tin SAI nhưng "chắc nịch": tâm tin là 20 (lệch xa thực tại)
+tâm giá_vàng = 20
+giao ảo = giá_vàng
+rọi "Niềm tin lệch xa thực tại:"
+rọi ảo                    # γ<0  → 'tối' = ẢO TƯỞNG (đốm tối)
+
+# Hiệu chỉnh dần bằng học (calibration) — kéo niềm tin về thực tại
+rọi "Hiệu chỉnh (calibration) bằng học:"
+lặp 8 {
+    học giá_vàng
+    giao kt = giá_vàng
+    rọi kt                # γ tăng dần: tối → sáng, ảo tưởng → tri thức thật
+    khi viên_mãn kt {
+        rọi "   ↑ Đã xoá đốm tối: niềm tin khớp thực tại (γ≈1)"
+    }
+}

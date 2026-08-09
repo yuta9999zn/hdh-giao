@@ -1,0 +1,181 @@
+# ============================================================
+# hdh_full.giao — HĐH-GIAO ĐẦY ĐỦ: nhân hợp-tác + 3 hệ-con HĐH tích-hợp
+# ------------------------------------------------------------
+# Mở rộng examples/hdh.giao (đã chạy gate-level) bằng 3 tầng học-từ-Windows-vượt-bằng-CDFL:
+#   • lib_khonggian — KHÔNG-GIAN-TÊN tài-nguyên (Object Manager) : mọi tài-nguyên gắn ở đường-dẫn.
+#   • lib_baomat    — BẢO-MẬT γ-gated (MIC liên-tục)            : tiến-trình mang trust σ; ghi QUA cổng.
+#   • lib_dichvu    — TẦNG DỊCH-VỤ (SCM)                        : vòng-đời + phụ-thuộc + hồi-phục/cô-lập.
+#   • lib_nhóm      — NHÓM TÀI-NGUYÊN (Job Object/cgroup)       : hạn-mức + kế-toán; cấp QUA cổng quota γ-động.
+# GIỮ CỐT LÕI: ba-trị (sáng/tối/ẩn) · cổng-an-toàn bất-khả-hồi · tiến-trình = closure máy-trạng-thái.
+# Chạy: python giao.py examples/hdh_full.giao
+# ============================================================
+nhập "lib_khonggian.giao"
+nhập "lib_baomat.giao"
+nhập "lib_dichvu.giao"
+nhập "lib_nhóm.giao"
+
+# ───────── TRẠNG THÁI NHÂN ─────────
+đặt KG = tạo_kg()           # không-gian-tên tài-nguyên
+đặt MIỀN = tạo_miền()       # miền bảo-mật γ-gated
+đặt QLDV = tạo_ql()         # quản-lý dịch-vụ
+đặt NHÓM = tạo_nhóm()       # nhóm tài-nguyên (hạn-mức + kế-toán commit)
+đặt K = bản()
+đặt_khoá(K, "bảng", [])
+đặt_khoá(K, "vòng", 0)
+
+hàm in(x) { rọi x  trả ẩn }
+
+# ───────── BOOT: dựng 3 hệ-con ─────────
+hàm khởi_động_hệ() {
+    in("=== HĐH-GIAO ĐẦY ĐỦ: namespace + bảo-mật-γ + dịch-vụ ===")
+    # 1) object namespace
+    gắn(KG, "/thiết_bị/đĩa0", "thiết_bị", "SSD-512")
+    gắn(KG, "/thiết_bị/màn", "thiết_bị", "HDMI")
+    in("[ns] gắn " + nối(liệt_kg(KG, "/thiết_bị"), ", ") + " dưới /thiết_bị")
+    # 2) tài-nguyên bảo-mật ở các MỨC tin-cậy
+    đăng_ký(MIỀN, "nhật_ký_hệ", MỨC_HỆ, "boot ok")      # MỨC HỆ (255)
+    đăng_ký(MIỀN, "cấu_hình", MỨC_VỪA, "v1")            # MỨC VỪA (128)
+    in("[bảo-mật] nhật_ký_hệ@HỆ · cấu_hình@VỪA")
+    # 3) dịch-vụ hệ-thống có phụ-thuộc
+    đăng_ký_dv(QLDV, "ổ_đĩa", [], sáng)
+    đăng_ký_dv(QLDV, "tệp_hệ", ["ổ_đĩa"], sáng)
+    đăng_ký_dv(QLDV, "mạng", [], sáng)
+    khởi_tự_động(QLDV)
+    in("[dịch-vụ] tự-khởi: ổ_đĩa=" + trạng_thái_dv(QLDV, "ổ_đĩa") + " tệp_hệ=" + trạng_thái_dv(QLDV, "tệp_hệ") + " mạng=" + trạng_thái_dv(QLDV, "mạng"))
+    # 4) nhóm tài-nguyên: đặt TRẦN commit cho toàn-hệ (MB)
+    đặt_hạn(NHÓM, "commit", 100)
+    in("[nhóm] trần commit = " + mức_hạn(NHÓM, "commit") + "MB (cấp QUA cổng quota γ-động)")
+}
+
+# ───────── SYSCALL: cấp tài-nguyên QUA cổng QUOTA γ-động ─────────
+# Trần HIỆU-DỤNG = trần · σ/255 ⇒ tác_vụ tin-cậy THẤP bị BÓP quota (Job Object Windows tĩnh KHÔNG làm nổi).
+hàm sys_cấp(tên_ch, σ_chủ, lượng) {
+    đặt qđ = xin_cấp_γ(NHÓM, "commit", lượng, σ_chủ)
+    nếu qđ == sáng {
+        ghi_dùng(NHÓM, tên_ch, "commit", dùng_của(NHÓM, tên_ch, "commit") + lượng)
+        in("  [" + tên_ch + " cấp OK] +" + lượng + "MB (σ=" + σ_chủ + " → trần-dụng " + hạn_hiệu_dụng(NHÓM, "commit", σ_chủ) + "MB; tổng-hệ " + tổng_dùng(NHÓM, "commit") + "MB)")
+    }
+    nếu qđ == tối {
+        in("  [" + tên_ch + " QUOTA CHẶN] xin " + lượng + "MB vượt trần-hiệu-dụng (σ=" + σ_chủ + " → trần " + hạn_hiệu_dụng(NHÓM, "commit", σ_chủ) + "MB, đã dùng " + tổng_dùng(NHÓM, "commit") + "MB) → γ-throttle")
+    }
+    trả qđ
+}
+
+# ───────── SYSCALL: ghi tài-nguyên QUA cổng bảo-mật γ-gated ─────────
+hàm sys_ghi(tên_ch, σ_chủ, ô, giá_trị) {
+    đặt qđ = ghi(MIỀN, σ_chủ, ô, giá_trị)
+    nếu qđ == sáng { in("  [" + tên_ch + " ghi OK] " + ô + " ← " + giá_trị) }
+    nếu qđ == tối { in("  [" + tên_ch + " CHẶN] ghi-vượt-cấp " + ô + " (σ=" + σ_chủ + " < mức ô) → ảo-tưởng-quyền") }
+    trả qđ
+}
+
+# ───────── tiến-trình mang trust σ ─────────
+hàm sinh(tên, σ, bước) {
+    đặt p = bản()
+    đặt_khoá(p, "tên", tên)  đặt_khoá(p, "sống", sáng)  đặt_khoá(p, "bước", bước)
+    đặt_khoá(K, "bảng", ghép(lấy_khoá(K, "bảng"), [p]))
+    gắn(KG, "/tiến_trình/" + tên, "tiến_trình", σ)        # đăng ký vào namespace
+    in("[nhân] sinh " + tên + " (tin-cậy σ=" + σ + ")")
+}
+
+# ───────── BỘ LẬP LỊCH hợp-tác ─────────
+hàm lập_lịch() {
+    mãi {
+        đặt còn = tối
+        lặp p trong lấy_khoá(K, "bảng") {
+            nếu lấy_khoá(p, "sống") {
+                đặt kq = (lấy_khoá(p, "bước"))()
+                nếu kq == "xong" { đặt_khoá(p, "sống", tối)  in("[nhân] " + lấy_khoá(p, "tên") + " kết thúc") }
+                khác { đặt còn = sáng }
+            }
+        }
+        đặt_khoá(K, "vòng", lấy_khoá(K, "vòng") + 1)
+        nếu còn == tối { dừng }
+        nếu lấy_khoá(K, "vòng") > 1000 { dừng }
+    }
+    in("[nhân] DỪNG sau " + lấy_khoá(K, "vòng") + " vòng")
+}
+
+# ───────── TIẾN TRÌNH (closure máy-trạng-thái) ─────────
+# tt_hệ: tiến-trình HỆ (σ=255) — ghi nhật_ký_hệ hợp-lệ
+hàm tt_hệ() {
+    đặt s = bản()  đặt_khoá(s, "i", 0)
+    trả hàm() {
+        đặt i = lấy_khoá(s, "i") + 1  đặt_khoá(s, "i", i)
+        sys_ghi("hệ", MỨC_HỆ, "nhật_ký_hệ", "sự-kiện-" + i)
+        nếu i == 1 { sys_cấp("hệ", MỨC_HỆ, 25) }        # hệ xin 25MB — σ=255 trần đầy-đủ → CẤP
+        nếu i >= 2 { trả "xong" }
+        trả "chạy"
+    }
+}
+# tt_người: NGƯỜI-DÙNG (σ=150) — ghi cấu_hình OK, nhưng ghi nhật_ký_hệ bị CHẶN (no-write-up)
+hàm tt_người() {
+    đặt s = bản()  đặt_khoá(s, "i", 0)
+    trả hàm() {
+        đặt i = lấy_khoá(s, "i") + 1  đặt_khoá(s, "i", i)
+        nếu i == 1 { sys_ghi("người", 150, "cấu_hình", "v2") }       # 150 ≥ 128 → OK
+        nếu i == 2 { sys_ghi("người", 150, "nhật_ký_hệ", "GIẢ-MẠO") } # 150 < 255 → CHẶN
+        nếu i >= 2 { trả "xong" }
+        trả "chạy"
+    }
+}
+# tt_xấu: ban đầu tin-cậy CAO (σ=200) nhưng CƯ-XỬ-XẤU → σ HỌC tụt → TỰ mất quyền ghi
+hàm tt_xấu() {
+    đặt s = bản()  đặt_khoá(s, "i", 0)  đặt_khoá(s, "σ", 200)
+    trả hàm() {
+        đặt i = lấy_khoá(s, "i") + 1  đặt_khoá(s, "i", i)
+        đặt σ = lấy_khoá(s, "σ")
+        sys_ghi("xấu", σ, "cấu_hình", "lần-" + i)                    # 128 ngưỡng
+        đặt_khoá(s, "σ", học_σ(σ, 0))                                 # quan-sát spin/vô-ích → σ tụt
+        gắn(KG, "/tiến_trình/xấu", "tiến_trình", lấy_khoá(s, "σ"))    # cập nhật trust trong ns
+        nếu i >= 3 { in("  [nhân] σ(xấu) còn " + lấy_khoá(s, "σ") + " — bị γ-gated tước quyền")  trả "xong" }
+        trả "chạy"
+    }
+}
+# tt_giám_sát: theo dõi dịch-vụ — 'web' sập nhiều lần → hồi-phục rồi CÔ-LẬP
+hàm tt_giám_sát() {
+    đặt s = bản()  đặt_khoá(s, "i", 0)
+    đăng_ký_dv(QLDV, "web", ["tệp_hệ", "mạng"], tối)
+    khởi_dv(QLDV, "web")
+    trả hàm() {
+        đặt i = lấy_khoá(s, "i") + 1  đặt_khoá(s, "i", i)
+        đặt r = báo_lỗi(QLDV, "web")
+        nếu r == sáng { in("  [giám-sát] web sập → HỒI-PHỤC lần " + số_lỗi(QLDV, "web")) }
+        nếu r == tối { in("  [giám-sát] web quá ngưỡng → CÔ-LẬP (hệ chạy tiếp); ổ_đĩa=" + trạng_thái_dv(QLDV, "ổ_đĩa")) }
+        nếu i >= 3 { trả "xong" }
+        trả "chạy"
+    }
+}
+
+# tt_ngốn: NGỐN tài-nguyên — ban đầu σ=200 nhưng cư-xử-ngốn/spin → σ HỌC tụt → quota γ CO → bị CHẶN
+hàm tt_ngốn() {
+    đặt s = bản()  đặt_khoá(s, "i", 0)  đặt_khoá(s, "σ", 200)
+    trả hàm() {
+        đặt i = lấy_khoá(s, "i") + 1  đặt_khoá(s, "i", i)
+        đặt σ = lấy_khoá(s, "σ")
+        sys_cấp("ngốn", σ, 30)                                       # xin 30MB commit mỗi bước
+        đặt_khoá(s, "σ", học_σ(σ, 0))                                 # quan-sát ngốn/vô-ích → σ tụt
+        gắn(KG, "/tiến_trình/ngốn", "tiến_trình", lấy_khoá(s, "σ"))   # cập nhật trust trong ns
+        nếu i >= 3 { in("  [nhân] σ(ngốn) còn " + lấy_khoá(s, "σ") + " — quota γ co theo tin-cậy")  trả "xong" }
+        trả "chạy"
+    }
+}
+
+# ───────── BOOT ─────────
+khởi_động_hệ()
+in("--- trao quyền cho BỘ LẬP LỊCH ---")
+sinh("hệ", MỨC_HỆ, tt_hệ())
+sinh("người", 150, tt_người())
+sinh("xấu", 200, tt_xấu())
+sinh("giám-sát", MỨC_HỆ, tt_giám_sát())
+sinh("ngốn", 200, tt_ngốn())
+lập_lịch()
+
+# ───────── TRẠNG THÁI CUỐI (truy vấn qua namespace) ─────────
+in("=== TRẠNG THÁI CUỐI ===")
+in("[ns] tiến-trình: " + nối(liệt_kg(KG, "/tiến_trình"), ", "))
+in("[bảo-mật] nhật_ký_hệ = " + đọc(MIỀN, "nhật_ký_hệ") + "  (KHÔNG bị giả-mạo bởi tiến-trình thấp)")
+in("[bảo-mật] cấu_hình = " + đọc(MIỀN, "cấu_hình"))
+in("[dịch-vụ] web = " + trạng_thái_dv(QLDV, "web") + " · tệp_hệ = " + trạng_thái_dv(QLDV, "tệp_hệ"))
+in("[nhóm] commit toàn-hệ = " + tổng_dùng(NHÓM, "commit") + "/" + mức_hạn(NHÓM, "commit") + "MB · ngốn dùng " + dùng_của(NHÓM, "ngốn", "commit") + "MB (bị γ-throttle khi σ tụt; quá_hạn=" + quá_hạn(NHÓM, "commit") + ")")
+in("→ HĐH-GIAO: namespace + bảo-mật-γ + dịch-vụ-tự-hồi-phục + QUOTA-γ-động — học Windows, giữ CDFL.")

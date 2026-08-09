@@ -1,0 +1,9 @@
+# ============================================================
+# kiem_va_ten.giao — CHỐT-REGRESSION cho phát-hiện VA-TÊN module (namespace phẳng)
+# Nhập HAI tệp cùng định-nghĩa 'va_thử' → giao.py phải IN cảnh-báo va-tên ra stderr,
+# và bản NẠP-SAU che bản-trước (va_thử(10) = 12, không 11). KHÔNG vỡ (chạy tiếp).
+# Chạy: PYTHONIOENCODING=utf-8 PYTHONUTF8=1 python giao.py kiem_va_ten.giao
+# ============================================================
+nhập "kiem_va_ten_m1.giao"
+nhập "kiem_va_ten_m2.giao"
+rọi va_thử(10)        # 12  (bản m2 che bản m1)

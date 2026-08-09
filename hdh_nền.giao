@@ -1,0 +1,92 @@
+# ============================================================
+# hdh_nền.giao — PHẦN NỀN của HĐH-GIAO: chỉ BOOT rồi ĐỨNG YÊN chờ lệnh.
+# ------------------------------------------------------------
+# Tách khỏi hdh_giao.giao (bản trình diễn có kịch bản sẵn) để dùng cho VỎ TƯƠNG TÁC:
+#   python chay_hdh_giao.py     → gõ lệnh thật vào hệ điều hành này.
+# Sau khi nạp tệp này, môi trường có sẵn: M (máy), V (vỏ của 'an'), TT_KHỞI (tiến-trình 1).
+# ============================================================
+nhập "lib_trợ_lý.giao"
+nhập "lib_người_dùng.giao"   # sổ người dùng + đăng nhập thật
+nhập "lib_chương_trình.giao"   # chương trình THẬT chạy dưới bộ lập lịch
+
+đặt M = khởi_máy()
+
+hàm dựng_nền(im_lặng) {
+    thêm_người(M, 0, "gốc")
+    thêm_người(M, 1000, "an")
+    đặt khởi = sinh_tt(M, "khởi", 0, 0, "/")
+
+    gọi(M, khởi, GH_TẠO_THƯ, ["/hệ", 755])
+    gọi(M, khởi, GH_TẠO_THƯ, ["/nhà", 755])
+    gọi(M, khởi, GH_TẠO_THƯ, ["/tb", 755])
+    gọi(M, khởi, GH_TẠO_THƯ, ["/tt", 555])
+    gọi(M, khởi, GH_TẠO_THƯ, ["/tạm", 777])
+    gọi(M, khởi, GH_TẠO_THƯ, ["/ống", 777])           # nơi treo ỐNG liên-tiến-trình (FIFO)
+    gọi(M, khởi, GH_TẠO_THƯ, ["/thùng_rác", 777])     # ★ xoá KHẢ HỒI ở tầng gọi-hệ (Linux không có)
+    cài_lệnh(M, khởi)                                       # ~ /bin: mọi lệnh vỏ là một TỆP
+
+    # ~ /etc/passwd (644, ai đọc cũng được) và ~ /etc/shadow (600, CHỈ gốc-quyền đọc)
+    gọi(M, khởi, GH_TẠO, ["/hệ/người_dùng", 644, "gốc:0:/\nan:1000:/nhà/an"])
+    gọi(M, khởi, GH_TẠO, ["/hệ/mật_khẩu", 600, ""])
+    đặt_mk(M, khởi, "gốc", "gốc", 20260729)      # mật khẩu ĐẦU — đổi ngay bằng `đổi_mk`
+    đặt_mk(M, khởi, "an", "an", 19981000)
+    # ~ /etc/group (644) và ~ /etc/sudoers (440, CHỈ gốc-quyền đọc)
+    gọi(M, khởi, GH_TẠO, ["/hệ/nhóm", 644, "văn:100:gốc,an"])
+    gọi(M, khởi, GH_TẠO, ["/hệ/sudo", 440, "an: xem liệt soi xoá"])   # an sudo được 4 lệnh — KHÔNG phải *
+    đồng_bộ_nhóm(M, khởi)                        # chốt tư cách nhóm vào nhân ngay từ boot
+    gọi(M, khởi, GH_TẠO_THƯ, ["/hệ/kho", 755])
+    gọi(M, khởi, GH_TẠO_THƯ, ["/hệ/kho/gói", 755])
+    gọi(M, khởi, GH_TẠO, ["/hệ/kho/gói/đo_đĩa", 644, "# đo_đĩa — xem nhanh chỗ trống\nnói \"── đĩa ──\"\nliệt /tạm | đếm\nnói \"tệp trong /tạm\""])
+    gọi(M, khởi, GH_TẠO, ["/hệ/kho/gói/soi_người", 644, "# soi_người — ai đang có trên máy\nnói \"── người ──\"\nngười\nnói \"── nhóm ──\"\nnhóm"])
+    gọi(M, khởi, GH_TẠO, ["/hệ/kho/gói/gác_cổng", 644, "# gác_cổng — soi quyền trên một đường dẫn\nsoi_người\nnói \"── vì sao ──\"\nvì_sao /hệ/mật_khẩu"])
+    gọi(M, khởi, GH_TẠO, ["/hệ/kho/gói/nhật_ký_gọn", 644, "# nhật_ký_gọn\nnhật_ký 20"])
+    gọi(M, khởi, GH_TẠO, ["/hệ/kho/gói/dọn_nhà", 644, "# dọn_nhà — dọn /tạm\nđo_đĩa\nnói \"(bản demo: chỉ liệt kê, không xoá gì)\"\nliệt /tạm"])
+    gọi(M, khởi, GH_TẠO, ["/hệ/kho/gói/bộ_hệ_thống", 644, "# bộ_hệ_thống — siêu-gói: chạy cả bộ\nđo_đĩa\nnhật_ký_gọn\nsoi_người"])
+    gọi(M, khởi, GH_TẠO, ["/hệ/kho/mục_lục", 644, "đo_đĩa|1.0|Hệ thống|||04ef36443c988278225cb964b60605e9ee0d459d8f8e4a3954d206ed912533cf|xem tình trạng chỗ trống\nsoi_người|1.0|An toàn|||f5c175e0488b93b7356218bec455a6041c1b9bcded382f8dc4d0ec3152a4ad46|liệt kê người dùng và nhóm\ngác_cổng|1.2|An toàn|soi_người||fca9275cd9bca1194ffef4bf2e4ddc45ef43e226a1699de4815c701396c69564|soi quyền: ai đọc được gì\nnhật_ký_gọn|1.0|Hệ thống|||3a92a92894c57d97ef1ba32b55e20a1ec75effed7d15de0d86e1f8fda77c9318|xem 20 dòng audit gần nhất\ndọn_nhà|2.0|Tệp|đo_đĩa|xoá|8a8f1d0be486b6bdfe49e41f9b0bbe0a5fd5bca854ae6ec6836195ee09aea362|dọn thư mục tạm (đòi năng lực xoá)\nbộ_hệ_thống|1.0|Siêu-gói|đo_đĩa,nhật_ký_gọn,soi_người||60afffc77ff0f7a31a503e2f61d55aff1224986b62f91e6f1c7f759e98a77900|SIÊU-GÓI: gom bộ công cụ soi hệ thống (học kali-linux-headless)"])
+    # ★ I1: NEO TIN CẬY — mỗi nguồn khai đúng một khoá công của riêng nó (học `Signed-By:`)
+    gọi(M, khởi, GH_TẠO, ["/hệ/kho/khoá_công", 644, "rsa|65537|89e3bfc46b87bae68bb587b66756698de6ee71fd2ae95b30fde01c42bcf2455eb332ca48aff03774355061e72899500ae7a467bafc0226ebd35fe39ffec9f5f6370df489843be2718e5fde63def2b3bfbf6a41c93682acbefe77e0be28674bde31658c7b2bf2b3c4fe916a40158c986007220355329260eebe7766c2d825dc85100f13c1deaade6c988dce75cb9d75c62609d6365a6a04a5b152ce962f532369923a07b9e0e1045adf8c81120fe7996a8b34182a4d10103c44fde95bab122e727d12b61b81a61bc0ff3fc53ff861e80a1a291ae24d9eb0f1fde0b089ba7b7f42329503c45a32afc66459af9bbbe4a29acac90cbdbf386cb8dd1684af2860d5db"])
+    gọi(M, khởi, GH_TẠO, ["/hệ/kho/mục_lục.ký", 644, "64dd0c5a662be4273237a0ebd1da528bd95027e9294348cf826d77a23e472322982459be268dbdbcbd71d57dd1819f6cbf113183600e6658f257e7b8b4bebaa142710da9a5e085c8754d3c93db1d58edbb6b712aa10bbdef23ba8aebf3c780bea683bba3ec0635efc3d080aaa51a6208924b4bf08fb398ae0b6578d06208eed0ce52914f2ea09fe4527c1b6d14e6fd5937dfe652eafe6d4f6b7694ee0a6b00b4db02acede3860c6bbc55723ac3477071e48b98842d5658e28c372613a80604ecc8b08c2e8184177b35d24d950807d6b038a647eef96a60ae5202e7316b496d2091fafaf50ebde640de54fb009434168eb1dfa0c3e976db4971b4d58ef058ea3a"])
+    gọi(M, khởi, GH_TẠO, ["/hệ/kho/nguồn", 644, "kho-nhà|/hệ/kho/mục_lục|/hệ/kho/mục_lục.ký|/hệ/kho/khoá_công"])
+    gọi(M, khởi, GH_TẠO, ["/hệ/gói_đã_cài", 644, ""])
+    gọi(M, khởi, GH_TẠO, ["/hệ/tên_máy", 644, "giao-01"])
+    gọi(M, khởi, GH_TẠO, ["/hệ/nhật_ký", 644,
+        "nhịp 1  khởi: nhân lên\nnhịp 2  đĩa: /tạm đầy 91%\nnhịp 3  mạng: bình thường\nnhịp 4  đĩa: cảnh báo chỗ trống"])
+
+    gọi(M, khởi, GH_GẮN_TB, ["/tb/màn", 666, "màn_hình"])
+    gọi(M, khởi, GH_GẮN_TB, ["/tb/không", 666, "không"])
+    gọi(M, khởi, GH_GẮN_TB, ["/tb/giờ", 444, "giờ"])
+    gọi(M, khởi, GH_GẮN_TB, ["/tb/ngẫu", 444, "ngẫu"])
+    gọi(M, khởi, GH_GẮN_TB, ["/tb/đĩa0", 600, "đĩa0"])
+    gọi(M, khởi, GH_GẮN_TB, ["/tb/mạng", 444, "mạng"])
+    gọi(M, khởi, GH_GẮN_TB, ["/tb/tim", 444, "tim"])     # soi TRÁI TIM đang đập bằng gì
+
+    gọi(M, khởi, GH_TẠO_THƯ, ["/nhà/an", 700])
+    gọi(M, khởi, GH_TẠO_THƯ, ["/nhà/an/lệnh", 755])          # thư mục lệnh RIÊNG của người dùng
+    gọi(M, khởi, GH_ĐỔI_CHỦ, ["/nhà/an", 1000])
+    duyệt(M)
+    gọi(M, khởi, GH_ĐỔI_CHỦ, ["/nhà/an/lệnh", 1000])         # thư mục lệnh riêng: 'an' làm chủ
+    duyệt(M)
+    gọi(M, khởi, GH_TẠO, ["/tạm/rác1", 666, "tệp tạm 1"])
+    gọi(M, khởi, GH_TẠO, ["/tạm/rác2", 666, "tệp tạm 2"])
+
+    nạp_chương_trình(M)                                     # đăng ký kho chương trình
+    gọi(M, khởi, GH_SINH, ["nhật_ký_hệ", 3])                # DỊCH VỤ NỀN THẬT: ngủ chờ tin (trạng "chặn")
+    sinh_tt(M, "trợ_lý_ai", 2, 0, "/")                      # trợ lý chạy đồng bộ trong GH_NHỜ → bản ghi
+    lắp_trợ_lý(M, kho_mặc_định())
+    nếu có_máy() == sáng {                                  # có năng lực `máy` → nạp CHƯƠNG TRÌNH MÁY
+        đăng_ký_ct_máy(M, "đếm_máy",
+            "hàm đ(n) { nếu n == 0 { trả 0 }  rọi n  trả đ(n - 1) }  rọi đ(8)")
+        đăng_ký_ct_máy(M, "chép_máy",
+            "đặt nội = gọi_hệ(0, \"/hệ/tên_máy\")  gọi_hệ(2, \"/nhà/an/tên_máy_chép\", 644, nội)  rọi 1")
+        đăng_ký_ct_máy(M, "tham_máy", "đặt t = 0  lặp 1000000 { đặt t = t + 1 }  rọi t")
+    }
+
+    nếu im_lặng == sáng { } khác {
+        rọi "[khởi] HĐH-GIAO lên · máy 'giao-01' · trái tim: " + nối(nhịp_tim(), " + ")
+    }
+    trả khởi
+}
+
+đặt TT_KHỞI = dựng_nền(tối)
+đặt V = sinh_tt(M, "vỏ", 5, 1000, "/nhà/an")     # phiên đăng nhập của 'an'
+đặt_khoá(M, "vỏ_hiện", V)                       # nhớ để phục hồi còn biết vỏ nào đang mở

@@ -1,0 +1,133 @@
+# Kiểm lib_thập_phân — số thập phân chính-xác độ-tuỳ-ý (ba-trị, làm-tròn nửa-lên)
+nhập "lib_thập_phân.giao"
+
+rọi "--- phân tích chuỗi ---"
+rọi chuỗi_td(thập_phân("3.14"))          # 3.14
+rọi chuỗi_td(thập_phân("-0.5"))          # -0.5
+rọi chuỗi_td(thập_phân(".5"))            # 0.5
+rọi chuỗi_td(thập_phân("42"))            # 42
+rọi chuỗi_td(thập_phân("3.140"))         # 3.140 (giữ số 0 đuôi = thang 3)
+rọi chuỗi_td(thập_phân("-0"))            # 0
+rọi thập_phân("3.1.4")                   # ẩn (hai chấm)
+rọi thập_phân("abc")                     # ẩn
+rọi thập_phân("")                        # ẩn
+rọi thập_phân("-")                       # ẩn (không chữ số)
+rọi thập_phân("4x")                      # ẩn (ký tự lạ)
+
+rọi "--- cộng/trừ/nhân (CHÍNH XÁC, khác thang) ---"
+rọi chuỗi_td(cộng(thập_phân("0.1"), thập_phân("0.2")))    # 0.3  (float thường ra 0.30000000000000004!)
+rọi chuỗi_td(trừ(thập_phân("1.5"), thập_phân("0.75")))    # 0.75
+rọi chuỗi_td(nhân(thập_phân("1.5"), thập_phân("1.5")))    # 2.25
+rọi chuỗi_td(nhân(thập_phân("0.1"), thập_phân("0.1")))    # 0.01
+
+rọi "--- chia (làm tròn nửa-lên, /0, âm) ---"
+rọi chuỗi_td(chia(thập_phân("1"), thập_phân("3"), 4))     # 0.3333
+rọi chuỗi_td(chia(thập_phân("2"), thập_phân("3"), 2))     # 0.67  (0.666→nửa-lên)
+rọi chuỗi_td(chia(thập_phân("-1"), thập_phân("3"), 2))    # -0.33
+rọi chia(thập_phân("1"), thập_phân("0"), 4)               # ẩn (chia 0)
+rọi chia(thập_phân("1"), thập_phân("3"), 0 - 1)           # ẩn (thang âm)
+
+rọi "--- làm tròn (nửa-lên ra-xa-0, nới thang) ---"
+rọi chuỗi_td(làm_tròn(thập_phân("3.145"), 2))   # 3.15
+rọi chuỗi_td(làm_tròn(thập_phân("2.5"), 0))     # 3
+rọi chuỗi_td(làm_tròn(thập_phân("-2.5"), 0))    # -3
+rọi chuỗi_td(làm_tròn(thập_phân("1.5"), 3))     # 1.500 (nới)
+
+rọi "--- so sánh (theo GIÁ TRỊ: 3.1 == 3.10) ---"
+rọi bằng_td(thập_phân("3.1"), thập_phân("3.10"))    # sáng
+rọi bé_hơn(thập_phân("0.1"), thập_phân("0.2"))      # sáng
+rọi bé_hơn(thập_phân("0.2"), thập_phân("0.1"))      # tối
+rọi so_td(thập_phân("5.00"), thập_phân("5"))        # 0
+
+rọi "--- ĐỘ CHÍNH XÁC LỚN (vượt xa ×10000 của float GIAO) ---"
+rọi chuỗi_td(chia(thập_phân("1"), thập_phân("7"), 20))   # 0.14285714285714285714 (1/7, 20 chữ số)
+rọi chuỗi_td(cộng(thập_phân("12345678901234567890.5"), thập_phân("0.5")))  # 12345678901234567891.0
+
+rọi "--- luỹ thừa + căn (Newton, độ-chính-xác tuỳ-ý) ---"
+rọi chuỗi_td(luỹ_thừa(thập_phân("1.5"), 2))    # 2.25
+rọi chuỗi_td(luỹ_thừa(thập_phân("2"), 10))     # 1024
+rọi chuỗi_td(luỹ_thừa(thập_phân("1.1"), 3))    # 1.331
+rọi chuỗi_td(luỹ_thừa(thập_phân("5"), 0))      # 1
+rọi luỹ_thừa(thập_phân("2"), 0 - 1)            # ẩn (mũ âm)
+rọi chuỗi_td(căn(thập_phân("9"), 0))           # 3 (chính phương)
+rọi chuỗi_td(căn(thập_phân("2.25"), 2))        # 1.50
+rọi chuỗi_td(căn(thập_phân("0"), 4))           # 0
+rọi căn(thập_phân("-1"), 4)                    # ẩn (√ số âm)
+rọi chuỗi_td(căn(thập_phân("1000000"), 2))     # 1000.00
+rọi chuỗi_td(căn(thập_phân("2"), 10))          # 1.4142135624
+rọi chuỗi_td(căn(thập_phân("2"), 30))          # 1.414213562373095048801688724210 (√2, 30 chữ-số)
+
+rọi "--- mũ_e (e^x Taylor, độ-chính-xác tuỳ-ý) ---"
+rọi chuỗi_td(mũ_e(thập_phân("1"), 10))         # 2.7182818285 (e)
+rọi chuỗi_td(mũ_e(thập_phân("0"), 4))          # 1.0000
+rọi chuỗi_td(mũ_e(thập_phân("2"), 6))          # 7.389056 (e²)
+rọi chuỗi_td(mũ_e(thập_phân("-1"), 6))         # 0.367879 (1/e, x âm)
+rọi chuỗi_td(mũ_e(thập_phân("1"), 30))         # 2.718281828459045235360287471353 (e, 30 chữ-số)
+rọi mũ_e(ẩn, 5)                                # ẩn
+rọi mũ_e(thập_phân("1"), 0 - 1)                # ẩn (thang âm)
+
+rọi "--- ln (logarit tự nhiên, atanh + thu-gọn đối-số) ---"
+rọi chuỗi_td(ln(thập_phân("1"), 10))           # 0.0000000000
+rọi chuỗi_td(ln(thập_phân("2"), 10))           # 0.6931471806
+rọi chuỗi_td(ln(thập_phân("10"), 9))           # 2.302585093
+rọi chuỗi_td(ln(thập_phân("0.5"), 10))         # -0.6931471806
+rọi chuỗi_td(ln(thập_phân("2"), 30))           # 0.693147180559945309417232121458 (ln2, 30 chữ-số)
+rọi ln(thập_phân("0"), 5)                      # ẩn (ln 0)
+rọi ln(thập_phân("-1"), 5)                     # ẩn (ln số âm)
+rọi chuỗi_td(mũ_e(ln(thập_phân("5"), 20), 8))  # 5.00000000 (exp∘ln = đồng-nhất)
+
+rọi "--- lượng giác (pi Machin + sin/cos Taylor, thu-gọn miền mod 2π) ---"
+rọi chuỗi_td(pi(30))                           # 3.141592653589793238462643383280 (π, 30 chữ-số, half-up)
+rọi chuỗi_td(sin(thập_phân("1"), 10))          # 0.8414709848
+rọi chuỗi_td(sin(thập_phân("10"), 8))          # -0.54402111 (x>π → thu-gọn miền)
+rọi chuỗi_td(sin(chia(pi(14), [6, 0], 14), 8)) # 0.50000000 (sin π/6)
+rọi chuỗi_td(cos(pi(14), 8))                   # -1.00000000 (cos π)
+rọi sin(ẩn, 5)                                 # ẩn
+rọi cos(thập_phân("1"), 0 - 1)                 # ẩn (thang âm)
+
+rọi "--- luỹ_thừa_thực (a^b = e^(b·ln a)) + lô_ga (log cơ-số bất-kỳ) ---"
+rọi chuỗi_td(luỹ_thừa_thực(thập_phân("2"), thập_phân("0.5"), 10))    # 1.4142135624 (= √2)
+rọi chuỗi_td(luỹ_thừa_thực(thập_phân("8"), chia([1,0],[3,0],20), 8)) # 2.00000000 (8^⅓)
+rọi chuỗi_td(luỹ_thừa_thực(thập_phân("2"), thập_phân("-1"), 8))      # 0.50000000 (2^-1)
+rọi luỹ_thừa_thực(thập_phân("-2"), thập_phân("0.5"), 5)             # ẩn (a≤0)
+rọi chuỗi_td(luỹ_thừa_thực(thập_phân("2"), thập_phân("50"), 20))    # 1125899906842624.00000000000000000000 (2^50 EXACT — guard-độ-lớn, review-vá)
+rọi chuỗi_td(lô_ga(thập_phân("1000"), thập_phân("10"), 6))          # 3.000000 (log₁₀1000)
+rọi chuỗi_td(lô_ga(thập_phân("1024"), thập_phân("2"), 6))           # 10.000000 (log₂1024)
+rọi lô_ga(thập_phân("8"), thập_phân("1"), 5)                        # ẩn (cơ-số 1)
+rọi lô_ga(thập_phân("-1"), thập_phân("2"), 5)                       # ẩn (x≤0)
+
+rọi "--- lượng giác NGƯỢC (arctan thu-gọn nửa-góc, arcsin/arccos) ---"
+rọi chuỗi_td(arctan(thập_phân("1"), 10))                # 0.7853981634 (π/4)
+rọi chuỗi_td(arctan(thập_phân("5"), 10))                # 1.3734007669 (|y|>1 thu-gọn)
+rọi chuỗi_td(arcsin(thập_phân("0.5"), 10))              # 0.5235987756 (π/6)
+rọi chuỗi_td(arcsin(thập_phân("1"), 8))                 # 1.57079633 (π/2, biên)
+rọi chuỗi_td(arccos(thập_phân("0"), 8))                 # 1.57079633 (π/2)
+rọi arcsin(thập_phân("2"), 5)                           # ẩn (|x|>1 ngoài miền)
+rọi arctan(ẩn, 5)                                       # ẩn
+
+rọi "--- hyperbolic (sinh/cosh/tanh qua mũ_e) ---"
+rọi chuỗi_td(sinh_hyp(thập_phân("1"), 10))              # 1.1752011936
+rọi chuỗi_td(cosh_hyp(thập_phân("1"), 10))              # 1.5430806348
+rọi chuỗi_td(tanh_hyp(thập_phân("1"), 10))              # 0.7615941560
+rọi chuỗi_td(sinh_hyp(thập_phân("-1"), 10))             # -1.1752011936 (lẻ)
+rọi chuỗi_td(cosh_hyp(thập_phân("0"), 6))               # 1.000000
+rọi sinh_hyp(ẩn, 5)                                     # ẩn
+
+rọi "--- căn bậc n (Newton tổng-quát) ---"
+rọi chuỗi_td(căn_bậc(thập_phân("8"), 3, 10))      # 2 (2^3=8)
+rọi chuỗi_td(căn_bậc(thập_phân("27"), 3, 6))      # 3
+rọi chuỗi_td(căn_bậc(thập_phân("16"), 4, 6))      # 2
+rọi chuỗi_td(căn_bậc(thập_phân("1000"), 3, 6))    # 10
+rọi chuỗi_td(căn_bậc(thập_phân("2"), 3, 10))      # ∛2
+rọi chuỗi_td(căn_bậc(thập_phân("2"), 2, 10))      # khớp căn(2)
+rọi chuỗi_td(căn_bậc(thập_phân("-8"), 3, 6))      # -2 (n lẻ)
+rọi căn_bậc(thập_phân("-16"), 4, 5)               # ẩn (n chẵn, d<0)
+rọi chuỗi_td(căn_bậc(thập_phân("5"), 1, 3))       # 5 (bậc 1)
+rọi căn_bậc(thập_phân("8"), 0, 5)                 # ẩn (bậc < 1)
+rọi căn_bậc(ẩn, 3, 5)                             # ẩn
+
+rọi "--- lan-truyền ẩn + dấu ---"
+rọi cộng(ẩn, thập_phân("1"))             # ẩn
+rọi chuỗi_td(âm(thập_phân("3.14")))      # -3.14
+rọi chuỗi_td(trị_tuyệt(thập_phân("-9.9")))  # 9.9
+rọi so_td(thập_phân("1"), ẩn)            # ẩn

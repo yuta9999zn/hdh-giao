@@ -1,0 +1,45 @@
+# LẶP x TRONG <ds/chuỗi/bản> trên MÁY GVM — vòng DUYỆT (không đệ quy, mốc 3c)
+# Duyệt cons-list bằng car/cdr; bản → duyệt KHOÁ (qua @__map_khoá); 'dừng' thoát vòng gần nhất.
+
+# --- tổng một danh sách ---
+đặt tổng = 0
+lặp x trong [10, 20, 30, 40, 50] {
+    đặt tổng = tổng + x
+}
+rọi tổng                      # 150
+
+# --- 'dừng' thoát sớm ---
+đặt đếm = 0
+lặp y trong [1, 1, 1, 1, 1, 1, 1, 1] {
+    nếu đếm == 4 { dừng }
+    đặt đếm = đếm + 1
+}
+rọi đếm                       # 4
+
+# --- vòng LỒNG (đếm cặp) ---
+đặt cặp = 0
+lặp i trong [1, 2, 3] {
+    lặp j trong [1, 2] {
+        đặt cặp = cặp + 1
+    }
+}
+rọi cặp                       # 6
+
+# --- duyệt CHUỖI: in từng ký tự (máy bọc mã→chuỗi-1-ký-tự, khớp thông dịch) ---
+lặp ch trong "GIAO" {
+    rọi ch                    # G / I / A / O
+}
+
+# --- duyệt KHOÁ của bản + tra giá trị tại chỗ ---
+đặt đ = bản()
+đặt_khoá(đ, 2, 20)
+đặt_khoá(đ, 3, 30)
+đặt_khoá(đ, 4, 40)
+đặt sk = 0
+đặt sv = 0
+lặp k trong đ {
+    đặt sk = sk + k                 # tổng khoá
+    đặt sv = sv + lấy_khoá(đ, k)    # tổng giá trị
+}
+rọi sk                        # 9   (2+3+4)
+rọi sv                        # 90  (20+30+40)

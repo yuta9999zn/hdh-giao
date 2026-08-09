@@ -1,0 +1,120 @@
+# ============================================================
+# TIM SINH HÀNH-ĐỘNG ỨNG VIÊN → nuôi PLANNER tich_hop
+# Mẫu "LLM đề xuất, planner thẩm định":
+#   • TIM (σ/Φ) TỈA không gian hành động lớn → vài ứng viên hứa hẹn (theo cộng hưởng với MỤC TIÊU).
+#   • NÃO (lookahead trên Ψ học được) KIỂM từng ứng viên → chọn đường tới đích, tránh ngõ cụt.
+# Tim nhanh-nhưng-có-thể-sai (tỉa cả việc lành lẫn bẫy); não chậm-nhưng-chắc (loại bẫy bằng mô phỏng).
+# Chạy với tim_llm dự phòng; cắm Ollama vào là trực giác tỉa thành ngữ nghĩa thật, KHÔNG sửa GIAO.
+# ============================================================
+
+# ---------- Ψ: mô hình chuyển trạng học được ----------
+hàm khớp3(e,s,a,s2){ nếu e[0]==s { nếu e[1]==a { nếu e[2]==s2 { trả sáng } } } trả tối }
+hàm khớp2(e,s,a){ nếu e[0]==s { nếu e[1]==a { trả sáng } } trả tối }
+hàm có(m,s,a,s2){ nếu dài(m)==0 { trả tối } nếu khớp3(đầu(m),s,a,s2){ trả sáng } trả có(đuôi(m),s,a,s2) }
+hàm tăng(m,s,a,s2){
+    nếu dài(m)==0 { trả [] }
+    đặt e=đầu(m)
+    nếu khớp3(e,s,a,s2){ trả ghép([[s,a,s2,e[3]+1]],đuôi(m)) }
+    trả ghép([e],tăng(đuôi(m),s,a,s2))
+}
+hàm quan_sát(m,s,a,s2){ nếu có(m,s,a,s2){ trả tăng(m,s,a,s2) } trả ghép(m,[[s,a,s2,1]]) }
+hàm dự_quét(m,s,a,ts,tđ){
+    nếu dài(m)==0 { trả ts }
+    đặt e=đầu(m)
+    nếu khớp2(e,s,a){ nếu e[3]>tđ { trả dự_quét(đuôi(m),s,a,e[2],e[3]) } }
+    trả dự_quét(đuôi(m),s,a,ts,tđ)
+}
+hàm dự_đoán(m,s,a){ trả dự_quét(m,s,a,0-1,0-1) }
+
+# ---------- PLANNER: lookahead trên Ψ (nhận hđs = danh sách ứng viên) ----------
+hàm khoảng(s,mt){ trả tuyệt(s-mt) }
+hàm tv_Ψ(m,s,mt,hđs,h){
+    nếu s==mt { trả 0 }
+    nếu h==0 { trả khoảng(s,mt) }
+    trả tv_quét_Ψ(m,s,mt,hđs,hđs,h,999999)
+}
+hàm tv_quét_Ψ(m,s,mt,còn,tất,h,tốt){
+    nếu dài(còn)==0 { trả tốt }
+    đặt s2=dự_đoán(m,s,đầu(còn))
+    nếu s2==0-1 { trả tv_quét_Ψ(m,s,mt,đuôi(còn),tất,h,tốt) }
+    đặt v=tv_Ψ(m,s2,mt,tất,h-1)
+    nếu v<tốt { trả tv_quét_Ψ(m,s,mt,đuôi(còn),tất,h,v) }
+    trả tv_quét_Ψ(m,s,mt,đuôi(còn),tất,h,tốt)
+}
+hàm chọn_Ψ(m,s,mt,còn,tất,h,ta,tv){
+    nếu dài(còn)==0 { trả ta }
+    đặt a=đầu(còn)
+    đặt s2=dự_đoán(m,s,a)
+    nếu s2==0-1 { trả chọn_Ψ(m,s,mt,đuôi(còn),tất,h,ta,tv) }
+    đặt v=tv_Ψ(m,s2,mt,tất,h-1)*10000+khoảng(s2,mt)
+    nếu v<tv { trả chọn_Ψ(m,s,mt,đuôi(còn),tất,h,a,v) }
+    trả chọn_Ψ(m,s,mt,đuôi(còn),tất,h,ta,tv)
+}
+hàm đi(m,s,mt,hđs,h,n){
+    nếu s==mt { rọi "  ✓ tới đích " + mt  trả s }
+    nếu n==0 { rọi "  hết bước"  trả s }
+    đặt a=chọn_Ψ(m,s,mt,hđs,hđs,h,0-1,999999)
+    nếu a==0-1 { rọi "  ⛔ trong ứng viên tim đề xuất, Ψ không có đường từ " + s + " → DỪNG"  trả s }
+    đặt s2=dự_đoán(m,s,a)
+    rọi "  trạng thái " + s + " --[hđ " + a + "]--> " + s2
+    trả đi(m,s2,mt,hđs,h,n-1)
+}
+
+# ---------- TIM: tỉa hành-động ứng viên theo cộng hưởng với MỤC TIÊU ----------
+# hành động = [id, mô_tả]. Tim chấm γ(mô_tả ↔ ngữ cảnh mục tiêu), lấy top-k.
+hàm chấm_ứng(acts, gv) {
+    trả bản_đồ(hàm(a){ trả [cộng_hưởng(nhúng(a[1]), gv), a[0], a[1]] }, acts)
+}
+hàm chèn(x, ds) {                      # chèn vào danh sách giảm dần theo [0]
+    nếu dài(ds)==0 { trả [x] }
+    nếu x[0] >= đầu(ds)[0] { trả ghép([x], ds) }
+    trả ghép([đầu(ds)], chèn(x, đuôi(ds)))
+}
+hàm sắp_giảm(ds){ nếu dài(ds)==0 { trả [] } trả chèn(đầu(ds), sắp_giảm(đuôi(ds))) }
+hàm ý_tim(acts, gctx, k) {             # → top-k record [γ, id, mô_tả]
+    trả lấy_n(sắp_giảm(chấm_ứng(acts, nhúng(gctx))), k)
+}
+hàm id_của(recs){ trả bản_đồ(hàm(r){ trả r[1] }, recs) }
+
+# ===================== CHẠY =====================
+# HỌC Ψ (như tich_hop): advance 0→1→2→3 (cụt ở 3); jump 0→2→4 (tới đích); lunge 0→3 (bẫy);
+#                        redo lùi về 0; rest đứng yên. Đích = 4.
+đặt m = []
+đặt m = quan_sát(m, 0,0,1)
+đặt m = quan_sát(m, 1,0,2)
+đặt m = quan_sát(m, 2,0,3)
+đặt m = quan_sát(m, 0,1,2)
+đặt m = quan_sát(m, 2,1,4)
+đặt m = quan_sát(m, 0,2,3)
+đặt m = quan_sát(m, 2,3,0)
+đặt m = quan_sát(m, 0,4,0)
+
+# Không gian hành động LỚN có mô tả ngôn ngữ (tim sẽ tỉa)
+đặt acts = [
+    [0, "tiến một bước cẩn thận"],
+    [1, "nhảy vọt hai bước"],
+    [2, "lao thẳng tới đích"],
+    [3, "xoá sạch làm lại từ đầu"],
+    [4, "nghỉ giải lao thư giãn"],
+    [5, "thử ngẫu hứng linh tinh"]
+]
+đặt mục_tiêu = "tiến nhanh tới đích an toàn theo từng bước hoặc nhảy vọt"
+rọi "Đích = 4. Mục tiêu (văn): \"" + mục_tiêu + "\""
+rọi "Không gian hành động: 6 việc. nhịp tim " + nhịp_tim()
+rọi ""
+
+rọi "♥ TIM gợi ý (giọng LLM): " + tim("Mục tiêu: " + mục_tiêu + ". Nên làm gì? một câu:")
+rọi ""
+
+đặt ứng = ý_tim(acts, mục_tiêu, 3)     # tim TỈA 6 → 3 ứng viên hứa hẹn nhất
+rọi "♥ TIM TỈA 6 → 3 ứng viên (theo cộng hưởng σ/Φ với mục tiêu):"
+mỗi(hàm(r){ rọi "  γ=" + nguyên(r[0]*1000)/1000 + "  [hđ " + r[1] + "] " + r[2] }, ứng)
+đặt hđs = id_của(ứng)
+rọi "  (đã tỉa bỏ: xoá-làm-lại, nghỉ, ngẫu-hứng — lạc mục tiêu)"
+rọi ""
+
+rọi "♥ NÃO lookahead trên Ψ, CHỈ xét ứng viên tim đưa (h=4):"
+đặt kq = đi(m, 0, 4, hđs, 4, 8)
+rọi "  → trong {tiến, nhảy, lao}: não loại 'lao→3' (Ψ thấy 3 là ngõ cụt), chọn 'nhảy' 0→2→4."
+rọi ""
+rọi "→ TIM tỉa rộng bằng trực giác σ/Φ; NÃO kiểm sâu bằng mô hình tự học Ψ. Hai cơ quan, một quyết định."

@@ -1,0 +1,9 @@
+# Danh sách GIAO được BIÊN DỊCH thành cons-cell trên HEAP của máy GVM
+# rồi đầu/đuôi đọc heap — danh sách chạy THẲNG trên máy trit/γ (nền NAND),
+# không qua trình thông dịch Python. Bước dời GIAO sang neo vào MÁY.
+
+đặt l = [10, 20, 30]
+
+rọi đầu(l)                      # 10
+rọi đầu(đuôi(l))                # 20
+rọi đầu(đuôi(đuôi(l)))          # 30

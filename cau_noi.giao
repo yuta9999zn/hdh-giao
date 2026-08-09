@@ -1,0 +1,31 @@
+# ============================================================
+# CẦU NỐI CDFL — lõi SUY LUẬN viết bằng CHÍNH GIAO
+# (được giao_cau_noi.py nạp; Python chỉ là vỏ JSON/I-O, ngữ nghĩa nằm ở đây)
+# ------------------------------------------------------------
+# Cung cấp cho HOST (dự án bất kỳ ngôn ngữ nào) một "lương tâm tính toán":
+#   • cộng_hưởng γ  : niềm tin của ta khớp thực tại host tới đâu
+#   • cổng phê duyệt: CHẶN việc BẤT KHẢ HỒI khi cộng hưởng chưa đủ
+# Quyết định là BA-TRỊ (sáng=cho phép / ẩn=cân nhắc / tối=chặn) — không nhị phân.
+# ============================================================
+
+# --- CỔNG PHÊ DUYỆT: hợp đồng an toàn cốt lõi ---
+# γ            : cộng hưởng của hành động (host đo qua cộng_hưởng(σ_dự_đoán, ρ_thực))
+# bất_khả_hồi  : sáng nếu hành động KHÔNG thể hoàn tác (xoá đĩa, gửi tiền, deploy...)
+# ngưỡng       : mức cộng hưởng tối thiểu để dám làm
+hàm phê_duyệt(γ, bất_khả_hồi, ngưỡng) {
+    nếu γ >= ngưỡng { trả sáng }          # đủ cộng hưởng → CHO PHÉP
+    nếu bất_khả_hồi { trả tối }           # chưa đủ tin + không hồi được → CHẶN
+    trả ẩn                                # chưa đủ tin nhưng hồi được → CÂN NHẮC (thận trọng)
+}
+
+# --- XẾP HẠNG hành động theo OR thật (mở rộng cộng hưởng lớn nhất) ---
+# hành_động = [tên, σ_dự_đoán, ρ_kỳ_vọng]; chọn cái γ cao nhất (đã có 'chọn' ở chuẩn.giao)
+hàm tốt_nhất(hành_động) { trả chọn(hành_động) }
+
+# --- ĐÁNH GIÁ một niềm tin so với thực tại: trả thẻ trạng thái ---
+# 2 = đốm tối (γ<0, ảo tưởng — phải soi lại)  ·  1 = OR thật (γ>0)  ·  0 = ẩn (chưa soi)
+hàm trạng_thái(σ, ρ) {
+    nếu loại(σ) == "ẩn" { trả 0 }
+    nếu cộng_hưởng(σ, ρ) < 0 { trả 2 }
+    trả 1
+}

@@ -1,0 +1,83 @@
+# ============================================================
+# lib_nhóm.giao — NHÓM TÀI-NGUYÊN (Job Object / cgroup) cho HĐH-GIAO
+# ------------------------------------------------------------
+# HỌC TỪ WINDOWS (đo Win11 thật 2026-06-19): Job Objects = nhóm tiến-trình + hạn-mức;
+#   commit-charge 36.7GB (=RAM 15.6GB + pagefile) overcommit; per-process working-set/handle (1.1M handle).
+# VƯỢT bằng CDFL: (1) hạn-mức γ-ĐỘNG — tin-cậy σ thấp ⇒ quota CO LẠI (Job Objects Windows tĩnh KHÔNG làm nổi);
+#   (2) ba-trị — CHƯA đặt-hạn → 'ẩn' (KHÔNG bịa "vô-hạn"/"0"); chính-sách phải RÕ trước khi cấp.
+# Nhóm = 'bản' { "hạn": {loại: trần}, "kế": {tid: {loại: lượng}} }. Nạp: nhập "lib_nhóm.giao".
+# ============================================================
+
+hàm tạo_nhóm() {                          # nhóm RỖNG: bảng-hạn + bảng-kế-toán
+    đặt g = bản()
+    đặt_khoá(g, "hạn", bản())             # loại tài-nguyên → mức trần
+    đặt_khoá(g, "kế", bản())              # tid → bản{loại: lượng dùng}
+    trả g
+}
+hàm đặt_hạn(g, loại_tn, mức) {            # đặt TRẦN cho loại (vd "commit","handle","cpu"); mutate, trả g
+    nếu loại(g) == "ẩn" { trả ẩn }
+    đặt_khoá(lấy_khoá(g, "hạn"), loại_tn, mức)
+    trả g
+}
+hàm mức_hạn(g, loại_tn) {                 # trần đã đặt; CHƯA đặt → ẩn (ba-trị: KHÔNG biết giới-hạn)
+    nếu loại(g) == "ẩn" { trả ẩn }
+    đặt h = lấy_khoá(g, "hạn")
+    nếu có_khoá(h, loại_tn) { trả lấy_khoá(h, loại_tn) }
+    trả ẩn
+}
+hàm ghi_dùng(g, tid, loại_tn, lượng) {    # GHI mức dùng TUYỆT-ĐỐI của tid cho loại (cập-nhật working-set); mutate
+    nếu loại(g) == "ẩn" { trả ẩn }
+    đặt kế = lấy_khoá(g, "kế")
+    nếu có_khoá(kế, tid) { } khác { đặt_khoá(kế, tid, bản()) }
+    đặt_khoá(lấy_khoá(kế, tid), loại_tn, lượng)
+    trả g
+}
+hàm dùng_của(g, tid, loại_tn) {           # mức dùng của 1 tid; chưa ghi → 0 ; g ẩn → ẩn
+    nếu loại(g) == "ẩn" { trả ẩn }
+    đặt kế = lấy_khoá(g, "kế")
+    nếu có_khoá(kế, tid) {
+        đặt u = lấy_khoá(kế, tid)
+        nếu có_khoá(u, loại_tn) { trả lấy_khoá(u, loại_tn) }
+    }
+    trả 0
+}
+hàm tổng_dùng(g, loại_tn) {               # TỔNG dùng của MỌI tid cho loại (commit-charge nhóm)
+    nếu loại(g) == "ẩn" { trả ẩn }
+    đặt kế = lấy_khoá(g, "kế")  đặt s = 0
+    lặp tid trong kế {
+        đặt u = lấy_khoá(kế, tid)
+        nếu có_khoá(u, loại_tn) { đặt s = s + lấy_khoá(u, loại_tn) }
+    }
+    trả s
+}
+hàm còn(g, loại_tn) {                      # quota CÒN = trần − tổng_dùng; CHƯA đặt-hạn → ẩn
+    đặt m = mức_hạn(g, loại_tn)
+    nếu loại(m) == "ẩn" { trả ẩn }
+    trả m - tổng_dùng(g, loại_tn)
+}
+hàm quá_hạn(g, loại_tn) {                  # tổng > trần? sáng=VƯỢT · tối=trong-hạn · ẩn=chưa-đặt-hạn
+    đặt m = mức_hạn(g, loại_tn)
+    nếu loại(m) == "ẩn" { trả ẩn }
+    nếu tổng_dùng(g, loại_tn) > m { trả sáng }
+    trả tối
+}
+hàm xin_cấp(g, loại_tn, lượng) {           # cấp THÊM `lượng` được không? sáng=cho · tối=vượt-trần · ẩn=chưa-đặt-hạn (KHÔNG tự ghi — caller ghi nếu sáng)
+    đặt m = mức_hạn(g, loại_tn)
+    nếu loại(m) == "ẩn" { trả ẩn }
+    nếu tổng_dùng(g, loại_tn) + lượng <= m { trả sáng }
+    trả tối
+}
+
+# ---------------- γ-ĐỘNG: hạn-mức CO theo tin-cậy σ (0..255, như lib_baomat/scheduler) ----------------
+hàm hạn_hiệu_dụng(g, loại_tn, σ) {         # trần HIỆU-DỤNG = trần · σ/255 ; tác_vụ σ thấp ⇒ quota co lại
+    đặt m = mức_hạn(g, loại_tn)
+    nếu loại(m) == "ẩn" { trả ẩn }
+    nếu loại(σ) == "ẩn" { trả ẩn }
+    trả m * σ // 255
+}
+hàm xin_cấp_γ(g, loại_tn, lượng, σ) {      # cấp theo trần HIỆU-DỤNG (σ-scaled); chưa-đặt-hạn / σ ẩn → ẩn
+    đặt me = hạn_hiệu_dụng(g, loại_tn, σ)
+    nếu loại(me) == "ẩn" { trả ẩn }
+    nếu tổng_dùng(g, loại_tn) + lượng <= me { trả sáng }
+    trả tối
+}

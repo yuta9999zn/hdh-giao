@@ -1,0 +1,113 @@
+# ============================================================
+# lib_định_dạng.giao — ĐỊNH-DẠNG CHUỖI nâng-cao (printf/format kiểu Python `str.format`/`%`)
+# ------------------------------------------------------------
+# Bù khoảng-trống "string-format": căn-lề + độ-rộng + đệm + nhóm-phẩy + mini-printf `{:spec}`.
+# THUẦN-LIB trên lib_chuoi (KHÔNG sửa interpreter). GIỮ ba-trị: phần-tử 'ẩn' → render "ẩn".
+# Nạp: nhập "lib_định_dạng.giao".
+#
+# định_dạng(mẫu, ds): thay các ô `{}`/`{:spec}` lần-lượt bằng ds[0], ds[1]… ; `{{`/`}}` = literal.
+#   spec:  >N (căn phải, rộng N) · <N (căn trái) · ^N (căn giữa) · 0N (số, đệm '0') · , (nhóm-phẩy)
+# ============================================================
+nhập "lib_chuoi.giao"     # lặp_lại · chuỗi_số · lát_chuỗi · số_chuỗi
+
+hàm _ra(x) {                              # bất-kỳ → chuỗi (số→render GIAO; chuỗi giữ nguyên; ẩn→"ẩn")
+    nếu loại(x) == "chuỗi" { trả x }
+    nếu loại(x) == "ẩn" { trả "ẩn" }      # TƯỜNG-MINH: tránh bẫy ""+ẩn → ẩn (nuốt cả chuỗi)
+    trả "" + x
+}
+
+# ---------------- căn-lề / đệm ----------------
+hàm đệm_ký(s, rộng, ký, bên_phải) {       # đệm `s` tới `rộng` bằng `ký`; bên_phải=sáng → đệm SAU (căn trái)
+    nếu loại(s) == "ẩn" { trả ẩn }
+    nếu loại(rộng) == "ẩn" { trả ẩn }
+    đặt thiếu = rộng - dài(s)
+    nếu thiếu <= 0 { trả s }
+    đặt pad = lặp_lại(ký, thiếu)
+    nếu bên_phải { trả s + pad }
+    trả pad + s
+}
+hàm căn_phải(s, rộng) { trả đệm_ký(_ra(s), rộng, " ", tối) }    # căn PHẢI (đệm khoảng-trắng bên trái)
+hàm căn_trái(s, rộng) { trả đệm_ký(_ra(s), rộng, " ", sáng) }   # căn TRÁI (đệm bên phải)
+hàm căn_giữa(s, rộng) {
+    đặt t = _ra(s)
+    đặt thiếu = rộng - dài(t)
+    nếu thiếu <= 0 { trả t }
+    đặt trái = thiếu // 2
+    trả lặp_lại(" ", trái) + t + lặp_lại(" ", thiếu - trái)
+}
+
+# ---------------- số: đệm-0 + nhóm-phẩy ----------------
+hàm số_đệm0(n, rộng) {                     # số nguyên → chuỗi đệm '0' tới `rộng` (dấu '-' tính vào rộng)
+    nếu loại(n) == "ẩn" { trả ẩn }
+    nếu loại(rộng) == "ẩn" { trả ẩn }
+    nếu n < 0 { trả "-" + đệm_ký(chuỗi_số(0 - n), rộng - 1, "0", tối) }
+    trả đệm_ký(chuỗi_số(n), rộng, "0", tối)
+}
+hàm nhóm_phẩy(n) {                         # 1234567 → "1,234,567" (số nguyên; âm giữ dấu)
+    nếu loại(n) == "ẩn" { trả ẩn }
+    đặt âm = tối  đặt m = n
+    nếu n < 0 { đặt âm = sáng  đặt m = 0 - n }
+    đặt d = chuỗi_số(m)
+    đặt kq = ""  đặt đếm = 0  đặt i = dài(d) - 1
+    mãi {
+        nếu i < 0 { dừng }
+        đặt kq = d[i] + kq
+        đặt đếm = đếm + 1
+        nếu đếm == 3 { nếu i > 0 { đặt kq = "," + kq }  đặt đếm = 0 }
+        đặt i = i - 1
+    }
+    nếu âm { trả "-" + kq }
+    trả kq
+}
+
+# ---------------- áp spec lên 1 giá-trị ----------------
+hàm _áp_spec(val, spec) {
+    nếu loại(val) == "ẩn" { trả "ẩn" }            # ẩn → "ẩn" (spec số sẽ vô-nghĩa; giữ ba-trị, không crash)
+    nếu spec == "" { trả _ra(val) }
+    nếu spec == "," { trả nhóm_phẩy(val) }
+    đặt c0 = spec[0]
+    đặt phần = lát_chuỗi(spec, 1, dài(spec))      # phần sau ký-tự đầu (thường là độ-rộng)
+    nếu c0 == ">" { trả căn_phải(val, số_chuỗi(phần)) }
+    nếu c0 == "<" { trả căn_trái(val, số_chuỗi(phần)) }
+    nếu c0 == "^" { trả căn_giữa(val, số_chuỗi(phần)) }
+    nếu c0 == "0" { trả số_đệm0(val, số_chuỗi(spec)) }   # "05" → rộng 5 (giữ cả số '0' đầu)
+    trả _ra(val)                                  # spec lạ → render thường
+}
+
+# ---------------- mini-printf: định_dạng(mẫu, ds) ----------------
+hàm định_dạng(mẫu, ds) {
+    nếu loại(mẫu) == "ẩn" { trả ẩn }               # mẫu ẩn → ẩn (không crash ở `dài`)
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    đặt kq = ""  đặt i = 0  đặt ai = 0  đặt n = dài(mẫu)
+    mãi {
+        nếu i >= n { dừng }
+        đặt c = mẫu[i]
+        nếu c == "{" {
+            đặt đôi = tối
+            nếu i + 1 < n { nếu mẫu[i + 1] == "{" { đặt đôi = sáng } }
+            nếu đôi { đặt kq = kq + "{"  đặt i = i + 2 }
+            khác {
+                đặt j = i + 1  đặt nội = ""              # quét nội-dung ô tới '}'
+                mãi {
+                    nếu j >= n { dừng }
+                    nếu mẫu[j] == "}" { dừng }
+                    đặt nội = nội + mẫu[j]  đặt j = j + 1
+                }
+                đặt spec = ""                            # ":spec" → spec (sau dấu hai-chấm)
+                nếu dài(nội) > 0 { nếu nội[0] == ":" { đặt spec = lát_chuỗi(nội, 1, dài(nội)) } }
+                đặt val = ẩn
+                nếu ai < dài(ds) { đặt val = ds[ai] }    # thiếu đối → 'ẩn' (ba-trị, không crash)
+                đặt kq = kq + _áp_spec(val, spec)
+                đặt ai = ai + 1
+                đặt i = j + 1                            # qua '}' (thiếu '}' → i=n → dừng êm)
+            }
+        } khác {
+            nếu c == "}" {
+                đặt đôi = tối
+                nếu i + 1 < n { nếu mẫu[i + 1] == "}" { đặt đôi = sáng } }
+                nếu đôi { đặt kq = kq + "}"  đặt i = i + 2 } khác { đặt kq = kq + "}"  đặt i = i + 1 }
+            } khác { đặt kq = kq + c  đặt i = i + 1 }
+        }
+    }
+    trả kq
+}

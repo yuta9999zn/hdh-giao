@@ -1,0 +1,45 @@
+# HĐH-GIAO — CÔ LẬP FAULT TIẾN TRÌNH bằng THỬ/BẮT (preemptive γ-scheduler).
+# ----------------------------------------------------------------------------------------
+# Tiến trình có NGĂN XẾP + ngăn-xếp-HANDLER RIÊNG (cô lập bộ nhớ). Khi một tiến trình LỖI
+# (NÉM chưa bắt — vd chỉ mục ngoài phạm vi):
+#   • nếu nó TỰ bọc thử/bắt → phục hồi NỘI BỘ, chạy tiếp;
+#   • nếu KHÔNG → lỗi lan tới NHÂN (supervisor) → nhân CÔ LẬP (giết) tiến trình đó,
+#     các tiến trình KHÁC KHÔNG hề hấn (một tiến trình sập KHÔNG kéo sập cả hệ).
+
+hàm khoẻ() {                 # tt#0 — KHOẺ MẠNH: không bao giờ lỗi
+    đặt i = 0
+    mãi {
+        đặt i = i + 1
+        xuất(i)
+    }
+}
+
+hàm tự_chữa() {              # tt#1 — TỰ CHỮA: lỗi MỖI lượt nhưng thử/bắt phục hồi → KHÔNG bao giờ sập
+    đặt l = [7]
+    đặt i = 0
+    mãi {
+        đặt i = i + 1
+        thử {
+            đặt _ = l[i + 3]   # i+3 ≥ 4 > dài(l)=1 → LUÔN ngoài phạm vi → NÉM
+            xuất(i)            # (không tới)
+        } bắt (e) {
+            xuất(900)          # BẮT được → phục hồi (in 900) mỗi lượt, vẫn SỐNG
+        }
+    }
+}
+
+hàm hỏng() {                 # tt#2 — LỖI KHÔNG BẮT: NÉM lan tới nhân → bị CÔ LẬP (giết)
+    đặt l = [1, 2]
+    đặt i = 0
+    mãi {
+        đặt i = i + 1
+        xuất(i)
+        đặt _ = l[i + 5]       # i+5 ≥ 6 > dài(l)=2 → ngoài phạm vi NGAY lượt đầu, KHÔNG thử/bắt
+    }
+}
+
+# ── init: đăng ký rồi trao quyền cho γ-scheduler (supervisor cô lập fault) ──
+tác_vụ(khoẻ)                 # tt#0
+tác_vụ(tự_chữa)             # tt#1
+tác_vụ(hỏng)                # tt#2  ← sẽ NÉM lỗi không bắt → bị cô lập
+lịch_học(40)                # lượng tử 40 lệnh (đủ cho chu kỳ thử/bắt phục hồi của tt#1 mỗi lượt)

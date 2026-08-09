@@ -1,0 +1,11 @@
+tôi
+liệt /
+xem /hệ/tên_máy
+nói "ghi chú thử" > /nhà/an/note && xem /nhà/an/note
+xem /hệ/nhật_ký | tìm đĩa | đếm
+nhờ xem trong nhà tôi có tệp gì
+nhờ dọn rác thư mục tạm cho gọn
+xoá /tạm/rác2
+duyệt
+liệt /tạm
+thoát

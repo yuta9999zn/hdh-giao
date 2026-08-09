@@ -1,0 +1,9 @@
+tôi
+xem /nhà/an/nhật_ký_riêng
+chào_lại
+tt
+xem /nhà/an/dài_hơi
+nhịp 20
+xem /nhà/an/dài_hơi
+nhật_ký 4
+thoát

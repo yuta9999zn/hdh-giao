@@ -1,0 +1,88 @@
+# ============================================================
+# lib_lịch.giao — BỘ LẬP-LỊCH ưu-tiên + IPC (hộp-thư) ở TẦNG GIAO (Nhánh II, mục 2.B)
+# ------------------------------------------------------------
+# Lập-lịch PROGRAMMABLE cấp-ngôn-ngữ (bổ-trợ cho γ-scheduler gate-level ở silicon):
+#   • Hàng SẴN-SÀNG = đống ưu-tiên (lib_đống đẩy_khoá): ưu_tiên NHỎ = chạy TRƯỚC (như nice Unix).
+#   • IPC = hộp-thư FIFO mỗi tiến-trình (gửi/nhận thông-điệp giữa tiến-trình).
+# GIỮ CỐT LÕI GIAO: ba-trị (chọn_kế/nhận khi RỖNG → 'ẩn' = không-có, KHÔNG bịa) · tự-thân ·
+#   trạng-thái 'lịch' = bản mutable (đặt_khoá), hàng/đống/hộp bên trong là list hàm-thuần.
+# Nạp: nhập "lib_lịch.giao".
+# ============================================================
+nhập "lib_đống.giao"     # đẩy_khoá · lấy_nhỏ_nhất · đỉnh_tải · đống_rỗng · rỗng_đống
+nhập "lib_json.giao"     # thành_json/phân_tích_json — cho PERSISTENCE (chụp/phục_hồi)
+
+# ---------------- hệ lập-lịch ----------------
+hàm tạo_lịch() {
+    đặt l = bản()
+    đặt_khoá(l, "sẵn", đống_rỗng())       # đống ưu-tiên: khoá=ưu_tiên, tải=tid
+    đặt_khoá(l, "hộp", bản())             # tid → hàng FIFO thông-điệp (danh-sách)
+    đặt_khoá(l, "chặn", bản())            # tid → ưu_tiên của task ĐANG CHẶN chờ tin (đã nhường CPU)
+    trả l
+}
+hàm nạp_tt(l, tid, ưu_tiên) {             # đưa tiến-trình vào hàng SẴN-SÀNG (ưu_tiên nhỏ = cao)
+    đặt_khoá(l, "sẵn", đẩy_khoá(lấy_khoá(l, "sẵn"), ưu_tiên, tid))
+    trả l
+}
+hàm có_việc(l) {                          # còn tiến-trình sẵn-sàng? → sáng/tối ; ẩn → ẩn (không bịa "sáng")
+    nếu loại(l) == "ẩn" { trả ẩn }
+    nếu rỗng_đống(lấy_khoá(l, "sẵn")) { trả tối }
+    trả sáng
+}
+hàm xem_kế(l) {                           # tid ưu-tiên cao nhất (KHÔNG lấy ra); rỗng → ẩn
+    trả đỉnh_tải(lấy_khoá(l, "sẵn"))
+}
+hàm chọn_kế(l) {                          # LẤY tiến-trình ưu-tiên cao nhất ra chạy; rỗng → ẩn
+    đặt s = lấy_khoá(l, "sẵn")
+    nếu rỗng_đống(s) { trả ẩn }
+    đặt r = lấy_nhỏ_nhất(s)               # [ưu_tiên, tid, đống_còn]
+    đặt_khoá(l, "sẵn", r[2])
+    trả r[1]                              # tid
+}
+
+# ---------------- IPC: hộp-thư FIFO mỗi tiến-trình ----------------
+hàm _hộp_của(l, tid) {                     # hàng thông-điệp của tid (rỗng nếu chưa có)
+    đặt hộp = lấy_khoá(l, "hộp")
+    nếu có_khoá(hộp, tid) { trả lấy_khoá(hộp, tid) }
+    trả []
+}
+hàm gửi(l, tid, tin) {                     # gửi thông-điệp tới tid (nối ĐUÔI — FIFO)
+    đặt_khoá(lấy_khoá(l, "hộp"), tid, thêm(_hộp_của(l, tid), tin))
+    # ĐÁNH-THỨC: nếu tid đang CHẶN chờ tin → đưa lại hàng SẴN-SÀNG (với ưu_tiên đã lưu) rồi bỏ cờ chặn.
+    # Không ai chặn → "chặn" rỗng → nhánh dưới bỏ qua → gửi hành-xử Y NGUYÊN như cũ (tương-thích ngược).
+    đặt c = lấy_khoá(l, "chặn")
+    nếu có_khoá(c, tid) {
+        nạp_tt(l, tid, lấy_khoá(c, tid))   # đưa task bị-chặn lại hàng sẵn-sàng
+        xoá_khoá(c, tid)                    # gỡ cờ CHẶN (đã được đánh-thức)
+    }
+    trả l
+}
+hàm có_tin(l, tid) {                       # tid có thông-điệp chờ? → sáng/tối
+    nếu dài(_hộp_của(l, tid)) > 0 { trả sáng }
+    trả tối
+}
+hàm nhận(l, tid) {                         # nhận 1 thông-điệp (FIFO, bỏ ĐẦU); KHÔNG có → ẩn
+    đặt q = _hộp_của(l, tid)
+    nếu dài(q) == 0 { trả ẩn }
+    đặt_khoá(lấy_khoá(l, "hộp"), tid, đuôi(q))
+    trả q[0]
+}
+
+# ---------------- IPC CHẶN + ĐÁNH-THỨC (blocking receive + wakeup) ----------------
+# chờ_tin: nhận-CHẶN. CÓ tin → trả ngay (1 thông-điệp FIFO, như nhận). RỖNG → đánh-dấu task CHẶN
+#   (ghi chặn[tid]=ưu_tiên, coi như đã NHƯỜNG CPU) và trả 'ẩn' (ba-trị: ẩn = chưa-có-tin, KHÔNG bịa).
+#   Task bị-chặn sẽ được gửi() ĐÁNH-THỨC (đưa lại hàng sẵn-sàng) khi có thông-điệp tới.
+hàm chờ_tin(l, tid, ưu_tiên) {
+    nếu có_tin(l, tid) { trả nhận(l, tid) }   # có việc → lấy ngay (không chặn)
+    đặt_khoá(lấy_khoá(l, "chặn"), tid, ưu_tiên)   # KHÔNG có việc → CHẶN (lưu ưu-tiên để đánh-thức)
+    trả ẩn
+}
+hàm đang_chặn(l, tid) {                    # tid có đang CHẶN chờ tin không? → sáng/tối
+    nếu có_khoá(lấy_khoá(l, "chặn"), tid) { trả sáng }
+    trả tối
+}
+
+# ---------------- PERSISTENCE trực-giao (checkpoint / restore) ----------------
+# Đóng-băng TOÀN BỘ trạng-thái nhân (hàng-sẵn-sàng + hộp-thư) ra CHUỖI JSON bền (ghi-đĩa/gửi-mạng
+# được), rồi khôi phục vào nhân MỚI để chạy tiếp Y NGUYÊN. (Hàng/hộp đều là list/bản JSON-hoá được.)
+hàm chụp(l) { trả thành_json(l) }          # CHECKPOINT: nhân → chuỗi JSON
+hàm phục_hồi(chuỗi) { trả phân_tích_json(chuỗi) }   # RESTORE: chuỗi JSON → nhân (tiếp tục)

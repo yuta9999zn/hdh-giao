@@ -1,0 +1,85 @@
+# kiem_lib_mật_khẩu.giao — nghiệm thu thư viện băm mật khẩu (muối + lặp)
+nhập "lib_mật_khẩu.giao"
+
+rọi "── băm mật khẩu: muối + lặp ──"
+
+# 1. cùng mật khẩu, KHÁC MUỐI ⇒ khác bản băm  (⇒ bảng cầu vồng vô dụng)
+đặt m1 = muối_mới(111)
+đặt m2 = muối_mới(222)
+đặt h1 = băm_mk("sen vàng", m1, 512)
+đặt h2 = băm_mk("sen vàng", m2, 512)
+nếu m1 != m2 { nếu h1 != h2 { rọi "muối khác → băm khác" } khác { rọi "SAI: hai muối khác nhau mà băm trùng" } }
+khác { rọi "SAI: hai lần gọi muối_mới ra cùng một muối" }
+
+# 2. cùng mật khẩu + CÙNG MUỐI ⇒ băm ổn định (kiểm lại được)
+nếu băm_mk("sen vàng", m1, 512) == h1 { rọi "cùng muối → băm ổn định" }
+khác { rọi "SAI: băm không ổn định" }
+
+# 3. đúng/sai — bản MỚI mặc định là $g3$ (KHÓ VỀ BỘ NHỚ, học yescrypt của Kali)
+đặt b = bóng_mới("cửa-mở-ra-biển", 4242)
+nếu khớp_mk("cửa-mở-ra-biển", b) == sáng { rọi "đúng → sáng" } khác { rọi "SAI: đúng mật khẩu mà không nhận" }
+nếu khớp_mk("cửa-mở-ra-biến", b) == tối  { rọi "sai → tối" }  khác { rọi "SAI: sai mật khẩu mà vẫn nhận" }
+nếu khớp_mk("", b) == tối { rọi "rỗng → tối" } khác { rọi "SAI: mật khẩu rỗng lại vào được" }
+
+# 4. bản ghi KHÔNG chứa mật khẩu gốc
+nếu loại(vị_trí(b, "cửa-mở-ra-biển")) == "ẩn" { rọi "không lộ mật khẩu" }
+khác { rọi "SAI: bản băm có chứa nguyên mật khẩu" }
+
+# 5. định dạng $g3$<N>$<muối>$<băm64hex>
+đặt p = tách_giữ(b, "$")
+nếu dài(p) == 5 { nếu p[1] == "g3" { nếu số_chuỗi(p[2]) == MK_N3 { nếu dài(p[4]) == 64 { rọi "đọc lại bản ghi: sáng" } } } }
+
+# 5b. bản ghi $g1$ và $g2$ CŨ vẫn khớp được (không bắt ai đổi mật khẩu) — BA định dạng SONG SONG
+đặt b1 = bóng_mới_g1("cửa-mở-ra-biển", 4242)
+đặt p1 = tách_giữ(b1, "$")
+nếu p1[1] == "g1" { nếu khớp_mk("cửa-mở-ra-biển", b1) == sáng { rọi "bản ghi g1 cũ: vẫn sáng" } }
+nếu khớp_mk("cửa-mở-ra-biến", b1) == tối { rọi "bản ghi g1 cũ: sai → tối" }
+đặt b2 = bóng_mới_g2("cửa-mở-ra-biển", 4242)
+đặt p2 = tách_giữ(b2, "$")
+nếu p2[1] == "g2" { nếu khớp_mk("cửa-mở-ra-biển", b2) == sáng { rọi "bản ghi g2 cũ: vẫn sáng" } }
+nếu khớp_mk("cửa-mở-ra-biến", b2) == tối { rọi "bản ghi g2 cũ: sai → tối" }
+
+# ---------------- $g3$ KHÓ VỀ BỘ NHỚ (học yescrypt) ----------------
+rọi "── $g3$: khó về BỘ NHỚ, không chỉ khó về thời gian ──"
+đặt mg = muối_mới(31337)
+nếu băm_mk3("sen vàng", mg, 8) == băm_mk3("sen vàng", mg, 8) { rọi "g3 ổn định: cùng vào → cùng ra" }
+khác { rọi "SAI: g3 không tất định" }
+nếu băm_mk3("sen vàng", mg, 8) != băm_mk3("sen vàng.", mg, 8) { rọi "g3 thác đổ: khác hẳn" }
+
+# ★ ĐIỂM MẤU CHỐT: đổi N là đổi CẢ ĐƯỜNG ĐI trong bảng, không phải "chạy thêm vài vòng".
+#   Nếu ai đó cài nhầm thành xích tuần tự thì N=8 sẽ là TIỀN TỐ của N=16 — kiểm này bắt được.
+nếu băm_mk3("sen vàng", mg, 8) != băm_mk3("sen vàng", mg, 16) { rọi "g3 đổi N → đổi hẳn kết quả" }
+
+# ★ TRUY CẬP NGẪU NHIÊN THẬT: chỉ số j phải PHỤ THUỘC trạng thái. Nếu j chạy đều 0,1,2… thì
+#   bảng V không cần giữ (tính tới đâu dùng tới đó) và toàn bộ tính khó-bộ-nhớ sụp. Kiểm bằng
+#   cách xem dãy j sinh ra từ các trạng thái khác nhau có TẢN ra không.
+đặt js = []
+đặt Xs = _mk_byte(sha256_bytes(utf8_mã(mg)))
+lặp 24 {
+    gom(js, _mk_chỉ_số(Xs, 64))
+    đặt Xs = _mk_byte(sha256_bytes(ghép(Xs, utf8_mã(mg))))
+}
+đặt riêng = dài(duy_nhất(js))
+nếu riêng >= 16 { rọi "g3 chỉ số TẢN thật (" + riêng + "/24 khác nhau) — không đoán trước được" }
+khác { rọi "SAI: chỉ số j dồn cục (" + riêng + "/24) — bảng V hoá ra không cần giữ" }
+
+# 5c. $g2$ đổi MỘT ký tự mật khẩu → digest đổi hẳn (thác đổ của SHA-256)
+đặt m3 = muối_mới(777)
+nếu băm_mk2("sen vàng", m3, 4) != băm_mk2("sen vàng.", m3, 4) { rọi "g2 thác đổ: khác hẳn" }
+
+# 6. bản ghi hỏng thì TỪ CHỐI, không nổ
+nếu khớp_mk("gì đó", "rác không phải bản ghi") == tối { rọi "bản ghi hỏng → tối" }
+nếu khớp_mk("gì đó", "*") == tối { rọi "tài khoản khoá (*) → tối" }
+
+# 7. ★ TRẦN CÔNG: bản ghi tự khai số vòng/số ô, mà ta chạy theo lời khai ấy. Một dòng
+#    "$g3$999999999$…" trong sổ là TREO MÁY NGAY TẠI MÀN ĐĂNG NHẬP — kẻ tấn công không cần
+#    biết mật khẩu, chỉ cần ghi được một dòng. Phải từ chối NGAY, đừng thử chạy.
+đặt t_treo = giờ_hệ()
+nếu khớp_mk("gì đó", "$g3$999999999$abc$0000") == tối { rọi "N vô lý → tối (không thử chạy)" }
+nếu khớp_mk("gì đó", "$g2$888888888$abc$0000") == tối { rọi "vòng vô lý → tối (không thử chạy)" }
+nếu khớp_mk("gì đó", "$g3$0$abc$0000") == tối { rọi "N = 0 (không tốn công gì) → tối" }
+nếu giờ_hệ() - t_treo <= 1 { rọi "★ ba bản ghi vô lý bị chặn TỨC THÌ — không treo máy" }
+khác { rọi "RỚT: bản ghi vô lý làm máy chạy mất " + (giờ_hệ() - t_treo) + " giây" }
+
+# nhưng trần KHÔNG được chặn nhầm bản ghi thật
+nếu khớp_mk("cửa-mở-ra-biển", b) == sáng { rọi "trần không chặn nhầm bản ghi thật" }

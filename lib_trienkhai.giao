@@ -1,0 +1,77 @@
+# ============================================================
+# lib_trienkhai.giao — PLANNER TRIỂN-KHAI HĐH-GIAO THEO CHIP (silicon-aware)
+# ------------------------------------------------------------
+# Vì HĐH-GIAO xuống TẬN SILICON (GVM trên WASM/Verilog/FPGA), nó có thể DÒ loại chip rồi tự
+# sinh CẤU-HÌNH triển-khai TỐI-ƯU NHẤT cho đúng chip đó: độ-rộng-từ máy · nền chạy · số tác_vụ
+# song-song · cỡ heap · lượng-tử lập-lịch — tận-dụng lõi/cache/xung của chip.
+# GIỮ CỐT LÕI GIAO: ba-trị — đặc-tả chip CHƯA-BIẾT (ẩn) → cấu-hình tương-ứng 'ẩn' (KHÔNG đoán bừa).
+# Nạp: nhập "lib_trienkhai.giao".
+# ============================================================
+
+# --- độ rộng TỪ máy: tận dụng bus dữ-liệu của chip (thẻ là_số/là_ds cần ≥32) ---
+hàm chọn_word(rộng_data) {
+    nếu loại(rộng_data) == "ẩn" { trả ẩn }
+    nếu rộng_data >= 64 { trả 64 }          # native 64-bit → heap lớn, số học 1 nhịp
+    nếu rộng_data >= 32 { trả 32 }          # đủ cho ABI thẻ
+    trả 16                                   # nhúng/tí-hon
+}
+# --- nền CHẠY: FPGA→Verilog gate-level (silicon thật); CPU mạnh→WASM (native, memory-safe) ---
+hàm chọn_nền(có_fpga) {
+    nếu loại(có_fpga) == "ẩn" { trả ẩn }
+    nếu có_fpga { trả "Verilog-gate-level-FPGA" }   # đường xuống cổng-logic THẬT
+    trả "WASM-native-memory-safe"                    # ~430x Python-sim, sandbox, KHÔNG qua C
+}
+# --- số TÁC_VỤ song-song: ∝ luồng logic (γ-scheduler NT trần 16; nhiều hơn = nhiều GVM) ---
+hàm số_tác_vụ(luồng) {
+    nếu loại(luồng) == "ẩn" { trả ẩn }
+    nếu luồng >= 16 { trả 16 }
+    trả luồng
+}
+# --- heap GVM (Ki-từ): ∝ RAM host (cấp ~1/16 để chừa cho host) ---
+hàm heap_ki_từ(ram_gb) {
+    nếu loại(ram_gb) == "ẩn" { trả ẩn }
+    trả ram_gb * 64                          # 16GB → 1024 Ki-từ
+}
+# --- lượng-tử lập-lịch (lệnh/lượt): xung cao → lượng-tử lớn (ít context-switch, tận tốc) ---
+hàm lượng_tử(xung_mhz) {
+    nếu loại(xung_mhz) == "ẩn" { trả ẩn }
+    nếu xung_mhz >= 3000 { trả 64 }
+    nếu xung_mhz >= 2000 { trả 48 }
+    trả 32
+}
+# --- giữ working-set NÓNG trong L2 (Ki-từ): heap+stack hot nên ≤ L2 để khỏi miss ---
+hàm khối_nóng_ki(l2_mb) {
+    nếu loại(l2_mb) == "ẩn" { trả ẩn }
+    trả l2_mb * 128                          # 11.5MB L2 ≈ 1472 Ki-từ (32-bit-từ)
+}
+
+# --- KẾ HOẠCH TRIỂN-KHAI: chip(bản) → cấu-hình(bản) tối ưu cho ĐÚNG chip ---
+hàm triển_khai(chip) {
+    đặt c = bản()
+    đặt_khoá(c, "WORD", chọn_word(lấy_khoá(chip, "rộng_data")))
+    đặt_khoá(c, "nền", chọn_nền(lấy_khoá(chip, "fpga")))
+    đặt_khoá(c, "NT_tác_vụ", số_tác_vụ(lấy_khoá(chip, "luồng")))
+    đặt_khoá(c, "heap_Ki_từ", heap_ki_từ(lấy_khoá(chip, "ram_gb")))
+    đặt_khoá(c, "lượng_tử", lượng_tử(lấy_khoá(chip, "xung_mhz")))
+    đặt_khoá(c, "khối_nóng_Ki", khối_nóng_ki(lấy_khoá(chip, "l2_mb")))
+    trả c
+}
+
+# ============================================================
+# PHÂN-TÍCH THỪA-THÃI HĐH hiện hữu (vd Windows) → tỉ-lệ + triển-khai TINH-GỌN cho GIAO
+# Ý: HĐH-GIAO tối-giản BẨM SINH (không telemetry [CDFL], không vendor-service, capability-sandbox
+#    ⇒ service chỉ tồn-tại khi CẦN, nhân nhỏ). Bỏ thừa của HĐH cũ → giải-phóng tài-nguyên cho việc thật.
+# ============================================================
+hàm tỉ_lệ_thừa(tổng, lõi_cần) {           # % thành-phần THỪA so lõi tối-thiểu
+    nếu tổng <= 0 { trả ẩn }
+    trả (tổng - lõi_cần) * 100 // tổng
+}
+hàm ram_giải_phóng(idle_gb, lõi_gb) { trả idle_gb - lõi_gb }   # RAM cứu được khi bỏ thừa
+hàm tác_vụ_thêm(ram_giải_gb, mb_mỗi_tv) {  # RAM cứu → số tác_vụ HỮU-ÍCH chạy thêm
+    nếu mb_mỗi_tv <= 0 { trả ẩn }
+    trả ram_giải_gb * 1024 // mb_mỗi_tv
+}
+hàm nhanh_hơn(tổng_tt, lõi_tt) {           # bội tốc xấp-xỉ: bớt tranh-chấp lập-lịch (process contention)
+    nếu lõi_tt <= 0 { trả ẩn }
+    trả tổng_tt // lõi_tt
+}

@@ -1,0 +1,585 @@
+# ============================================================
+# lib_kho.giao — KHO PHẦN MỀM của HĐH-GIAO
+# ------------------------------------------------------------
+# Học từ apt/Kali (quan sát máy thật 2026-07-31, Kali 2026.2):
+#   • nguồn kho khai TRUST ANCHOR riêng (`Signed-By:` trỏ đúng một keyring) — không dùng chung rổ;
+#   • mục lục mang BĂM của mọi thứ ⇒ một chỗ tin được thì cả kho tin được;
+#   • SIÊU-GÓI gom công cụ theo mục đích (kali-linux-headless chỉ toàn `Depends:`);
+#   • chạy KHÔNG phải root.
+#
+# Nhưng KHÔNG bê nguyên — năm chỗ apt yếu, ở đây làm khác:
+#   ① apt cho gói chạy script `postinst` VỚI QUYỀN ROOT ⇒ cài gói = cho chạy mã tuỳ ý ở quyền cao
+#      nhất. Ở đây gói chỉ là DỮ LIỆU (thân lệnh); cài = chép tệp, KHÔNG có script chạy lúc cài.
+#   ② apt không có HOÀN TÁC. Ở đây gỡ/nâng-cấp đẩy bản cũ vào /thùng_rác ⇒ `gói lùi` lấy lại được.
+#   ③ apt đứt giữa chừng để lại dpkg hỏng (`--configure -a`). Ở đây cài là GIAO DỊCH NGUYÊN KHỐI:
+#      soạn kế hoạch → kiểm băm TOÀN BỘ → rồi mới ghi. Hỏng ở khâu kiểm thì KHÔNG ghi gì cả.
+#   ④ apt in một bức tường tên gói mà không nói VÌ SAO cần. Ở đây mỗi gói kéo theo đều có "vì X".
+#   ⑤ apt tin cậy được-ăn-cả: kho đã ký thì gói muốn làm gì cũng được. Ở đây mỗi gói TỰ KHAI
+#      NĂNG LỰC nó cần (đọc/ghi/mạng/gốc…); năng lực nhạy cảm thì người phải ĐỒNG Ý tường minh.
+#      Đây là chỗ GIAO hơn hẳn: cả hệ vốn đã capability, kho gói chỉ nối tiếp cho nhất quán.
+#
+# TRUNG THỰC: mục lục hiện chỉ có BĂM (toàn vẹn), CHƯA có chữ ký khoá-công-khai (xác thực) — GIAO
+# chưa có số học mũ-modulo. Nghĩa là: chống sửa đổi và chống nhầm lẫn ĐƯỢC, chống kho giả mạo thì
+# CHƯA. Bù lại: mục lục là tệp 644 chủ gốc, ai sửa được nó thì đã là gốc-quyền rồi.
+# ============================================================
+nhập "lib_gọi_hệ.giao"
+nhập "lib_sha256.giao"
+nhập "lib_chu_ky.giao"     # I1: kiểm chữ ký khoá-công-khai của mục lục
+nhập "lib_chuoi.giao"
+
+đặt KHO_MỤC = "/hệ/kho/mục_lục"
+đặt KHO_GÓI = "/hệ/kho/gói"
+đặt KHO_NGUỒN = "/hệ/kho/nguồn"     # tên|mục_lục|chữ_ký|KHOÁ CÔNG — mỗi nguồn khai NEO TIN CẬY RIÊNG
+đặt KHO_XA = "/hệ/kho/nguồn_xa"     # tên|máy|cổng — kho Ở NGOÀI, tải về rồi mới kiểm chữ ký (I2)
+đặt ĐÃ_CÀI  = "/hệ/gói_đã_cài"
+đặt NĂNG_LỰC_NHẠY = ["mạng", "gốc", "đĩa", "xoá"]     # khai mấy thứ này thì phải hỏi người
+
+# ---------------- CÀI VÀO ĐÂU ----------------
+# apt buộc phải là root mới cài được gì. Ở đây KHÔNG cần: người thường cài vào thư mục lệnh
+# RIÊNG của mình (`/nhà/<tên>/lệnh`, vốn đã nằm trong $PATH), gốc-quyền thì cài vào `/lệnh` cho
+# cả máy. Không ai phải nâng quyền chỉ để có thêm một công cụ cho riêng mình.
+hàm _thư_cài(máy, tid) {
+    đặt ai = gọi(máy, tid, GH_AI, [])
+    nếu ai[0] == 0 { trả "/lệnh" }
+    trả "/nhà/" + ai[1] + "/lệnh"
+}
+# Sổ "đã cài" cũng phải theo người: sổ của cả máy nằm ở /hệ (chủ gốc) nên người thường ghi
+# không được — mà cài cho riêng mình thì cũng chẳng có lý gì phải đụng vào sổ của cả máy.
+hàm _sổ_cài(máy, tid) {
+    đặt ai = gọi(máy, tid, GH_AI, [])
+    nếu ai[0] == 0 { trả ĐÃ_CÀI }
+    trả "/nhà/" + ai[1] + "/gói_đã_cài"
+}
+hàm _sổ_lùi(máy, tid) {                       # đường về của lần nâng cấp gần nhất — cũng theo người
+    đặt ai = gọi(máy, tid, GH_AI, [])
+    nếu ai[0] == 0 { trả "/hệ/kho/lùi" }
+    trả "/nhà/" + ai[1] + "/kho_lùi"
+}
+
+# ---------------- đọc mục lục ----------------
+# một dòng: tên|phiên|nhóm|phụ_thuộc(,)|năng_lực(,)|băm|mô tả
+hàm _k_dòng_sạch(nội) {
+    đặt ra = []
+    lặp d trong tách_dòng(nội) {
+        đặt s = cắt_lề(d)
+        nếu s == "" { } khác { nếu bắt_đầu(s, "#") { } khác { gom(ra, s) } }
+    }
+    trả ra
+}
+hàm _k_tách_ds(s) {
+    nếu cắt_lề(s) == "" { trả [] }
+    đặt ra = []
+    lặp x trong tách_giữ(s, ",") { nếu cắt_lề(x) == "" { } khác { gom(ra, cắt_lề(x)) } }
+    trả ra
+}
+
+hàm kho_mục_lục(máy, tid) {
+    "→ [[tên, phiên, nhóm, [phụ_thuộc], [năng_lực], băm, mô_tả], …]"
+    đặt nội = gọi(máy, tid, GH_ĐỌC, [KHO_MỤC])
+    nếu loại(nội) == "chuỗi" { } khác { trả [] }
+    đặt ra = []
+    lặp d trong _k_dòng_sạch(nội) {
+        đặt p = tách_giữ(d, "|")
+        nếu dài(p) >= 7 {
+            gom(ra, [p[0], p[1], p[2], _k_tách_ds(p[3]), _k_tách_ds(p[4]), p[5], p[6]])
+        }
+    }
+    trả ra
+}
+
+hàm kho_tìm(máy, tid, tên) {
+    lặp g trong kho_mục_lục(máy, tid) { nếu g[0] == tên { trả g } }
+    trả ẩn
+}
+
+# ---------------- I1: NEO TIN CẬY + KIỂM CHỮ KÝ ----------------
+# Học `Signed-By:` của apt/Kali: mỗi NGUỒN khai đúng MỘT khoá công của riêng nó, không dùng chung
+# một rổ khoá tin cậy. Kho khác thì khoá khác — kho này ký được không có nghĩa kho kia ký được.
+hàm kho_nguồn(máy, tid) {
+    "→ [tên, đường_mục_lục, đường_chữ_ký, đường_khoá] · ẩn nếu chưa khai nguồn."
+    đặt nội = gọi(máy, tid, GH_ĐỌC, [KHO_NGUỒN])
+    nếu loại(nội) == "chuỗi" { } khác { trả ẩn }
+    lặp d trong _k_dòng_sạch(nội) {
+        đặt p = tách_giữ(d, "|")
+        nếu dài(p) >= 4 { trả [p[0], p[1], p[2], p[3]] }
+    }
+    trả ẩn
+}
+
+hàm kho_kiểm_ký(máy, tid) {
+    "→ [sáng, vân_tay_khoá] nếu mục lục ĐÚNG chữ ký của khoá đã neo · [tối, lý do] nếu không."
+    đặt ng = kho_nguồn(máy, tid)
+    # KHÔNG khai nguồn = kho CỤC BỘ (do chính gốc-quyền dựng trên máy này). Cho qua, nhưng NÓI RÕ
+    # là đang tin theo QUYỀN TỆP chứ không phải theo chữ ký — mục lục là tệp 644 chủ gốc, người
+    # thường không sửa nổi. (apt cũng có ngả này: `[trusted=yes]`, và cũng phải cảnh báo.)
+    # Còn khi ĐÃ khai nguồn thì chữ ký là BẮT BUỘC, không có đường lùi.
+    nếu loại(ng) == "ẩn" { trả [sáng, "cục-bộ (CHƯA NEO KHOÁ — tin theo quyền tệp, không phải chữ ký)"] }
+    đặt kc = gọi(máy, tid, GH_ĐỌC, [ng[3]])
+    đặt k = đọc_khoá_công(kc)
+    nếu loại(k) == "ẩn" { trả [tối, "không đọc nổi khoá công ở " + ng[3]] }
+    đặt sig = gọi(máy, tid, GH_ĐỌC, [ng[2]])
+    nếu loại(sig) == "chuỗi" { } khác { trả [tối, "kho KHÔNG có chữ ký (" + ng[2] + ") — chỉ có băm thì chống được sửa đổi, KHÔNG chống được kho giả mạo"] }
+    đặt nội = gọi(máy, tid, GH_ĐỌC, [ng[1]])
+    nếu loại(nội) == "chuỗi" { } khác { trả [tối, "không đọc nổi mục lục " + ng[1]] }
+    đặt r = kiểm_chữ_ký(nội, cắt_lề(sig), k[1], k[0])
+    nếu r == sáng { trả [sáng, vân_tay_khoá(k[1])] }
+    nếu loại(r) == "ẩn" { trả [tối, "chữ ký hoặc khoá hỏng định dạng"] }
+    trả [tối, "CHỮ KÝ KHÔNG KHỚP — mục lục đã bị đổi, hoặc kho này KHÔNG phải kho bạn tin (khoá " + vân_tay_khoá(k[1]) + ")"]
+}
+
+hàm kho_đã_cài(máy, tid) {
+    "→ [[tên, phiên], …]"
+    đặt nội = gọi(máy, tid, GH_ĐỌC, [_sổ_cài(máy, tid)])
+    nếu loại(nội) == "chuỗi" { } khác { trả [] }
+    đặt ra = []
+    lặp d trong _k_dòng_sạch(nội) {
+        đặt p = tách_giữ(d, "|")
+        nếu dài(p) >= 2 { gom(ra, [p[0], p[1]]) }
+    }
+    trả ra
+}
+hàm _đang_cài(máy, tid, tên) {
+    lặp g trong kho_đã_cài(máy, tid) { nếu g[0] == tên { trả g[1] } }
+    trả ẩn
+}
+
+# ============================================================
+# ★ I3 — PHỤ THUỘC CÓ PHIÊN BẢN + GÓI THAY THẾ
+# ------------------------------------------------------------
+# apt/Kali có `Depends: libfoo (>= 2.1)` và `arping | iputils-arping`. Trước bản này ta chỉ nói
+# được "cần gói tên X" — mà "cần X" không có nghĩa gì nếu X bản cũ không chạy nổi.
+# Cú pháp một mục phụ thuộc:  `tên` · `tên>=2.0` · `tên>2` · `tên=1.4` · `tên<=3` · `a/b` (thay thế).
+# CHÚ Ý một chỗ ta KHÁC apt có chủ ý: apt ngăn lựa chọn thay thế bằng `|`, nhưng ở đây `|` ĐÃ LÀ
+# DẤU NGĂN CỘT của mục lục. Dùng `|` cho cả hai việc thì cột bị dịch, băm rơi vào ô khác — tôi đã
+# vấp đúng lỗi ấy khi viết. Nên thay thế ngăn bằng `/`, an toàn vì tên gói KHÔNG được chứa `/` (H5).
+# So phiên theo TỪNG ĐỐT SỐ, không so chuỗi: "1.10" > "1.9" (so chuỗi thì ngược, đó là bẫy kinh điển).
+hàm so_phiên(a, b) {
+    "→ -1 nếu a < b · 0 nếu bằng · 1 nếu a > b"
+    đặt pa = tách_giữ(cắt_lề(a), ".")
+    đặt pb = tách_giữ(cắt_lề(b), ".")
+    đặt n = dài(pa)
+    nếu dài(pb) > n { đặt n = dài(pb) }
+    đặt i = 0
+    mãi {
+        nếu i >= n { trả 0 }
+        đặt x = 0   đặt y = 0
+        nếu i < dài(pa) { đặt x = số_chuỗi(pa[i])  nếu loại(x) == "ẩn" { đặt x = 0 } }
+        nếu i < dài(pb) { đặt y = số_chuỗi(pb[i])  nếu loại(y) == "ẩn" { đặt y = 0 } }
+        nếu x < y { trả 0 - 1 }
+        nếu x > y { trả 1 }
+        đặt i = i + 1
+    }
+}
+
+hàm tách_ràng(mục) {
+    "'tên>=2.0' → [tên, '>=', '2.0'] · 'tên' → [tên, '', '']"
+    đặt s = cắt_lề(mục)
+    lặp t trong [">=", "<=", ">", "<", "="] {
+        đặt v = vị_trí(s, t)
+        nếu loại(v) == "ẩn" { } khác {
+            trả [cắt_lề(lát_chuỗi(s, 0, v)), t, cắt_lề(lát_chuỗi(s, v + dài(t), dài(s)))]
+        }
+    }
+    trả [s, "", ""]
+}
+
+hàm hợp_ràng(phiên, toán, mong) {
+    "Phiên bản `phiên` có thoả ràng buộc `toán mong` không → sáng/tối."
+    nếu toán == "" { trả sáng }
+    đặt c = so_phiên(phiên, mong)
+    nếu toán == ">=" { nếu c >= 0 { trả sáng }  trả tối }
+    nếu toán == "<=" { nếu c <= 0 { trả sáng }  trả tối }
+    nếu toán == ">"  { nếu c > 0 { trả sáng }   trả tối }
+    nếu toán == "<"  { nếu c < 0 { trả sáng }   trả tối }
+    nếu toán == "="  { nếu c == 0 { trả sáng }  trả tối }
+    trả tối
+}
+
+hàm _mô_ràng(r) {
+    nếu r[1] == "" { trả r[0] }
+    trả r[0] + " " + r[1] + " " + r[2]
+}
+
+# ---------------- soạn KẾ HOẠCH (giải phụ thuộc, nhớ VÌ SAO) ----------------
+# → [[tên, vì_sao], …] theo thứ tự cài được (phụ thuộc trước), hoặc [tối, lý do].
+# Chọn trong các LỰA CHỌN THAY THẾ (a|b|c) cái đầu tiên dùng được.
+# → [sáng, tên_chọn, đã_cài_rồi] · [tối, lý do nói RÕ vì sao không cái nào thoả]
+hàm _chọn_thay_thế(máy, tid, mục) {
+    đặt lý = []
+    lặp ứng trong tách_giữ(mục, "/") {
+        đặt r = tách_ràng(ứng)
+        đặt pc = _đang_cài(máy, tid, r[0])
+        nếu loại(pc) == "ẩn" { } khác {
+            nếu hợp_ràng(pc, r[1], r[2]) == sáng { trả [sáng, r[0], sáng] }
+            gom(lý, "'" + r[0] + "' đang cài bản " + pc + " — không thoả " + _mô_ràng(r))
+        }
+        đặt g = kho_tìm(máy, tid, r[0])
+        nếu loại(g) == "ẩn" { gom(lý, "kho không có '" + r[0] + "'") }
+        khác {
+            nếu hợp_ràng(g[1], r[1], r[2]) == sáng { trả [sáng, r[0], tối] }
+            gom(lý, "kho chỉ có '" + r[0] + "' bản " + g[1] + " — không thoả " + _mô_ràng(r))
+        }
+    }
+    trả [tối, nối(lý, " · ")]
+}
+
+hàm _kế_hoạch(máy, tid, tên, vì, đã_có, kq) {
+    lặp x trong kq { nếu x[0] == tên { trả kq } }        # đã nằm trong kế hoạch
+    lặp x trong đã_có { nếu x == tên { trả kq } }        # đang cài dở → vòng tròn, dừng nhánh
+    đặt g = kho_tìm(máy, tid, tên)
+    nếu loại(g) == "ẩn" { trả [tối, "kho không có gói '" + tên + "'" + vì] }
+    gom(đã_có, tên)
+    lặp pt trong g[3] {
+        đặt c = _chọn_thay_thế(máy, tid, pt)             # ★ I3: có phiên bản + thay thế
+        nếu c[0] == sáng { } khác {
+            trả [tối, "'" + tên + "' cần " + pt + " nhưng không thoả — " + c[1]]
+        }
+        nếu c[2] == sáng { } khác {                      # chưa cài thì mới phải kéo vào kế hoạch
+            đặt r = _kế_hoạch(máy, tid, c[1], " (cần vì '" + tên + "' cần " + pt + ")", đã_có, kq)
+            nếu loại(r) == "danh_sách" { nếu dài(r) > 0 { nếu r[0] == tối { trả r } } }
+            đặt kq = r
+        }
+    }
+    gom(kq, [tên, vì])
+    trả kq
+}
+
+hàm kho_kế_hoạch(máy, tid, tên) {
+    "→ [[tên, vì_sao], …] · hoặc [tối, lý do]. KHÔNG ghi gì — chỉ soạn."
+    trả _kế_hoạch(máy, tid, tên, "", [], [])
+}
+
+hàm kho_năng_lực_nhạy(máy, tid, kế) {
+    "→ [[tên_gói, năng_lực], …] những năng lực NHẠY CẢM mà kế hoạch này đòi."
+    đặt ra = []
+    lặp m trong kế {
+        đặt g = kho_tìm(máy, tid, m[0])
+        nếu loại(g) == "ẩn" { } khác {
+            lặp nl trong g[4] { nếu chứa(NĂNG_LỰC_NHẠY, nl) { gom(ra, [m[0], nl]) } }
+        }
+    }
+    trả ra
+}
+
+# ============================================================
+# ★ I2 — KHO Ở NGOÀI (qua mạng)
+# ------------------------------------------------------------
+# Điểm mấu chốt: đường truyền KHÔNG cần tin. Tải về là một chuyện, TIN là chuyện khác — chỉ khi
+# mục lục ĐÚNG CHỮ KÝ của khoá đã neo thì mới ghi vào kho cục bộ. Kẻ đứng giữa có sửa gì trên
+# đường thì chữ ký gãy, và **không có byte nào được ghi xuống**.
+# Vì thế ở đây KHÔNG mã hoá đường tải: mục lục và gói vốn công khai, cái cần là TOÀN VẸN +
+# XÁC THỰC, mà chữ ký đã lo. (SSH cần mã hoá vì nó chở mật khẩu; kho thì không.)
+hàm kho_nguồn_xa(máy, tid) {
+    "→ [tên, máy_chủ, cổng] · ẩn nếu chưa khai kho xa."
+    đặt nội = gọi(máy, tid, GH_ĐỌC, [KHO_XA])
+    nếu loại(nội) == "chuỗi" { } khác { trả ẩn }
+    lặp d trong _k_dòng_sạch(nội) {
+        đặt p = tách_giữ(d, "|")
+        nếu dài(p) >= 3 { trả [p[0], p[1], số_chuỗi(p[2])] }
+    }
+    trả ẩn
+}
+
+hàm có_mạng_ra() {
+    thử { đặt _ = ổ_đóng(0)  trả sáng } bắt (e) { trả tối }
+}
+
+# Một lượt hỏi-đáp với kho: gửi "LẤY <thứ>\n", đọc tới khi đầu kia đóng.
+# Ổ cắm KHÔNG CHẶN nên phải quay vòng; `hạn` là số lượt quay không thấy gì thì bỏ cuộc.
+hàm _xa_lấy(máy_chủ, cổng, thứ, hạn) {
+    nếu có_mạng_ra() == sáng { } khác { trả ẩn }
+    đặt h = ổ_nối(máy_chủ, cổng)
+    nếu loại(h) == "ẩn" { trả ẩn }
+    ổ_gửi(h, "LẤY " + thứ + "\n")
+    đặt ra = ""
+    đặt im = 0
+    mãi {
+        nếu im >= hạn { dừng }
+        đặt d = ổ_đọc(h)
+        nếu loại(d) == "danh_sách" { đặt ra = ra + d[1]  đặt im = 0 }
+        khác {
+            nếu d == tối { dừng }               # đầu kia đóng = hết bài
+            đặt im = im + 1
+        }
+    }
+    ổ_đóng(h)
+    nếu bắt_đầu(ra, "KHÔNG-CÓ") { trả ẩn }
+    trả ra
+}
+
+hàm kho_tải_mục_lục(máy, tid) {
+    "Tải mục lục + chữ ký từ kho xa, KIỂM rồi mới ghi. → [sáng, báo] · [tối, lý do]."
+    đặt ng = kho_nguồn_xa(máy, tid)
+    nếu loại(ng) == "ẩn" { trả [tối, "chưa khai kho xa (" + KHO_XA + ")"] }
+    nếu có_mạng_ra() == sáng { } khác { trả [tối, "máy chưa được cấp năng lực `mạng_host` — không ra ngoài được"] }
+    đặt ml = _xa_lấy(ng[1], ng[2], "mục_lục", 40000)
+    nếu loại(ml) == "chuỗi" { } khác { trả [tối, "không tải nổi mục lục từ " + ng[1] + ":" + ng[2]] }
+    đặt ký = _xa_lấy(ng[1], ng[2], "chữ_ký", 40000)
+    nếu loại(ký) == "chuỗi" { } khác { trả [tối, "kho xa không có chữ ký — KHÔNG tin"] }
+    # ★ KIỂM TRƯỚC KHI GHI: khoá công là thứ ĐÃ CÓ SẴN trên máy (neo tin cậy), KHÔNG tải về.
+    đặt kc = gọi(máy, tid, GH_ĐỌC, [_neo_khoá(máy, tid)])
+    đặt k = đọc_khoá_công(kc)
+    nếu loại(k) == "ẩn" { trả [tối, "máy chưa neo khoá công cho kho xa"] }
+    đặt r = kiểm_chữ_ký(ml, cắt_lề(ký), k[1], k[0])
+    nếu r == sáng { } khác {
+        đặt vt = vân_tay_khoá(k[1])
+        trả [tối, "CHỮ KÝ KHÔNG KHỚP — mục lục bị sửa trên đường, hoặc kho ấy không phải kho bạn neo (khoá " + vt + "). KHÔNG ghi gì cả."]
+    }
+    # Mục lục là tài sản CHUNG của cả máy (nằm ở /hệ, chủ gốc) nên cập nhật nó cần gốc-quyền —
+    # y như `apt update`. Ghi hỏng thì phải NÓI RA, đừng báo "xong" rồi để hệ ở trạng thái dở.
+    đặt r1 = gọi(máy, tid, GH_TẠO, [KHO_MỤC, 644, ml])
+    nếu r1 == sáng { } khác { trả [tối, "chữ ký ĐÚNG nhưng không ghi nổi " + KHO_MỤC + ": " + lỗi_cuối(máy) + " (cập nhật mục lục chung cần gốc-quyền — thử `sudo gói tải`)"] }
+    đặt r2 = gọi(máy, tid, GH_TẠO, [KHO_MỤC + ".ký", 644, cắt_lề(ký)])
+    nếu r2 == sáng { } khác { trả [tối, "ghi được mục lục nhưng KHÔNG ghi nổi chữ ký: " + lỗi_cuối(máy)] }
+    trả [sáng, "đã tải và KIỂM CHỮ KÝ xong: " + dài(kho_mục_lục(máy, tid)) + " gói (khoá " + vân_tay_khoá(k[1]) + ")"]
+}
+
+hàm _neo_khoá(máy, tid) {
+    đặt ng = kho_nguồn(máy, tid)
+    nếu loại(ng) == "ẩn" { trả "/hệ/kho/khoá_công" }
+    trả ng[3]
+}
+
+# Thân gói tải về thì KHÔNG cần gốc: người thường cất vào kho riêng của mình. Chỉ MỤC LỤC (thứ
+# mang chữ ký, tức là thứ quyết định TIN AI) mới là tài sản chung phải gốc-quyền mới đổi được.
+hàm _thư_gói(máy, tid) {
+    đặt ai = gọi(máy, tid, GH_AI, [])
+    nếu ai[0] == 0 { trả KHO_GÓI }
+    trả "/nhà/" + ai[1] + "/kho_gói"
+}
+
+hàm kho_tải_gói(máy, tid, tên) {
+    "Tải THÂN một gói, kiểm BĂM theo mục lục (đã ký) rồi mới ghi. → sáng/tối."
+    đặt ng = kho_nguồn_xa(máy, tid)
+    nếu loại(ng) == "ẩn" { trả tối }
+    đặt g = kho_tìm(máy, tid, tên)
+    nếu loại(g) == "ẩn" { trả tối }
+    đặt thân = _xa_lấy(ng[1], ng[2], "gói/" + tên, 40000)
+    nếu loại(thân) == "chuỗi" { } khác { trả tối }
+    nếu sha256_hex(thân) == g[5] { } khác { trả tối }     # băm sai → KHÔNG ghi
+    đặt thư = _thư_gói(máy, tid)
+    nếu thư == KHO_GÓI { } khác { gọi(máy, tid, GH_TẠO_THƯ, [thư, 755]) }
+    trả gọi(máy, tid, GH_TẠO, [thư + "/" + tên, 644, thân])
+}
+
+# ---------------- CÀI: giao dịch nguyên khối ----------------
+hàm kho_cài(máy, tid, tên, đồng_ý) {
+    "→ [sáng, [dòng báo cáo]] · [tối, lý do]. KHÔNG ghi gì nếu có bất kỳ khâu kiểm nào hỏng."
+    nếu loại(_đang_cài(máy, tid, tên)) == "ẩn" { } khác { trả [tối, "'" + tên + "' đã cài rồi"] }
+    đặt ck = kho_kiểm_ký(máy, tid)                 # ★ I1: chữ ký TRƯỚC, không cài gì từ kho không tin được
+    nếu ck[0] == sáng { } khác { trả [tối, "KHÔNG CÀI: " + ck[1]] }
+    đặt kế = kho_kế_hoạch(máy, tid, tên)
+    nếu dài(kế) > 0 { nếu kế[0] == tối { trả [tối, kế[1]] } }
+
+    # ⑤ NĂNG LỰC: hỏi TRƯỚC, không cài rồi mới biết
+    đặt nhạy = kho_năng_lực_nhạy(máy, tid, kế)
+    nếu dài(nhạy) > 0 {
+        nếu đồng_ý == sáng { } khác {
+            đặt l = "gói này đòi NĂNG LỰC NHẠY CẢM: "
+            lặp n trong nhạy { đặt l = l + n[0] + "→" + n[1] + " " }
+            trả [tối, l + "— gõ lại kèm `đồng-ý` nếu bạn thật sự muốn cấp"]
+        }
+    }
+
+    # ③ KIỂM TOÀN BỘ TRƯỚC (băm SHA-256), rồi mới ghi — đứt giữa chừng cũng không để lại hệ dở dang
+    đặt thân = []
+    lặp m trong kế {
+        đặt g = kho_tìm(máy, tid, m[0])
+        đặt nội = gọi(máy, tid, GH_ĐỌC, [KHO_GÓI + "/" + m[0]])          # kho chung trước
+        nếu loại(nội) == "chuỗi" { } khác {
+            đặt nội = gọi(máy, tid, GH_ĐỌC, [_thư_gói(máy, tid) + "/" + m[0]])   # rồi kho riêng
+        }
+        nếu loại(nội) == "chuỗi" { } khác {
+            # ★ I2: chưa có thân ở đâu cả → thử TẢI VỀ từ kho xa (băm được kiểm ngay trong đó)
+            nếu kho_tải_gói(máy, tid, m[0]) == sáng {
+                đặt nội = gọi(máy, tid, GH_ĐỌC, [_thư_gói(máy, tid) + "/" + m[0]])
+            }
+        }
+        nếu loại(nội) == "chuỗi" { } khác { trả [tối, "kho thiếu THÂN gói '" + m[0] + "' (và tải về cũng không được)"] }
+        đặt b = sha256_hex(nội)
+        nếu b == g[5] { } khác {
+            trả [tối, "GÓI '" + m[0] + "' BỊ SỬA ĐỔI: băm thật " + lát_chuỗi(b, 0, 16) + "… ≠ mục lục " + lát_chuỗi(g[5], 0, 16) + "… — KHÔNG cài gì cả"]
+        }
+        gom(thân, nội)
+    }
+
+    # tới đây mọi thứ đã kiểm xong → ghi. VẪN kiểm từng lần ghi: báo ✓ mà không ghi được gì
+    # chính là loại lỗi im lặng ta chê apt.
+    đặt thư = _thư_cài(máy, tid)
+    đặt báo = ["cài vào " + thư + " (người thường KHÔNG cần nâng quyền — apt thì bắt buộc root)"]
+    đặt i = 0
+    mãi {
+        nếu i >= dài(kế) { dừng }
+        đặt g = kho_tìm(máy, tid, kế[i][0])
+        đặt r = gọi(máy, tid, GH_TẠO, [thư + "/" + kế[i][0], 755, thân[i]])
+        nếu r == sáng { } khác { trả [tối, "không ghi nổi " + thư + "/" + kế[i][0] + ": " + lỗi_cuối(máy)] }
+        gom(báo, "  ✓ " + kế[i][0] + " " + g[1] + kế[i][1])
+        đặt i = i + 1
+    }
+    đặt sổ = gọi(máy, tid, GH_ĐỌC, [_sổ_cài(máy, tid)])
+    nếu loại(sổ) == "chuỗi" { } khác { đặt sổ = "" }
+    lặp m trong kế {
+        đặt g = kho_tìm(máy, tid, m[0])
+        nếu sổ == "" { đặt sổ = g[0] + "|" + g[1] } khác { đặt sổ = sổ + "\n" + g[0] + "|" + g[1] }
+    }
+    # GH_TẠO (không phải GH_GHI): sổ riêng của người dùng có thể CHƯA tồn tại lần cài đầu.
+    đặt rs = gọi(máy, tid, GH_TẠO, [_sổ_cài(máy, tid), 644, sổ])
+    nếu rs == sáng { } khác { trả [tối, "cài xong nhưng KHÔNG ghi nổi sổ: " + lỗi_cuối(máy)] }
+    trả [sáng, báo]
+}
+
+# ---------------- GỠ: vào thùng rác, lấy lại được ----------------
+hàm _ai_cần(máy, tid, tên) {
+    "gói nào ĐANG CÀI mà phụ thuộc vào `tên` → danh sách tên (để không gỡ gãy chân người khác)"
+    đặt ra = []
+    lặp c trong kho_đã_cài(máy, tid) {
+        đặt g = kho_tìm(máy, tid, c[0])
+        nếu loại(g) == "ẩn" { } khác {
+            lặp pt trong g[3] {                          # phải TÁCH: "nền>=2.0" hay "a/b" (I3)
+                lặp ứng trong tách_giữ(pt, "/") {
+                    nếu tách_ràng(ứng)[0] == tên { nếu chứa(ra, c[0]) { } khác { gom(ra, c[0]) } }
+                }
+            }
+        }
+    }
+    trả ra
+}
+
+hàm kho_gỡ(máy, tid, tên) {
+    nếu loại(_đang_cài(máy, tid, tên)) == "ẩn" { trả [tối, "'" + tên + "' chưa cài"] }
+    đặt cần = _ai_cần(máy, tid, tên)
+    nếu dài(cần) > 0 { trả [tối, "không gỡ được: " + nối(cần, ", ") + " đang cần '" + tên + "'"] }
+    đặt thư = _thư_cài(máy, tid)
+    đặt r = gọi(máy, tid, GH_BỎ, [thư + "/" + tên])       # ② vào THÙNG RÁC — lấy lại được
+    nếu r == sáng { } khác { trả [tối, "không bỏ được " + thư + "/" + tên + ": " + lỗi_cuối(máy)] }
+    đặt còn = []
+    lặp c trong kho_đã_cài(máy, tid) { nếu c[0] == tên { } khác { gom(còn, c[0] + "|" + c[1]) } }
+    gọi(máy, tid, GH_TẠO, [_sổ_cài(máy, tid), 644, nối(còn, "\n")])
+    trả [sáng, ["  ✓ đã gỡ " + tên + " (thân lệnh nằm trong thùng rác — `hoàn_tác` lấy lại được)"]]
+}
+
+# ---------------- NÂNG CẤP: bản cũ vào thùng rác trước ----------------
+hàm kho_cần_nâng(máy, tid) {
+    "→ [[tên, phiên_cũ, phiên_mới], …]"
+    đặt ra = []
+    lặp c trong kho_đã_cài(máy, tid) {
+        đặt g = kho_tìm(máy, tid, c[0])
+        nếu loại(g) == "ẩn" { } khác { nếu g[1] == c[1] { } khác { gom(ra, [c[0], c[1], g[1]]) } }
+    }
+    trả ra
+}
+
+hàm kho_nâng_cấp(máy, tid) {
+    đặt ck = kho_kiểm_ký(máy, tid)                 # ★ I1: nâng cấp còn nguy hơn cài — kiểm ký trước
+    nếu ck[0] == sáng { } khác { trả [tối, "KHÔNG NÂNG CẤP: " + ck[1]] }
+    đặt ds = kho_cần_nâng(máy, tid)
+    nếu dài(ds) == 0 { trả [sáng, ["  · không có gì để nâng cấp"]] }
+    # ③ kiểm băm TẤT CẢ trước
+    đặt thân = []
+    lặp m trong ds {
+        đặt g = kho_tìm(máy, tid, m[0])
+        đặt nội = gọi(máy, tid, GH_ĐỌC, [KHO_GÓI + "/" + m[0]])
+        nếu loại(nội) == "chuỗi" { } khác { trả [tối, "kho thiếu THÂN gói '" + m[0] + "' — KHÔNG nâng cấp gì cả"] }
+        nếu sha256_hex(nội) == g[5] { } khác { trả [tối, "GÓI '" + m[0] + "' BỊ SỬA ĐỔI — KHÔNG nâng cấp gì cả"] }
+        gom(thân, nội)
+    }
+    đặt thư = _thư_cài(máy, tid)
+    đặt bước = _bước_lùi_kế(máy, tid)                     # ★ I4: mỗi lần nâng cấp là MỘT bước
+    đặt báo = []
+    đặt sổ_lùi = []
+    đặt i = 0
+    mãi {
+        nếu i >= dài(ds) { dừng }
+        gọi(máy, tid, GH_BỎ, [thư + "/" + ds[i][0]])      # ② bản CŨ vào thùng rác trước
+        gọi(máy, tid, GH_TẠO, [thư + "/" + ds[i][0], 755, thân[i]])
+        gom(sổ_lùi, "" + bước + "|" + ds[i][0] + "|" + ds[i][1])     # ★ I4: nhớ theo BƯỚC
+        gom(báo, "  ↑ " + ds[i][0] + ": " + ds[i][1] + " → " + ds[i][2])
+        đặt i = i + 1
+    }
+    đặt cũ_sổ = gọi(máy, tid, GH_ĐỌC, [_sổ_lùi(máy, tid)])
+    nếu loại(cũ_sổ) == "chuỗi" { } khác { đặt cũ_sổ = "" }
+    đặt gộp = nối(sổ_lùi, "\n")
+    nếu cắt_lề(cũ_sổ) == "" { } khác { đặt gộp = cắt_lề(cũ_sổ) + "\n" + gộp }
+    gọi(máy, tid, GH_TẠO, [_sổ_lùi(máy, tid), 644, gộp])
+    gom(báo, "  (bước lùi #" + bước + " — `gói lùi` bóc từng bước một)")
+    đặt sổ = []
+    lặp c trong kho_đã_cài(máy, tid) {
+        đặt g = kho_tìm(máy, tid, c[0])
+        nếu loại(g) == "ẩn" { gom(sổ, c[0] + "|" + c[1]) } khác { gom(sổ, c[0] + "|" + g[1]) }
+    }
+    gọi(máy, tid, GH_TẠO, [_sổ_cài(máy, tid), 644, nối(sổ, "\n")])
+    gom(báo, "  (bản cũ nằm trong thùng rác — `gói lùi` hoặc `hoàn_tác` lấy lại được)")
+    trả [sáng, báo]
+}
+
+# Bản cũ nằm trong thùng rác, nhưng CHỖ CŨ nay đã có bản mới ⇒ `hoàn_tác` không đè lên được
+# (đúng như thiết kế). Nên `lùi` phải LẤY NỘI DUNG từ thùng rồi ghi đè, và hạ phiên trong sổ.
+hàm _rác_tên_mới_nhất(máy, đường_gốc) {
+    đặt t = _thùng(máy)
+    đặt i = dài(t) - 1
+    mãi {
+        nếu i < 0 { trả ẩn }
+        nếu t[i][1] == đường_gốc { trả t[i][0] }
+        đặt i = i - 1
+    }
+}
+
+# ★ I4: sổ lùi là một NGĂN XẾP nhiều bước — mỗi dòng "<bước>|<tên>|<phiên cũ>".
+hàm _đọc_sổ_lùi(máy, tid) {
+    đặt sl = gọi(máy, tid, GH_ĐỌC, [_sổ_lùi(máy, tid)])
+    nếu loại(sl) == "chuỗi" { } khác { trả [] }
+    đặt ra = []
+    lặp d trong _k_dòng_sạch(sl) {
+        đặt p = tách_giữ(d, "|")
+        nếu dài(p) >= 3 { gom(ra, [số_chuỗi(p[0]), p[1], p[2]]) }
+    }
+    trả ra
+}
+hàm _bước_lùi_kế(máy, tid) {
+    đặt m = 0
+    lặp d trong _đọc_sổ_lùi(máy, tid) { nếu d[0] > m { đặt m = d[0] } }
+    trả m + 1
+}
+hàm số_bước_lùi(máy, tid) {
+    "Còn LÙI ĐƯỢC mấy bước nữa."
+    đặt thấy = []
+    lặp d trong _đọc_sổ_lùi(máy, tid) { nếu chứa(thấy, d[0]) { } khác { gom(thấy, d[0]) } }
+    trả dài(thấy)
+}
+
+hàm kho_lùi(máy, tid) {
+    "Bóc MỘT bước trên cùng của ngăn xếp: thân lệnh và phiên trong sổ về đúng bản trước bước ấy."
+    đặt sl = _đọc_sổ_lùi(máy, tid)
+    nếu dài(sl) == 0 { trả [tối, "chưa có lần nâng cấp nào để lùi"] }
+    đặt đỉnh = 0
+    lặp d trong sl { nếu d[0] > đỉnh { đặt đỉnh = d[0] } }
+    đặt thư = _thư_cài(máy, tid)
+    đặt báo = []
+    đặt cũ = bản()
+    đặt còn = []
+    lặp d trong sl {
+        nếu d[0] == đỉnh {
+            đặt tr = _rác_tên_mới_nhất(máy, thư + "/" + d[1])
+            nếu loại(tr) == "ẩn" { gom(báo, "  ✗ " + d[1] + ": bản cũ không còn trong thùng rác") }
+            khác {
+                đặt nội = gọi(máy, tid, GH_ĐỌC, ["/thùng_rác/" + tr])
+                nếu loại(nội) == "chuỗi" {
+                    gọi(máy, tid, GH_GHI, [thư + "/" + d[1], nội])
+                    # GỠ mục ấy khỏi thùng: lấy ra rồi mà để lại thì bước lùi TIẾP THEO sẽ vớ
+                    # đúng nó và trả về sai bản — đã vấp thật khi lùi hai bước liên tiếp.
+                    rác_gỡ_mục(máy, tr)
+                    đặt_khoá(cũ, d[1], d[2])
+                    gom(báo, "  ↩ " + d[1] + " → " + d[2])
+                } khác { gom(báo, "  ✗ " + d[1] + ": không đọc nổi bản cũ") }
+            }
+        } khác { gom(còn, "" + d[0] + "|" + d[1] + "|" + d[2]) }
+    }
+    đặt sổ = []
+    lặp c trong kho_đã_cài(máy, tid) {
+        nếu có_khoá(cũ, c[0]) { gom(sổ, c[0] + "|" + lấy_khoá(cũ, c[0])) } khác { gom(sổ, c[0] + "|" + c[1]) }
+    }
+    gọi(máy, tid, GH_TẠO, [_sổ_cài(máy, tid), 644, nối(sổ, "\n")])
+    gọi(máy, tid, GH_TẠO, [_sổ_lùi(máy, tid), 644, nối(còn, "\n")])
+    gom(báo, "  (đã bóc bước #" + đỉnh + " · còn lùi được " + số_bước_lùi(máy, tid) + " bước)")
+    trả [sáng, báo]
+}

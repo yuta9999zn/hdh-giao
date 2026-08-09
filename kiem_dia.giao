@@ -1,0 +1,161 @@
+# kiem_dia.giao — nghiệm thu TẦNG KHỐI + NHẬT KÝ (B3)
+#
+# Điều phải chứng minh KHÔNG phải "ghi rồi đọc lại được", mà là BA CHỖ ext4 THẬT còn yếu
+# (đo trên Kali 2026.2 — xem ghi chú đầu lib_dia.giao):
+#   ① `data=ordered` không ghi nhật ký cho DỮ LIỆU ⇒ mất điện giữa lúc ghi có thể ra
+#      "siêu dữ liệu mới + nội dung cũ/rác". Ở đây: hoặc TRỌN VẸN MỚI, hoặc TRỌN VẸN CŨ.
+#   ② `metadata_csum` không phủ dữ liệu người dùng ⇒ khối mục thầm lặng bị TRẢ RA NHƯ THẬT.
+#      Ở đây: đọc phải khối hỏng thì BÁO.
+#   ③ `fsync(tệp)` không làm bền cái TÊN (phải fsync cả thư mục) ⇒ độ bền là chuyện truyền miệng.
+#      Ở đây: tên và nội dung nằm CÙNG MỘT giao dịch, cùng sống hoặc cùng chết.
+nhập "lib_dia.giao"
+nhập "lib_người_dùng.giao"
+
+rọi "══ ĐỊNH DẠNG + GHI ĐỌC THƯỜNG ══"
+đặt D = đĩa_mới(64, 32, 6)            # 64 khối × 32 byte, 6 khối dành cho bảng mô tả
+rọi đĩa_gắn(D)[1]
+rọi đĩa_ghi_tệp(D, "thơ", "sen vàng nở sớm mùa thu Hà Nội", 0)[1]
+rọi đĩa_đọc_tệp(D, "thơ")[1]
+rọi đĩa_ghi_tệp(D, "ghi_chú", "khối là khối, byte là byte", 0)[1]
+rọi "liệt kê: " + đĩa_liệt(D)
+
+rọi "══ ④ CÁI GIÁ THẬT CỦA TẦNG KHỐI (ext4: tệp 1 byte tốn 4096) ══"
+đặt D2 = đĩa_mới(32, 32, 4)
+đĩa_gắn(D2)
+đĩa_ghi_tệp(D2, "tí", "x", 0)
+đặt s = đĩa_soi(D2)
+rọi "tệp 1 byte → " + s[1] + " khối = " + s[2] + " byte, phí " + s[4] + " byte"
+
+rọi "══ ② TỔNG KIỂM: khối mục thầm lặng thì BÁO, không trả rác ══"
+đặt D3 = đĩa_mới(64, 32, 6)
+đĩa_gắn(D3)
+đĩa_ghi_tệp(D3, "sổ", "một hai ba bốn năm sáu bảy tám chín mười", 0)
+rọi "đọc lúc lành: " + đĩa_đọc_tệp(D3, "sổ")[1]
+đĩa_hỏng_khối(D3, lấy_khoá(lấy_khoá(D3, "mô_tả"), "sổ")[2])
+đặt r3 = đĩa_đọc_tệp(D3, "sổ")
+nếu r3[0] == tối {
+    rọi "★ khối hỏng → TỪ CHỐI: " + r3[1]
+} khác { rọi "RỚT: trả rác ra như thật — y hệt ext4" }
+
+rọi "══ ① MẤT ĐIỆN TRƯỚC CAM KẾT → giữ bản CŨ nguyên vẹn ══"
+đặt D4 = đĩa_mới(64, 32, 6)
+đĩa_gắn(D4)
+đĩa_ghi_tệp(D4, "sổ", "BẢN CŨ — phải còn nguyên sau khi mất điện", 0)
+đĩa_tháo(D4)
+rọi đĩa_ghi_tệp(D4, "sổ", "BẢN MỚI — đang ghi dở thì mất điện", 1)[1]
+đĩa_cắt_điện(D4)
+đặt g4 = đĩa_gắn(D4)
+rọi g4[1]
+đặt r4 = đĩa_đọc_tệp(D4, "sổ")
+nếu r4[0] == sáng {
+    nếu r4[1] == "BẢN CŨ — phải còn nguyên sau khi mất điện" {
+        rọi "★★★ nội dung ĐÚNG BẢN CŨ, nguyên vẹn từng chữ"
+    } khác { rọi "RỚT: nội dung lai căng → " + r4[1] }
+} khác { rọi "RỚT: không đọc nổi sau khi phát lại → " + r4[1] }
+
+rọi "══ ① MẤT ĐIỆN SAU CAM KẾT, GIỮA LÚC CHÉP → phát lại thành bản MỚI trọn vẹn ══"
+đặt D5 = đĩa_mới(64, 32, 6)
+đĩa_gắn(D5)
+đĩa_ghi_tệp(D5, "sổ", "BẢN CŨ ngắn", 0)
+đĩa_tháo(D5)
+rọi đĩa_ghi_tệp(D5, "sổ", "BẢN MỚI dài hơn hẳn, trải ra nhiều khối để chép được nửa chừng", 2)[1]
+đĩa_cắt_điện(D5)
+đặt g5 = đĩa_gắn(D5)
+rọi g5[1]
+đặt r5 = đĩa_đọc_tệp(D5, "sổ")
+nếu r5[0] == sáng {
+    nếu r5[1] == "BẢN MỚI dài hơn hẳn, trải ra nhiều khối để chép được nửa chừng" {
+        rọi "★★★ nội dung ĐÚNG BẢN MỚI, trọn vẹn — không nửa cũ nửa mới"
+    } khác { rọi "RỚT: nội dung lai căng → [" + r5[1] + "]" }
+} khác { rọi "RỚT: không đọc nổi sau khi phát lại → " + r5[1] }
+
+rọi "══ ③ TÊN và NỘI DUNG cùng một giao dịch (ext4 đòi fsync riêng thư mục) ══"
+đặt D6 = đĩa_mới(64, 32, 6)
+đĩa_gắn(D6)
+đĩa_ghi_tệp(D6, "cũ", "đã có sẵn", 0)
+đĩa_tháo(D6)
+đĩa_ghi_tệp(D6, "tên_mới", "nội dung của tệp mới toanh", 1)    # mất điện trước cam kết
+đĩa_cắt_điện(D6)
+đĩa_gắn(D6)
+đặt còn = đĩa_liệt(D6)
+rọi "sau mất điện, trên đĩa còn: " + còn
+nếu chứa(còn, "tên_mới") {
+    rọi "RỚT: TÊN sống mà nội dung chưa bền — đúng cái bẫy fsync của ext4"
+} khác { rọi "★★ TÊN cũng không sinh ra — tên và nội dung cùng sống hoặc cùng chết" }
+nếu chứa(còn, "cũ") { rọi "★ tệp cũ vẫn còn nguyên" }
+
+rọi "══ VÙNG MÔ TẢ HỎNG thì gắn phải TỪ CHỐI, không đoán bừa ══"
+đặt D7 = đĩa_mới(64, 32, 6)
+đĩa_gắn(D7)
+đĩa_ghi_tệp(D7, "a", "một", 0)
+đĩa_hỏng_khối(D7, Đ_MÔ_TẢ)
+đặt g7 = đĩa_gắn(D7)
+nếu g7[0] == tối { rọi "★★ gắn TỪ CHỐI: " + g7[1] } khác { rọi "RỚT: vẫn gắn bừa" }
+
+rọi "══ HẾT CHỖ thì nói thẳng ══"
+# 12 khối × 16 byte: khối 0 siêu, khối 1..3 mô tả ⇒ chỉ còn 8 khối dữ liệu = 128 byte.
+đặt D8 = đĩa_mới(12, 16, 3)
+đĩa_gắn(D8)
+đặt r8a = đĩa_ghi_tệp(D8, "vừa", "một trăm hai tám byte thì vẫn vừa", 0)
+nếu r8a[0] == sáng { rọi "★ vẫn ghi được khi còn chỗ: " + r8a[1] } khác { rọi "RỚT: từ chối oan — " + r8a[1] }
+đặt dài_quá = "một chuỗi cố tình dài hơn hẳn một trăm hai mươi tám byte, tức vượt sức chứa dữ liệu của cái đĩa tí hon mười hai khối này, nên hệ-tệp phải từ chối thẳng thừng chứ không được ghi tràn ra ngoài"
+đặt r8 = đĩa_ghi_tệp(D8, "to", dài_quá, 0)
+nếu r8[0] == tối { rọi "★ " + r8[1] } khác { rọi "RỚT: ghi tràn đĩa (" + dài(dài_quá) + " byte vào đĩa 128 byte)" }
+# và tệp cũ KHÔNG được suy suyển vì một lần ghi hỏng
+rọi "sau khi từ chối, tệp cũ còn nguyên: " + (đĩa_đọc_tệp(D8, "vừa")[1] == "một trăm hai tám byte thì vẫn vừa")
+
+# ============================================================
+rọi "══ GẮN VÀO CÂY THƯ MỤC (mount) — đường dẫn thường, tầng khối bên dưới ══"
+đặt M = khởi_máy()
+thêm_người(M, 0, "gốc")  thêm_người(M, 1000, "an")
+đặt K = sinh_tt(M, "khởi", 0, 0, "/")
+gọi(M, K, GH_TẠO_THƯ, ["/hệ", 755])
+gọi(M, K, GH_TẠO, ["/hệ/người_dùng", 644, "gốc:0:/\nan:1000:/nhà/an"])
+đặt A = gọi(M, K, GH_SINH, ["vỏ_an", 5])
+đặt_khoá(lấy_khoá(lấy_khoá(M, "cred"), A), "uid", 1000)
+
+gọi(M, K, GH_TẠO_THƯ, ["/đĩa", 755])
+đặt DK = đĩa_mới(64, 32, 6)
+rọi "gắn: " + gắn_đĩa(M, K, "/đĩa", DK)
+
+rọi "-- ★ CHỈ GỐC-QUYỀN được gắn (như `mount` của Linux) --"
+gọi(M, K, GH_TẠO_THƯ, ["/đĩa2", 755])
+rọi "người thường gắn: " + gắn_đĩa(M, A, "/đĩa2", đĩa_mới(16, 32, 4))
+
+rọi "-- ghi/đọc bằng ĐƯỜNG DẪN THƯỜNG, nhưng byte nằm trên KHỐI --"
+rọi gọi(M, K, GH_TẠO, ["/đĩa/thơ", 644, "sen vàng nở sớm mùa thu"])
+rọi gọi(M, K, GH_ĐỌC, ["/đĩa/thơ"])
+rọi "liệt: " + gọi(M, K, GH_LIỆT, ["/đĩa"])
+rọi "byte ấy có THẬT nằm trên khối không: " + (đĩa_đọc_tệp(DK, "thơ")[1] == "sen vàng nở sớm mùa thu")
+
+rọi "-- ★★ QUYỀN của ĐIỂM GẮN quyết định — gắn đĩa KHÔNG mở thêm cửa nào --"
+gọi(M, K, GH_ĐỔI_QUYỀN, ["/đĩa", 700])          # chỉ gốc vào được
+rọi gọi(M, A, GH_ĐỌC, ["/đĩa/thơ"])
+rọi lỗi_cuối(M)
+rọi gọi(M, A, GH_TẠO, ["/đĩa/lén", 644, "chen vào"])
+rọi lỗi_cuối(M)
+gọi(M, K, GH_ĐỔI_QUYỀN, ["/đĩa", 755])
+
+rọi "-- ★★★ KHỐI HỎNG: gọi-hệ BÁO, không trả rác ra cho chương trình --"
+đĩa_hỏng_khối(DK, lấy_khoá(lấy_khoá(DK, "mô_tả"), "thơ")[2])
+rọi gọi(M, K, GH_ĐỌC, ["/đĩa/thơ"])
+rọi lỗi_cuối(M)
+
+rọi "-- ★★★ MẤT ĐIỆN GIỮA LÚC GHI, rồi GẮN LẠI: dữ liệu nguyên vẹn --"
+đặt DL = đĩa_mới(64, 32, 6)
+gọi(M, K, GH_TẠO_THƯ, ["/đĩa3", 755])
+gắn_đĩa(M, K, "/đĩa3", DL)
+gọi(M, K, GH_TẠO, ["/đĩa3/sổ", 644, "BẢN CŨ trên đường dẫn thường"])
+đĩa_tháo(DL)
+đĩa_ghi_tệp(DL, "sổ", "BẢN MỚI viết dở dang thì mất điện giữa chừng", 2)   # cắt sau cam kết
+đĩa_cắt_điện(DL)
+rọi "gắn lại: " + gắn_đĩa(M, K, "/đĩa3", DL)
+đặt rr = gọi(M, K, GH_ĐỌC, ["/đĩa3/sổ"])
+nếu rr == "BẢN MỚI viết dở dang thì mất điện giữa chừng" {
+    rọi "★★★ đọc qua gọi-hệ ra ĐÚNG bản mới trọn vẹn — không nửa nọ nửa kia"
+} khác { rọi "RỚT: [" + rr + "]" }
+
+rọi "-- tháo đĩa: đường dẫn quay về cây nút thường --"
+rọi "tháo: " + tháo_đĩa(M, K, "/đĩa3")
+rọi gọi(M, K, GH_ĐỌC, ["/đĩa3/sổ"])
+rọi lỗi_cuối(M)

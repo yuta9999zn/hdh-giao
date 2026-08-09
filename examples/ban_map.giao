@@ -1,0 +1,33 @@
+# ============================================================
+# BẢN (map/record) — kiểu THAM CHIẾU, tra cứu O(1)
+# ------------------------------------------------------------
+# Trước khi có `bản`: phải dùng danh-sách-cặp tra O(n) → đếm/tra trên dữ liệu lớn là O(n²).
+# Nay: chèn/tra O(1). Khoá: số/chuỗi/trị. Thiếu khoá → `ẩn` (đúng logic ba-trị).
+# ============================================================
+
+# --- BẢN làm RECORD (struct) ---
+đặt người = bản()
+đặt_khoá(người, "tên", "Nguyễn Trường An")
+đặt_khoá(người, "vai", "tác giả học thuyết")
+rọi người["tên"] + " — " + người["vai"]      # index bằng khoá
+
+# --- ĐẾM TẦN SUẤT TỪ — bài toán kinh điển cần bảng băm ---
+đặt văn = "giao thoa giao hoa giao thoa hoa giao"
+đặt đếm = bản()
+lặp từ trong tách(văn, " ") {
+    nếu có_khoá(đếm, từ) {
+        đặt_khoá(đếm, từ, lấy_khoá(đếm, từ) + 1)   # cập nhật tại chỗ
+    } khác {
+        đặt_khoá(đếm, từ, 1)                        # (lưu ý: ẩn+1=ẩn, nên phải khởi 1)
+    }
+}
+rọi "Tần suất:"
+lặp từ trong đếm {                                  # lặp duyệt KHOÁ của bản
+    rọi "  " + từ + " = " + lấy_khoá(đếm, từ)
+}
+rọi "Số từ khác nhau: " + dài(đếm)                 # 3
+rọi "Các khoá: "    + nối(khoá(đếm), ", ")          # giao, thoa, hoa
+
+# --- thiếu khoá trả ẩn (không crash, không bịa) ---
+rọi có_khoá(đếm, "vắng_mặt")                        # tối
+rọi lấy_khoá(đếm, "vắng_mặt")                       # ẩn

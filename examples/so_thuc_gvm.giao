@@ -1,0 +1,20 @@
+# SỐ THỰC trên MÁY GVM — điểm-cố-định thập phân ×10000 (mốc 3d)
+# GVM là máy SỐ NGUYÊN, KHÔNG FPU. Số thực = round(x×10000); +,− cùng thang;
+# × = FNHÂN ((a·b)/10000, trung gian 64-bit), ÷ = FCHIA ((a·10000)/b). In = RỌI_THỰC.
+# (số nguyên trộn số thực: số nguyên được nhân thang trước khi tính)
+
+rọi 1.5 + 2.25         # 3.75
+rọi 3.142 * 2.0        # 6.284
+rọi 10.0 / 4.0         # 2.5
+rọi 2.5 - 0.75         # 1.75
+rọi 0.0 - 4.5          # -4.5   (âm)
+rọi 2 + 0.5            # 2.5    (số nguyên ↔ số thực: nhân thang rồi cộng)
+rọi 0.1 + 0.2          # 0.3    (điểm-cố-định CHÍNH XÁC — KHÔNG lệch IEEE 0.30000000000000004)
+
+# biến 'đặt' giữ số thực + biểu thức nhiều bước
+đặt giá = 19.99
+đặt sl = 3.0
+rọi giá * sl           # 59.97
+đặt nửa = 9.0 / 2.0
+rọi nửa                # 4.5
+rọi nửa * nửa          # 20.25

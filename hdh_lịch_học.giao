@@ -1,0 +1,52 @@
+# ============================================================
+# hdh_lịch_học.giao — DEMO ĐỘNG-HỌC γ của BỘ LẬP-LỊCH biết-học (lib_lịch_học)
+# ------------------------------------------------------------
+# Chứng minh: 3 tác-vụ KHỞI cùng σ0=50. Qua ~6 lượt, mỗi lượt:
+#   1) chọn_học → tid tín-nhiệm cao nhất (in ra).
+#   2) học_hành_vi theo HÀNH-VI THẬT:  "tốt"←ρ=100 (luôn làm việc) · "spin"←ρ=0 (treo) · "vừa"←ρ=60.
+#   3) in σ_của cả ba.
+# KỲ VỌNG: σ(tốt) TĂNG →~100 (được ưu-tiên), σ(spin) TỤT →~0 (bị BÓP), σ(vừa)→~60 (ổn-định).
+#   chọn_học dần LUÔN chọn "tốt" ⇒ γ-scheduler HỌC ưu-tiên kẻ làm-việc, throttle kẻ spin.
+# Chạy: PYTHONIOENCODING=utf-8 PYTHONUTF8=1 python giao.py hdh_lịch_học.giao
+# ============================================================
+nhập "lib_lịch_học.giao"
+
+đặt l = lịch_học()
+thêm_học(l, "tốt", 50)
+thêm_học(l, "spin", 50)
+thêm_học(l, "vừa", 50)
+
+rọi "== σ ban đầu (tốt, spin, vừa) =="
+rọi σ_của(l, "tốt")        # 50
+rọi σ_của(l, "spin")       # 50
+rọi σ_của(l, "vừa")        # 50
+
+# ---- 6 lượt: in [lượt] chọn_học, rồi σ ba tác-vụ ----
+lặp i trong [1, 2, 3, 4, 5, 6] {
+    rọi "-- lượt --"
+    rọi i
+    rọi "chọn_học ->"
+    rọi chọn_học(l)                 # tid được CHỌN (σ cao nhất)
+    học_hành_vi(l, "tốt", 100)      # làm việc có-ích  → σ tăng
+    học_hành_vi(l, "spin", 0)       # treo/spin        → σ tụt (bị bóp)
+    học_hành_vi(l, "vừa", 60)       # làm vừa phải     → σ về ~60
+    rọi "σ tốt/spin/vừa ->"
+    rọi σ_của(l, "tốt")
+    rọi σ_của(l, "spin")
+    rọi σ_của(l, "vừa")
+}
+
+rọi "== tín_nhiệm cuối (σ//4) =="
+rọi tín_nhiệm(l, "tốt")
+rọi tín_nhiệm(l, "spin")
+rọi tín_nhiệm(l, "vừa")
+
+rọi "== chọn_học cuối (kẻ làm-việc thắng) =="
+rọi chọn_học(l)            # "tốt"
+
+rọi "== ba-trị: tid lạ =="
+rọi σ_của(l, "ma")         # ẩn (tid lạ)
+rọi tín_nhiệm(l, "ma")     # ẩn
+rọi chọn_học(lịch_học())   # ẩn (lịch rỗng)
+
+rọi "== KẾT LUẬN: tốt được ưu-tiên, spin bị bóp (chứng γ-học) =="

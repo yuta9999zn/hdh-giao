@@ -1,0 +1,26 @@
+# THẺ KIỂU trên máy: là_số / là_ds + == CẤU TRÚC + '+' ĐA HÌNH (số→chuỗi).
+# Đây là các builtin còn thiếu để biên dịch trọn giaoc.giao xuống GVM.
+
+# --- là_số / là_ds ---
+rọi là_số(42)            # 1 (số < TAG)
+rọi là_số([1, 2])        # 0 (danh sách)
+rọi là_ds([1, 2])        # 1
+rọi là_ds(42)            # 0
+
+# --- == CẤU TRÚC trên danh sách lồng (con trỏ khác nhau, nội dung bằng) ---
+đặt a = [1, [2, 3], 4]
+đặt b = [1, [2, 3], 4]
+rọi (a == b)             # 1  (so theo CẤU TRÚC, không theo con trỏ)
+đặt c = [1, [2, 9], 4]
+rọi (a == c)             # 0
+rọi (a != c)             # 1
+
+# --- == CẤU TRÚC trên CHUỖI (danh-sách mã ký tự) ---
+rọi ("vật" == "vật")     # 1
+rọi ("vật" == "tâm")     # 0
+
+# --- '+' ĐA HÌNH: số+số cộng; chuỗi+số nối (số tự hoá-chuỗi) ---
+rọi (2 + 3)              # 5
+đặt nhãn = "#c" + 7      # → "#c7"
+rọi nhãn                 # #c7
+rọi ("#A" + 12 == "#A12")  # 1  (nhãn sinh động khớp đúng — nền cho c_lặp của giaoc.giao)

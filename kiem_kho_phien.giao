@@ -1,0 +1,97 @@
+# kiem_kho_phien.giao — nghiệm thu PHỤ THUỘC CÓ PHIÊN BẢN + GÓI THAY THẾ (I3) + LÙI NHIỀU BƯỚC (I4)
+# Cái apt có mà ta chưa có: `Depends: libfoo (>= 2.1)` và `arping | iputils-arping`.
+# "Cần X" là vô nghĩa nếu X bản cũ không chạy nổi — nên phải nói được CẦN BẢN NÀO.
+nhập "lib_vỏ.giao"
+
+rọi "══ SO PHIÊN THEO TỪNG ĐỐT SỐ (không so chuỗi) ══"
+rọi so_phiên("1.10", "1.9")        # 1  ← so chuỗi thì ra ngược, đây là bẫy kinh điển
+rọi so_phiên("2.0", "10.0")        # -1
+rọi so_phiên("1.2.3", "1.2.3")     # 0
+rọi so_phiên("1.2", "1.2.0")       # 0 (thiếu đốt = 0)
+rọi "-- ràng buộc --"
+rọi tách_ràng("nền>=2.0")
+rọi hợp_ràng("2.1", ">=", "2.0")
+rọi hợp_ràng("1.9", ">=", "2.0")
+rọi hợp_ràng("1.4", "=", "1.4")
+rọi hợp_ràng("3.0", "<=", "2.0")
+
+đặt M = khởi_máy()
+thêm_người(M, 0, "gốc")  thêm_người(M, 1000, "an")
+đặt K = sinh_tt(M, "khởi", 0, 0, "/")
+gọi(M, K, GH_TẠO_THƯ, ["/hệ", 755])      gọi(M, K, GH_TẠO_THƯ, ["/nhà", 755])
+gọi(M, K, GH_TẠO_THƯ, ["/lệnh", 755])    gọi(M, K, GH_TẠO_THƯ, ["/thùng_rác", 777])
+gọi(M, K, GH_TẠO_THƯ, ["/hệ/kho", 755])  gọi(M, K, GH_TẠO_THƯ, ["/hệ/kho/gói", 755])
+gọi(M, K, GH_TẠO_THƯ, ["/nhà/an", 755])  gọi(M, K, GH_TẠO_THƯ, ["/nhà/an/lệnh", 755])
+gọi(M, K, GH_ĐỔI_CHỦ, ["/nhà/an", 1000])  duyệt(M)
+gọi(M, K, GH_ĐỔI_CHỦ, ["/nhà/an/lệnh", 1000])  duyệt(M)
+cài_lệnh(M, K)
+gọi(M, K, GH_TẠO, ["/hệ/đường_lệnh", 644, "/lệnh:/nhà/an/lệnh"])
+gọi(M, K, GH_TẠO, ["/hệ/gói_đã_cài", 644, ""])
+
+# ba thân gói + hai bản của `nền`
+đặt T_NỀN1 = "# nền 1\nnói \"nền cũ\""
+đặt T_NỀN2 = "# nền 2\nnói \"nền mới\""
+đặt T_TRÊN = "# trên\nnền"
+đặt T_KHÁC = "# nền_khác\nnói \"nền thay thế\""
+gọi(M, K, GH_TẠO, ["/hệ/kho/gói/nền", 644, T_NỀN1])
+gọi(M, K, GH_TẠO, ["/hệ/kho/gói/trên", 644, T_TRÊN])
+gọi(M, K, GH_TẠO, ["/hệ/kho/gói/nền_khác", 644, T_KHÁC])
+gọi(M, K, GH_TẠO, ["/hệ/kho/gói/hai_ngả", 644, T_TRÊN])
+
+hàm mục_lục(phiên_nền, thân_nền) {
+    đặt m = "nền|" + phiên_nền + "|Nền|||" + sha256_hex(thân_nền) + "|gói nền"
+    đặt m = m + "\ntrên|1.0|Ứng dụng|nền>=2.0||" + sha256_hex(T_TRÊN) + "|CẦN nền >= 2.0"
+    đặt m = m + "\nnền_khác|3.0|Nền|||" + sha256_hex(T_KHÁC) + "|nền thay thế"
+    đặt m = m + "\nhai_ngả|1.0|Ứng dụng|nền>=9.9/nền_khác||" + sha256_hex(T_TRÊN) + "|thử THAY THẾ"
+    trả m
+}
+gọi(M, K, GH_TẠO, ["/hệ/kho/mục_lục", 644, mục_lục("1.0", T_NỀN1)])
+đặt V = gọi(M, K, GH_SINH, ["vỏ", 5])
+đặt_khoá(lấy_khoá(lấy_khoá(M, "cred"), V), "uid", 1000)
+đặt_khoá(lấy_khoá(lấy_khoá(M, "cred"), V), "thư", "/nhà/an")
+
+rọi "══ I3: kho chỉ có nền 1.0 mà 'trên' cần >= 2.0 → TỪ CHỐI, NÓI RÕ VÌ SAO ══"
+đặt r = kho_cài(M, V, "trên", tối)
+rọi r[0]
+rọi r[1]
+
+rọi "══ kho lên nền 2.0 → cài được, và kéo đúng bản ══"
+gọi(M, K, GH_TẠO, ["/hệ/kho/gói/nền", 644, T_NỀN2])
+gọi(M, K, GH_GHI, ["/hệ/kho/mục_lục", mục_lục("2.0", T_NỀN2)])
+đặt r = kho_cài(M, V, "trên", tối)
+rọi r[0]
+lặp d trong r[1] { rọi d }
+rọi kho_đã_cài(M, V)
+rọi chạy_dòng_im(M, V, "trên")[1]
+
+rọi "══ I3: GÓI THAY THẾ 'nền>=9.9/nền_khác' → bỏ ngả một, lấy ngả hai ══"
+đặt r = kho_cài(M, V, "hai_ngả", tối)
+rọi r[0]
+lặp d trong r[1] { rọi d }
+
+rọi "══ gỡ vẫn bị chặn đúng dù phụ thuộc có ràng buộc phiên bản ══"
+rọi kho_gỡ(M, V, "nền")[1]
+
+rọi "══ I4: LÙI NHIỀU BƯỚC ══"
+đặt T_NỀN3 = "# nền 3\nnói \"nền 3.0\""
+gọi(M, K, GH_TẠO, ["/hệ/kho/gói/nền", 644, T_NỀN3])
+gọi(M, K, GH_GHI, ["/hệ/kho/mục_lục", mục_lục("3.0", T_NỀN3)])
+đặt r = kho_nâng_cấp(M, V)
+lặp d trong r[1] { rọi d }
+đặt T_NỀN4 = "# nền 4\nnói \"nền 4.0\""
+gọi(M, K, GH_TẠO, ["/hệ/kho/gói/nền", 644, T_NỀN4])
+gọi(M, K, GH_GHI, ["/hệ/kho/mục_lục", mục_lục("4.0", T_NỀN4)])
+đặt r = kho_nâng_cấp(M, V)
+lặp d trong r[1] { rọi d }
+rọi "còn lùi được: " + số_bước_lùi(M, V) + " bước"
+rọi chạy_dòng_im(M, V, "nền")[1]
+rọi "-- lùi bước 1 --"
+đặt r = kho_lùi(M, V)
+lặp d trong r[1] { rọi d }
+rọi chạy_dòng_im(M, V, "nền")[1]
+rọi "-- lùi bước 2 --"
+đặt r = kho_lùi(M, V)
+lặp d trong r[1] { rọi d }
+rọi chạy_dòng_im(M, V, "nền")[1]
+rọi "-- hết bước để lùi --"
+rọi kho_lùi(M, V)[1]

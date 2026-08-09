@@ -1,0 +1,50 @@
+# kiem_ro_ri_thoi_gian.giao — RÒ RỈ THEO THỜI GIAN khi xác thực (chạy với --cho-giờ)
+#
+# Ta đã cẩn thận nói "Sai tên đăng nhập HOẶC mật khẩu" để không chỉ điểm tài khoản nào có thật.
+# Nhưng LỜI NÓI giấu mà ĐỒNG HỒ hở thì coi như không giấu: nếu người không có mà trả lời tức thì,
+# còn người có thật thì đợi ba phần tư giây, kẻ dò chỉ việc bấm giờ là đếm sạch danh sách tài khoản.
+# (Đo trước khi vá: có-thật ~750ms · không-có ~0ms — chênh nhau cả một trời.)
+#
+# Bộ kiểm này ĐO THẬT, không tin lời hứa. Ba ngả phải tốn công NGANG NHAU:
+#   ① người CÓ THẬT, sai mật khẩu     ② người KHÔNG CÓ     ③ tài khoản BỊ KHOÁ
+# `giờ_hệ()` chỉ có độ phân giải GIÂY nên mỗi ngả chạy 4 lượt (~3 giây) rồi so theo giây.
+nhập "lib_người_dùng.giao"
+
+đặt M = khởi_máy()
+thêm_người(M, 0, "gốc")  thêm_người(M, 1000, "an")  thêm_người(M, 1001, "khoá_rồi")
+đặt K = sinh_tt(M, "khởi", 0, 0, "/")
+gọi(M, K, GH_TẠO_THƯ, ["/hệ", 755])
+gọi(M, K, GH_TẠO, ["/hệ/người_dùng", 644, "gốc:0:/\nan:1000:/nhà/an\nkhoá_rồi:1001:/nhà/khoá_rồi"])
+gọi(M, K, GH_TẠO, ["/hệ/mật_khẩu", 600, ""])
+đặt_mk(M, K, "an", "an", 7)
+đặt_mk(M, K, "khoá_rồi", "gì đó", 7)
+khoá_người(M, K, "khoá_rồi")
+
+đặt LƯỢT = 4
+
+hàm đo(tên) {
+    đặt t = giờ_hệ()
+    lặp LƯỢT { xác_thực(M, K, tên, "mật-khẩu-sai-bét") }
+    trả giờ_hệ() - t
+}
+
+đặt d_thật = đo("an")
+đặt d_ma   = đo("ma-không-hề-tồn-tại")
+đặt d_khoá = đo("khoá_rồi")
+rọi "công phải trả (giây/" + LƯỢT + " lượt): có-thật=" + d_thật + " không-có=" + d_ma + " bị-khoá=" + d_khoá
+
+# ★ ĐIỂM MẤU CHỐT: ngả "không có người ấy" KHÔNG được rẻ hơn hẳn ngả "có thật".
+# Trước khi vá, d_ma = 0 còn d_thật = 3 ⇒ kiểm này rớt ngay.
+nếu d_ma + 1 >= d_thật {
+    rọi "★ không-có tốn công NGANG có-thật — không đếm được tài khoản bằng đồng hồ"
+} khác { rọi "RỚT: không-có rẻ hơn hẳn (" + d_ma + " < " + d_thật + ") — bấm giờ là đếm được tài khoản" }
+
+nếu d_khoá + 1 >= d_thật {
+    rọi "★ bị-khoá cũng tốn công NGANG — không lộ 'tài khoản này có thật, đang bị khoá'"
+} khác { rọi "RỚT: tài khoản bị khoá trả lời nhanh hơn (" + d_khoá + " < " + d_thật + ")" }
+
+# và vá thời gian KHÔNG được làm sai kết quả
+nếu xác_thực(M, K, "an", "an") == sáng { rọi "vẫn đúng: mật khẩu đúng → sáng" }
+nếu xác_thực(M, K, "an", "sai") == tối { rọi "vẫn đúng: sai mật khẩu → tối" }
+nếu loại(xác_thực(M, K, "ma-không-hề-tồn-tại", "gì")) == "ẩn" { rọi "vẫn đúng: không có người → ẩn" }
+nếu xác_thực(M, K, "khoá_rồi", "gì đó") == tối { rọi "vẫn đúng: tài khoản khoá → tối dù mật khẩu đúng" }

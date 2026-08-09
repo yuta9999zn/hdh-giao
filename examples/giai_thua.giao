@@ -1,0 +1,10 @@
+# Hàm ĐỆ QUY này sẽ được BIÊN DỊCH xuống bytecode GVM (giaoc.py)
+# rồi chạy trên MÁY trit/γ nền NAND — chứng minh mô hình tính toán
+# ĐẦY ĐỦ (hàm + đệ quy) thực thi trên máy, Python chỉ làm CPU.
+
+hàm giai_thừa(n) {
+    nếu n == 0 { trả 1 }
+    trả n * giai_thừa(n - 1)
+}
+
+rọi giai_thừa(5)        # 120

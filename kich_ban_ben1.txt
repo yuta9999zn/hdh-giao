@@ -1,0 +1,8 @@
+tôi
+nói "ghi chú đời thứ nhất" > /nhà/an/nhật_ký_riêng
+ghi /nhà/an/lệnh/chào_lại "nói xin chào từ đời trước"
+quyền /nhà/an/lệnh/chào_lại 755
+đếm_số 40 /nhà/an/dài_hơi &
+xem /nhà/an/dài_hơi
+tt
+thoát

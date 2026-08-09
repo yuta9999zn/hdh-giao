@@ -1,0 +1,34 @@
+# HĐH-GIAO — LẬP LỊCH PREEMPTIVE γ (BIẾT-HỌC), viết bằng GIAO, nối với γ-scheduler SILICON.
+# ----------------------------------------------------------------------------------------
+# Khác nhân hợp-tác (examples/hdh.giao, tiến trình tự nhường): ở đây SILICON CƯỚP CPU sau mỗi
+# 'lượng tử' lệnh → tiến trình SPIN VÔ TẬN cũng KHÔNG treo được hệ (preemptive thật).
+# Bộ lập lịch HỌC σ theo cộng hưởng γ (chính sách TRÙNG hw/gvm.v): ai XUẤT (làm việc hữu ích)
+# → σ cao → ưu tiên; ai spin vô ích → σ thấp → ĐỐM TỐI → đói CPU. (KHÔNG bao giờ bỏ đói tuyệt đối.)
+#
+# Mỗi tiến trình = hàm KHÔNG-tham-số chạy độc lập (ngăn xếp + biến cục bộ RIÊNG per-task).
+
+hàm đếm_nhanh() {            # tt#0 — HỮU ÍCH: tăng 1 và XUẤT liên tục
+    đặt i = 0
+    mãi {
+        đặt i = i + 1
+        xuất(i)
+    }
+}
+
+hàm spin_vô_ích() {          # tt#1 — SPIN THUẦN: vòng vô tận, KHÔNG XUẤT → vô ích
+    mãi { }
+}
+
+hàm đếm_chậm() {             # tt#2 — HỮU ÍCH thứ hai: bước 10
+    đặt j = 0
+    mãi {
+        đặt j = j + 10
+        xuất(j)
+    }
+}
+
+# ── init: đăng ký tiến trình rồi TRAO QUYỀN cho γ-scheduler (silicon cướp CPU) ──
+tác_vụ(đếm_nhanh)            # tt#0
+tác_vụ(spin_vô_ích)         # tt#1  ← nhân sẽ HỌC ra nó vô ích
+tác_vụ(đếm_chậm)            # tt#2
+lịch_học(12)                # khởi động γ-scheduler CDFL, lượng tử = 12 lệnh

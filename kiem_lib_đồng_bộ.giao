@@ -1,0 +1,45 @@
+# Kiểm lib_đồng_bộ — lock/semaphore/condvar (học Win, vượt CDFL), ba-trị-aware
+nhập "lib_đồng_bộ.giao"
+
+# ── LOCK (mutex) ──
+đặt L = khoá_tạo()
+rọi khoá_rảnh(L)             # sáng
+rọi khoá_chủ(L)             # ẩn (RẢNH → KHÔNG sentinel giả)
+rọi khoá_lấy(L, 1)         # sáng (t1 GIỮ)
+rọi khoá_lấy(L, 2)         # tối (t2 chờ)
+rọi khoá_lấy(L, 3)         # tối (t3 chờ)
+rọi khoá_mở(L, 1)          # 2 (FIFO → t2)
+rọi khoá_chủ(L)            # 2
+
+# ── LOCK γ-CÔNG-BẰNG: trao khoá cho waiter σ CAO nhất (★ vượt Windows FIFO/tĩnh) ──
+đặt L2 = khoá_tạo()
+khoá_lấy(L2, 1)
+khoá_lấy(L2, 5)
+khoá_lấy(L2, 9)
+khoá_lấy(L2, 7)
+đặt σ = từ_cặp([[5, 100], [9, 250], [7, 180]])
+rọi khoá_mở_γ(L2, 1, σ)    # 9 (σ=250 cao nhất, KHÔNG phải FIFO t5)
+rọi khoá_chủ(L2)           # 9
+
+# ── SEMAPHORE ──
+đặt S = sem_tạo(2)
+rọi sem_xuống(S, 1)        # sáng (2→1)
+rọi sem_xuống(S, 2)        # sáng (1→0)
+rọi sem_xuống(S, 3)        # tối (0 → t3 chờ)
+rọi sem_lên(S)            # 3 (WAKE t3, đếm giữ)
+rọi sem_lên(S)            # ẩn (không waiter → đếm++)
+rọi sem_đếm(S)            # 1
+
+# ── CONDITION VARIABLE ──
+đặt LC = khoá_tạo()
+khoá_lấy(LC, 1)
+đặt CV = cv_tạo()
+rọi cv_chờ(CV, LC, 1)      # ẩn (NHẢ LC, không waiter khác)
+rọi khoá_rảnh(LC)         # sáng (đã nhả)
+rọi cv_báo(CV)           # 1 (WAKE t1)
+rọi cv_báo(CV)           # ẩn (hết waiter)
+
+# ── ba-trị: input ẩn → ẩn (không crash) ──
+rọi khoá_lấy(ẩn, 1)       # ẩn
+rọi sem_xuống(ẩn, 1)     # ẩn
+rọi cv_báo(ẩn)           # ẩn

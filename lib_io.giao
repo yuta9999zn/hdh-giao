@@ -1,0 +1,31 @@
+# ============================================================
+# lib_io.giao — I/O THEO NĂNG LỰC (capability) cho GIAO
+# ------------------------------------------------------------
+# GIỮ CỐT LÕI GIAO (QUAN TRỌNG NHẤT ở đây): object-capability — I/O builtin (đọc_tệp/ghi_tệp/
+#   liệt_kê/chạy) CHỈ TỒN TẠI khi HOST cấp (vd `--cho-đọc .`). Thư viện này TUYỆT ĐỐI KHÔNG tự
+#   nới quyền — chỉ GÓI builtin host-cấp. Thất bại / chưa-cấp / NGOÀI phạm vi → 'ẩn' (thực tại
+#   CHƯA phơi) hoặc sáng/tối, KHÔNG crash (gói bằng thử/bắt). Ba-trị + sandbox bẩm sinh nguyên vẹn.
+# Nạp: nhập "lib_io.giao".
+# ============================================================
+
+hàm đọc(tên) {                         # đọc tệp; chưa-cấp/thiếu/ngoài-phạm-vi → ẩn
+    thử { trả đọc_tệp(tên) } bắt (e) { trả ẩn }
+}
+hàm đọc_dòng(tên) {                    # đọc → list dòng; thất bại → ẩn
+    đặt nội = đọc(tên)
+    nếu loại(nội) == "ẩn" { trả ẩn }
+    trả tách(nội, "\n")
+}
+hàm tồn_tại(tên) {                     # đọc được? → sáng/tối (không phơi nội dung)
+    nếu loại(đọc(tên)) == "ẩn" { trả tối }
+    trả sáng
+}
+hàm ghi(tên, nội) {                    # ghi tệp; chưa-cấp/ngoài-phạm-vi → tối (KHÔNG tự nới quyền)
+    thử { ghi_tệp(tên, nội)  trả sáng } bắt (e) { trả tối }
+}
+hàm liệt(thư_mục) {                    # liệt kê thư mục; chưa-cấp → ẩn
+    thử { trả liệt_kê(thư_mục) } bắt (e) { trả ẩn }
+}
+hàm chạy_lệnh(lệnh, đối) {             # chạy lệnh (allowlist host); ngoài-allowlist/lỗi → ẩn
+    thử { trả chạy(lệnh, đối) } bắt (e) { trả ẩn }
+}

@@ -1,0 +1,26 @@
+# Kiểm lib_toan — Math kiểu Python/Ruby (ba-trị-aware)
+nhập "lib_toan.giao"
+
+rọi sàn(3.7)              # 3
+rọi sàn(0 - 2.3)         # -3
+rọi trần(3.2)            # 4
+rọi trần(0 - 2.7)        # -2
+rọi làm_tròn(2.6)        # 3
+rọi làm_tròn(2.4)        # 2
+rọi dấu(0 - 5)           # -1
+rọi dấu(0)               # 0
+rọi dấu(9)               # 1
+rọi kẹp(15, 0, 10)       # 10
+rọi kẹp(0 - 3, 0, 10)    # 0
+rọi kẹp(5, 0, 10)        # 5
+rọi căn(16)              # 4
+rọi căn(2)               # ~1.414
+rọi căn(0 - 4)           # ẩn (KHÔNG bịa — căn số âm chưa-biết)
+rọi ưcln(48, 36)         # 12
+rọi bcnn(4, 6)           # 12
+rọi trung_bình([2, 4, 6])# 4
+rọi trung_bình([])       # ẩn (rỗng → chưa-biết)
+rọi nguyên_tố(7)         # sáng
+rọi nguyên_tố(8)         # tối
+rọi nguyên_tố(1)         # tối
+rọi nguyên_tố(13)        # sáng

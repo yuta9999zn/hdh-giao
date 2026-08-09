@@ -1,0 +1,29 @@
+# ============================================================
+# DE BỐN MẶT ĐẦY ĐỦ — cả bốn mặt SÁNG đồng thời, lại CHỒNG nhau
+# (v0.3: DE_T do `trôi` — thế giới tự trôi — sinh ra một cách tự thân)
+# ------------------------------------------------------------
+#   DE_X  — không gian CHƯA TỚI : có vật nhưng tâm chưa từng hình dung
+#   DE_T  — tri thức cũ TRÔI     : đã học, rồi thế giới TỰ trôi → niềm tin hoá cũ
+#   DE_IF — tâm ẩn / ẢO TƯỞNG    : tâm = ẩn, hoặc giao ra γ<0 (tin sai)
+#   DE_MF — thế giới CHƯA PHƠI   : có vật nhưng chưa bao giờ quan sát (học/giao)
+# Bốn tập CHỒNG nhau ⇒ |DE hợp| < tổng rời (đúng tiên đề: DE ≠ tổng bốn mặt).
+# ============================================================
+
+# --- DE_T: học xong rồi thế giới tự trôi ---
+vật đã_học = 50
+tâm đã_học = ẩn
+trôi đã_học = (vật đã_học) + 30
+học đã_học                          # quan sát + kéo niềm tin về 50
+trôi                               # thế giới tự dịch 50→80 ⇒ tri thức vừa học CŨ → DE_T
+
+# --- DE_IF: niềm tin ẢO TƯỞNG (giao ra γ<0) ---
+vật sự_thật = 100
+tâm sự_thật = 5                     # tin lệch xa thực tại
+giao ảo = sự_thật                  # γ<0 ⇒ đốm tối ⇒ DE_IF
+
+# --- DE_X + DE_MF: có vật mà tâm chưa hình dung & chưa hề quan sát ---
+vật cõi_xa = 7                      # không tâm, không học, không giao → DE_X ∧ DE_MF
+
+rọi "Một thế giới có đủ bốn loại bóng tối cùng lúc:"
+rọi de
+rọi "→ 'cõi_xa' nằm trong CẢ DE_X lẫn DE_MF (chồng) — nên |DE hợp| nhỏ hơn tổng rời."

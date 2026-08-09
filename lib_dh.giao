@@ -1,0 +1,63 @@
+# ============================================================
+# lib_dh.giao — DIFFIE-HELLMAN: BÍ MẬT CHUYỂN TIẾP cho phiên từ xa
+# ------------------------------------------------------------
+# Chỗ v0.21.0 còn hở: khoá phiên được khách mã bằng KHOÁ CÔNG của máy rồi gửi lên. Ai ghi lại
+# đường truyền hôm nay, mai kia lấy được KHOÁ RIÊNG của máy, là giải ra được HẾT mọi phiên cũ.
+#
+# Diffie-Hellman vá đúng chỗ ấy: hai bên mỗi phiên sinh một khoá TẠM (ephemeral), trao phần công
+# khai cho nhau, cùng tính ra bí mật chung — rồi VỨT khoá tạm đi. Khoá riêng của máy KHÔNG tham
+# gia vào việc tạo bí mật nữa; nó chỉ còn dùng để KÝ giá trị DH của máy, tức là để chứng minh
+# "A này đúng là của tôi" (chống kẻ đứng giữa). Lộ khoá máy về sau ⇒ vẫn KHÔNG giải nổi phiên cũ,
+# vì khoá tạm đã không còn tồn tại ở đâu nữa.
+#
+# Nhóm: MODP 2048-bit của RFC 3526 (nhóm 14), g = 2 — nhóm chuẩn, không tự chế.
+# Khoá tạm 256 bit lấy từ NĂNG LỰC `ngẫu_nhiên` (entropy thật của máy chủ). KHÔNG dùng `ngẫu()`
+# của thư viện chuẩn: đó là LCG tất định, đem làm khoá là hỏng ngay.
+#
+# ⚠ TRUNG THỰC: vẫn chưa qua thẩm định mật mã. Ở đây KHÔNG kiểm nhóm con nhỏ (small-subgroup)
+# ngoài mấy phép kiểm biên; với nhóm MODP an-toàn và khoá tạm dùng một lần thì rủi ro ấy nhỏ,
+# nhưng đã nói là nói cho hết.
+# ============================================================
+nhập "lib_kenh.giao"
+nhập "lib_chu_ky.giao"
+
+# RFC 3526 §3 — MODP Group 14 (2048 bit), g = 2
+đặt DH_P_HEX = "ffffffffffffffffc90fdaa22168c234c4c6628b80dc1cd129024e088a67cc74020bbea63b139b22514a08798e3404ddef9519b3cd3a431b302b0a6df25f14374fe1356d6d51c245e485b576625e7ec6f44c42e9a637ed6b0bff5cb6f406b7edee386bfb5a899fa5ae9f24117c4b1fe649286651ece45b3dc2007cb8a163bf0598da48361c55d39a69163fa8fd24cf5f83655d23dca3ad961c62f356208552bb9ed529077096966d670c354e4abc9804f1746c08ca18217c32905e462e36ce3be39e772c180e86039b2783a2ec07a28fb5c55df06f4c52c9de2bcbf6955817183995497cea956ae515d2261898fa051015728e5a8aacaa68ffffffffffffffff"
+đặt DH_G = 2
+
+hàm dh_p() { trả hex_sang_số(DH_P_HEX) }
+
+hàm dh_riêng() {
+    "Khoá TẠM 256 bit từ entropy THẬT. Chưa cấp năng lực `ngẫu_nhiên` → ẩn (không bịa số giả)."
+    thử {
+        đặt bs = ngẫu_mạnh(32)
+        đặt a = 0
+        lặp b trong bs { đặt a = a * 256 + b }
+        trả a + 2                       # tránh 0/1
+    } bắt (e) { trả ẩn }
+}
+
+hàm dh_công(a) { trả mũ_mod(DH_G, a, dh_p()) }
+
+hàm dh_chung(B, a) {
+    "Bí mật chung = B^a mod p. Kiểm biên: 1 < B < p−1 (chặn giá trị tầm thường)."
+    đặt p = dh_p()
+    nếu B <= 1 { trả ẩn }
+    nếu B >= p - 1 { trả ẩn }
+    đặt s = mũ_mod(B, a, p)
+    nếu s <= 1 { trả ẩn }
+    trả s
+}
+
+# KDF: bí mật chung (số) → 96 byte khoá phiên, bằng SHA-256 có đếm (như HKDF rút gọn)
+hàm dh_khoá_phiên(chung) {
+    đặt gốc = số_sang_byte(chung, 256)          # bí mật chung, 2048 bit = 256 byte
+    đặt ra = []
+    đặt i = 1
+    mãi {
+        nếu dài(ra) >= 96 { dừng }
+        đặt ra = ghép(ra, _băm_byte(ghép(gốc, utf8_mã("GIAO-kênh-" + i))))
+        đặt i = i + 1
+    }
+    trả kn_phần(ra, 0, 96)
+}

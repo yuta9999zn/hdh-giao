@@ -1,0 +1,113 @@
+# ============================================================
+# lib_hệ.giao — NHÂN HĐH-GIAO HỢP-NHẤT (bảng-tiến-trình + lập-lịch + IPC + persistence)
+# ------------------------------------------------------------
+# HỢP NHẤT hai hệ-con thành MỘT nhân hoàn-chỉnh, GIỮ ĐỒNG BỘ:
+#   • bảng tiến-trình (lib_tiến_trình) — sự-thật về TRẠNG-THÁI vòng-đời mỗi tid
+#       ("sẵn-sàng" / "chạy" / "chặn" / "chết") + tên + ưu.
+#   • bộ lập-lịch ưu-tiên + hộp-thư IPC (lib_lịch) — HÀNG sẵn-sàng (đống ưu-tiên),
+#       hộp-thư FIFO, chặn/đánh-thức.
+# BẤT-BIẾN ĐỒNG-BỘ: trạng-thái-bảng ⟷ hàng-lập-lịch luôn nhất-quán sau mỗi syscall:
+#   • tid trong hàng-sẵn-sàng (hoặc vừa lấy ra chạy)  ↔  bảng "sẵn-sàng"/"chạy".
+#   • tid đang chặn chờ tin trong lịch                ↔  bảng "chặn".
+#   • tid đã giết                                     ↔  bảng "chết" (KHÔNG ở hàng).
+# GIỮ CỐT LÕI GIAO: ba-trị (truy-vấn LẠ → 'ẩn' = không-biết, KHÔNG bịa) · idiom Việt · tự-thân.
+# Persistence trực-giao: chụp toàn-nhân → JSON → phục-hồi nhân tiếp-tục Y NGUYÊN.
+# Nạp: nhập "lib_hệ.giao".
+# ============================================================
+nhập "lib_lịch.giao"          # tạo_lịch · nạp_tt · chọn_kế · gửi · chờ_tin · đang_chặn · chụp · phục_hồi
+nhập "lib_tiến_trình.giao"    # bảng_tt · tạo_tt · đặt_trạng · trạng_của/ưu_của · giết
+nhập "lib_nhân_lõi.giao"      # truy-vấn CHUNG: trạng · tên · số_sống · theo_trạng (lõi nhân dùng-chung)
+# lib_json (thành_json/phân_tích_json) đã được lib_lịch nhập sẵn → dùng thẳng cho chụp_hệ/phục_hồi_hệ.
+
+# ---------------- dựng nhân ----------------
+hàm tạo_hệ() {                              # nhân RỖNG: lịch (lập-lịch+IPC) + bảng (tiến-trình)
+    đặt hệ = bản()
+    đặt_khoá(hệ, "lịch", tạo_lịch())
+    đặt_khoá(hệ, "bảng", bảng_tt())
+    trả hệ
+}
+
+# ---------------- SINH tiến-trình ----------------
+# sinh: đăng-ký vào BẢNG (trạng "sẵn-sàng", giữ tên+ưu) + ĐƯA vào HÀNG sẵn-sàng của lịch.
+hàm sinh(hệ, tid, tên, ưu) {
+    tạo_tt(lấy_khoá(hệ, "bảng"), tid, tên, ưu)     # bảng: "sẵn-sàng", lưu tên+ưu (dùng lại sau)
+    nạp_tt(lấy_khoá(hệ, "lịch"), tid, ưu)          # lịch: vào hàng sẵn-sàng (ưu nhỏ = cao)
+    trả hệ
+}
+
+# ---------------- ĐIỀU-PHỐI (pick next) ----------------
+# điều_phối: lấy tid ưu-tiên cao nhất ra CHẠY; hàng rỗng → ẩn (ba-trị: không-có việc).
+hàm điều_phối(hệ) {
+    đặt lịch = lấy_khoá(hệ, "lịch")  đặt bảng = lấy_khoá(hệ, "bảng")
+    # POP-TỚI-KHI-HỢP-LỆ: đống pairing-heap KHÔNG xoá-tuỳ-ý nên hàng có thể còn bản-TRÙNG (do đánh-thức)
+    # hoặc tid đã chuyển "chặn"/"chết" mà vẫn sót. Bỏ qua mọi tid trạng ≠ "sẵn-sàng" (lazy-delete) →
+    # giữ BẤT-BIẾN: chỉ điều-phối task THỰC-SỰ sẵn-sàng. (Cùng cơ-chế phòng-thủ như điều_phối_học.)
+    mãi {
+        đặt tid = chọn_kế(lịch)                     # lấy ra khỏi hàng; rỗng → ẩn
+        nếu loại(tid) == "ẩn" { trả ẩn }
+        nếu trạng_của(bảng, tid) == "sẵn-sàng" {
+            đặt_trạng(bảng, tid, "chạy")            # đồng-bộ bảng: đang chạy
+            trả tid
+        }
+        # ngược lại: bản-trùng / "chặn" / "chết" còn sót → BỎ, pop tiếp
+    }
+}
+
+# ---------------- NHƯỜNG CPU (yield) ----------------
+# nhường: tiến-trình tự trả CPU → "sẵn-sàng" + ĐƯA LẠI hàng (với ưu đã lưu trong bảng).
+hàm nhường(hệ, tid) {
+    đặt bảng = lấy_khoá(hệ, "bảng")
+    đặt_trạng(bảng, tid, "sẵn-sàng")
+    nạp_tt(lấy_khoá(hệ, "lịch"), tid, ưu_của(bảng, tid))
+    trả hệ
+}
+
+# ---------------- CHẶN-CHỜ tin (blocking receive) ----------------
+# chặn_chờ: chờ_tin trên lịch:
+#   • RỖNG (không tin)  → lịch đánh-dấu chặn; bảng → "chặn"; trả ẩn.
+#   • CÓ tin            → lịch trả ngay 1 tin; bảng → "sẵn-sàng" (đã lấy tin, sẵn chạy tiếp); trả tin.
+hàm chặn_chờ(hệ, tid) {
+    đặt bảng = lấy_khoá(hệ, "bảng")
+    đặt tin = chờ_tin(lấy_khoá(hệ, "lịch"), tid, ưu_của(bảng, tid))
+    nếu loại(tin) == "ẩn" {
+        đặt_trạng(bảng, tid, "chặn")               # không tin → CHẶN (đồng-bộ bảng)
+        trả ẩn
+    }
+    đặt_trạng(bảng, tid, "sẵn-sàng")               # có tin → đã lấy, sẵn chạy tiếp
+    trả tin
+}
+
+# ---------------- GỬI tin (send + wakeup) ----------------
+# gửi_tin: nhớ task có ĐANG-CHẶN không TRƯỚC khi gửi (gửi() tự gỡ cờ chặn trong lịch);
+#   gửi() tự đưa task bị-chặn lại hàng sẵn-sàng; nếu trước đó đang-chặn → đồng-bộ bảng → "sẵn-sàng".
+hàm gửi_tin(hệ, tid, tin) {
+    đặt lịch = lấy_khoá(hệ, "lịch")
+    đặt đã_chặn = đang_chặn(lịch, tid)             # nhớ TRƯỚC (gửi sẽ xoá cờ chặn)
+    gửi(lịch, tid, tin)                            # nối hộp-thư + tự đánh-thức (đưa lại hàng)
+    nếu đã_chặn == sáng {
+        # KHÔNG hồi-sinh task đã CHẾT (kết_thúc gỡ cờ-chặn rồi, nhưng phòng-thủ kép ở đây)
+        nếu trạng_của(lấy_khoá(hệ, "bảng"), tid) == "chết" { } khác {
+            đặt_trạng(lấy_khoá(hệ, "bảng"), tid, "sẵn-sàng")   # đồng-bộ bảng: đã đánh-thức
+        }
+    }
+    trả hệ
+}
+
+# ---------------- CHẤM-DỨT tiến-trình (exit/kill) ----------------
+# chấm_dứt: đánh "chết" trong bảng + GỠ cờ-chặn trong lịch (nếu còn) → `gửi` sau này KHÔNG đánh-thức/
+# đẩy-lại-hàng task chết. (Bản-trùng còn sót trong hàng cũng vô-hại vì điều_phối bỏ-qua trạng≠"sẵn-sàng".)
+# (đổi tên từ 'kết_thúc' → 'chấm_dứt' để KHÔNG đụng lib_chuoi.kết_thúc(endsWith) khi lib_hệ kéo lib_json→lib_chuoi)
+hàm chấm_dứt(hệ, tid) {
+    giết(lấy_khoá(hệ, "bảng"), tid)
+    xoá_khoá(lấy_khoá(lấy_khoá(hệ, "lịch"), "chặn"), tid)   # gỡ cờ-chặn → không hồi-sinh task chết
+    trả hệ
+}
+
+# ---------------- TRUY-VẤN (ba-trị: LẠ → ẩn) ----------------
+# (trạng · tên · số_sống · theo_trạng → lib_nhân_lõi.giao, dùng-chung với lib_nhân_học)
+
+# ---------------- PERSISTENCE trực-giao (checkpoint / restore TOÀN NHÂN) ----------------
+# chụp_hệ: đóng-băng CẢ lịch + bảng → CHUỖI JSON bền (ghi-đĩa/gửi-mạng). round-trip kiểm ở hdh_hệ.
+hàm chụp_hệ(hệ) { trả thành_json(hệ) }
+# phục_hồi_hệ: chuỗi JSON → nhân MỚI (cấu-trúc 'bản' lịch/bảng khôi-phục, chạy tiếp Y NGUYÊN).
+hàm phục_hồi_hệ(chuỗi) { trả phân_tích_json(chuỗi) }

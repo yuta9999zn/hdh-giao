@@ -1,0 +1,15 @@
+# ============================================================
+# lib_nhân_lõi.giao — LÕI-TRUY-VẤN chung cho mọi NHÂN HĐH-GIAO
+# ------------------------------------------------------------
+# Mọi nhân (lib_hệ = priority+IPC+persistence · lib_nhân_học = γ-merit biết-học) đều
+# giữ BẢNG-TIẾN-TRÌNH ở khoá "bảng". Các truy-vấn vòng-đời CHỈ chạm "bảng" → DÙNG CHUNG
+# (hết trùng-lặp `trạng`/`số_sống` ở từng nhân; lib_nhân_học cũng được `tên`/`theo_trạng`).
+# KHÔNG đụng scheduler (khoá "lịch"/"học") → policy×mechanism vẫn TÁCH BẠCH.
+# Ba-trị: tid lạ → ẩn (qua lib_tiến_trình). Nạp: nhập "lib_nhân_lõi.giao".
+# ============================================================
+nhập "lib_tiến_trình.giao"    # trạng_của · tên_của · đếm_sống · liệt_theo_trạng
+
+hàm trạng(nhân, tid) { trả trạng_của(lấy_khoá(nhân, "bảng"), tid) }        # tid → trạng-thái vòng-đời | ẩn
+hàm tên(nhân, tid)   { trả tên_của(lấy_khoá(nhân, "bảng"), tid) }          # tid → tên | ẩn
+hàm số_sống(nhân)    { trả đếm_sống(lấy_khoá(nhân, "bảng")) }              # số tiến-trình KHÁC "chết"
+hàm theo_trạng(nhân, trạng) { trả liệt_theo_trạng(lấy_khoá(nhân, "bảng"), trạng) }   # danh-sách tid theo trạng

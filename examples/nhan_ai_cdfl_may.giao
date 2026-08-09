@@ -1,0 +1,82 @@
+# NHÂN-AI CDFL — BẢN CHO MÁY (biên dịch xuống GVM, chạy trên silicon).
+# Số hoá để máy chạy: ô = [ρ, σ, ver, hver]; mốc DE 'ẩn' = 32000;
+# γ fixed-point ×100; cộng_hưởng/tuyệt/lớn/dư viết bằng GIAO (chỉ cần thêm CHIA).
+# In ra mỗi vòng: chỉ số ô được chọn, rồi MẶT (3=trồi sáng·2=soi tối·1=làm tươi·0=ổn).
+
+hàm tuyệt(x) { nếu x < 0 { trả 0 - x } trả x }
+hàm lớn(a, b) { nếu a > b { trả a } trả b }
+hàm dư(a, b) { trả a - a / b * b }                      # mod (CHIA số nguyên)
+
+# γ ×10, kẹp [-10, 10]  (×10 thay vì ×100 để mọi trung gian < 16-bit, không tràn trên máy)
+hàm cộng_hưởng(σ, ρ) {
+    đặt d = tuyệt(ρ - σ)
+    đặt s = lớn(tuyệt(ρ), 1)
+    đặt g = 10 - 20 * d / s
+    nếu g > 10 { trả 10 }
+    nếu g < 0 - 10 { trả 0 - 10 }
+    trả g
+}
+# σ/Φ: γ qua thấu kính TỐT NHẤT (đồng / nửa / đôi)
+hàm γ_phi(σ, ρ) {
+    nếu σ == 32000 { trả 0 - 20 }
+    trả lớn(cộng_hưởng(σ, ρ), lớn(cộng_hưởng(σ, ρ / 2), cộng_hưởng(σ, ρ * 2)))
+}
+# MẶT của ô: 3=đốm sáng(DE) · 2=đốm tối(γ<0) · 1=DE_T(trôi) · 0=OR ổn
+hàm mặt_ô(ô) {
+    nếu ô[1] == 32000 { trả 3 }
+    nếu γ_phi(ô[1], ô[0]) < 0 { trả 2 }
+    nếu ô[2] > ô[3] { trả 1 }
+    trả 0
+}
+# chọn ô có MẶT cao nhất (đệ quy, không higher-order)
+hàm chọn_idx(cells, i, tốt_i, tốt_m) {
+    nếu i >= dài(cells) { trả tốt_i }
+    nếu mặt_ô(cells[i]) > tốt_m { trả chọn_idx(cells, i + 1, i, mặt_ô(cells[i])) }
+    trả chọn_idx(cells, i + 1, tốt_i, tốt_m)
+}
+# σ/Φ học: kéo σ về thấu kính Φ gần nhất
+hàm gần_nhất(σ, ρ) {
+    nếu tuyệt(ρ - σ) <= tuyệt(ρ / 2 - σ) {
+        nếu tuyệt(ρ - σ) <= tuyệt(ρ * 2 - σ) { trả ρ }
+        trả ρ * 2
+    }
+    nếu tuyệt(ρ / 2 - σ) <= tuyệt(ρ * 2 - σ) { trả ρ / 2 }
+    trả ρ * 2
+}
+hàm học_σ(σ, ρ) {
+    nếu σ == 32000 { trả ρ }
+    trả σ + (gần_nhất(σ, ρ) - σ) * 6 / 10
+}
+# cập nhật / drift ô tại chỉ số (dùng cells[i] trực tiếp — tham số, an toàn đệ quy)
+hàm cập_nhật(cells, idx, i) {
+    nếu i >= dài(cells) { trả [] }
+    nếu i == idx {
+        trả ghép([[cells[i][0], học_σ(cells[i][1], cells[i][0]), cells[i][2], cells[i][2]]],
+                 cập_nhật(cells, idx, i + 1))
+    }
+    trả ghép([cells[i]], cập_nhật(cells, idx, i + 1))
+}
+hàm drift(cells, idx, i) {
+    nếu i >= dài(cells) { trả [] }
+    nếu i == idx {
+        trả ghép([[cells[i][0] + 15, cells[i][1], cells[i][2] + 1, cells[i][3]]],
+                 drift(cells, idx, i + 1))
+    }
+    trả ghép([cells[i]], drift(cells, idx, i + 1))
+}
+hàm vòng(cells, n, idx) {
+    nếu n == 0 { trả 0 }
+    đặt ci = chọn_idx(cells, 0, 0, 0 - 9)
+    rọi ci                                              # ô được chọn
+    rọi mặt_ô(cells[ci])                                # mặt (3/2/1/0)
+    đặt c2 = cập_nhật(cells, ci, 0)
+    trả vòng(drift(c2, dư(idx, dài(c2)), 0), n - 1, idx + 1)
+}
+
+# A=ẩn(DE), B=20 ảo tưởng, C=80 OR
+đặt cells = [
+    [100, 32000, 0, 0],
+    [200, 20, 0, 0],
+    [80, 80, 0, 0]
+]
+rọi vòng(cells, 7, 0)

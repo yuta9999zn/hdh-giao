@@ -1,0 +1,32 @@
+# ============================================================
+# CDFL SÂU: hai cái chấm (đốm tối/đốm sáng) + viên mãn CỤC BỘ + empowerment
+# ============================================================
+
+# Tri thức tác tử — mỗi ô = [σ niềm tin, ρ thực tại]
+đặt tri = [
+    [37, 37],     # γ>0  : OR thật (khớp)
+    [20, 100],    # γ<0  : ĐỐM TỐI — tin 20 mà thực 100 (ảo tưởng, giả dương)
+    [ẩn, 50],     # DE   : ĐỐM SÁNG — chưa tin, tiềm năng (trực giác, giả âm)
+    [99, 100]     # γ>0  : OR thật (gần đúng)
+]
+
+rọi "— Trạng thái nhận thức ban đầu —"
+rọi "  OR thật (γ>0)          : " + đếm_or_thật(tri)     # 2
+rọi "  Đốm tối (ảo tưởng γ<0) : " + đếm_đốm_tối(tri)     # 1  ← nguy cơ an toàn AI
+rọi "  Đốm sáng (DE, trực giác): " + đếm_đốm_sáng(tri)   # 1  ← tiềm năng mở rộng OR
+
+rọi ""
+rọi "— Một bước CDFL: học mọi ô (xoá đốm tối + khai mở đốm sáng) —"
+đặt tri2 = bản_đồ(học_ô, tri)
+rọi "  OR thật sau học        : " + đếm_or_thật(tri2)    # 4 (đốm tối kéo về dương, đốm sáng khai mở)
+rọi "  Đốm tối còn lại         : " + đếm_đốm_tối(tri2)    # 0 hoặc giảm
+rọi "  Đốm sáng còn lại        : " + đếm_đốm_sáng(tri2)   # 0 (đã khai mở)
+
+rọi ""
+rọi "— Đa tác tử: empowerment = bảo tồn đa dạng niềm tin (tiên đề 11) —"
+đặt thực_tại = 100
+đặt ít_đa_dạng = [["a", 98], ["b", 99], ["c", 101]]      # đồng thuận → ít đa dạng
+đặt nhiều_đa_dạng = [["a", 60], ["b", 100], ["c", 140]]  # khác biệt → giàu OR
+rọi "  Nhóm đồng thuận  : OR_chung γ & đa dạng = " + or_tập_thể(ít_đa_dạng, thực_tại)
+rọi "  Nhóm đa dạng     : OR_chung γ & đa dạng = " + or_tập_thể(nhiều_đa_dạng, thực_tại)
+rọi "  → Đa dạng cao làm GIÀU OR tập thể → nền an toàn AI (empowerment)."

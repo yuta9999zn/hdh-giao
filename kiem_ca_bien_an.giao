@@ -1,0 +1,80 @@
+# ============================================================
+# kiem_ca_bien_an.giao — CHỐT-REGRESSION ca-biên 'ẩn' + DoS (review 2026-06-19)
+# ------------------------------------------------------------
+# Hợp-đồng GIAO: input ẩn/xấu → trả 'ẩn' SẠCH, KHÔNG crash, KHÔNG lặp-vô-tận.
+# Trước vá: nhiều hàm số/đếm/parser gặp 'ẩn' → lặp tới MAX_STEPS (abort) hoặc crash;
+#           regex catastrophic/đệ-quy-sâu → abort cả chương-trình.
+# Nếu BẤT KỲ guard nào thiếu → chương-trình DỪNG sớm → marker cuối KHÔNG in → test RỚT.
+# ============================================================
+nhập "lib_toan.giao"
+nhập "lib_phân_số.giao"
+nhập "lib_tổ_hợp.giao"
+nhập "lib_thống_kê.giao"
+nhập "lib_ngày.giao"
+nhập "lib_json.giao"
+nhập "lib_csv.giao"
+nhập "lib_url.giao"
+nhập "lib_regex.giao"
+nhập "lib_base64.giao"
+nhập "lib_định_dạng.giao"
+# (lib_thập_phân tách sang kiem_ca_bien_an_td.giao: nó định-nghĩa lại làm_tròn/căn 2-đối → che lib_toan, đụng test ở đây)
+
+# --- lib_toan: ẩn → ẩn (trước: ưcln/nguyên_tố lặp-vô-tận; làm_tròn/dấu crash/sai) ---
+rọi ưcln(12, ẩn)          # ẩn
+rọi làm_tròn(ẩn)          # ẩn
+rọi dấu(ẩn)               # ẩn
+rọi nguyên_tố(ẩn)         # ẩn
+rọi căn(ẩn)               # ẩn
+rọi kẹp(ẩn, 0, 9)         # ẩn
+
+# --- lib_phân_số: phân_số(_, ẩn) (trước: ưcln lặp-vô-tận); bằng_ps(ẩn,_) (trước: → tối SAI) ---
+rọi chuỗi_ps(cộng_ps(phân_số(1, ẩn), phân_số(1, 2)))   # ẩn
+rọi bằng_ps(ẩn, [1, 2])   # ẩn (KHÔNG phải tối)
+
+# --- lib_tổ_hợp: giai_thừa/số_tổ_hợp(ẩn) (trước: lặp-vô-tận) ---
+rọi giai_thừa(ẩn)         # ẩn
+rọi số_tổ_hợp(5, ẩn)      # ẩn
+
+# --- lib_chuoi: lặp_lại(_, ẩn) (trước: lặp-vô-tận) ---
+rọi lặp_lại("ab", ẩn)     # ẩn
+
+# --- lib_thống_kê: phân_vị p ngoài [0,100] (trước: chỉ-mục âm → crash) ---
+rọi phân_vị([1, 2, 3], 0 - 50)   # ẩn
+rọi phân_vị([10, 20, 30], 50)    # 20 (đường thường vẫn đúng)
+
+# --- lib_ngày: hợp_lệ(ẩn,...) (trước: → sáng SAI) ---
+rọi hợp_lệ(ẩn, 1, 1)      # ẩn
+
+# --- parser: phân_tích_*(ẩn) (trước: crash ở dài/tách) ---
+rọi phân_tích_json(ẩn)    # ẩn
+rọi phân_tích_csv(ẩn)     # ẩn
+rọi phân_tích_url(ẩn)     # ẩn
+
+# --- lib_base64 / định_dạng / thập_phân: ẩn → ẩn (trước: crash ở `dài`) ---
+rọi chuỗi_thành_byte(ẩn)  # ẩn
+rọi byte_thành_chuỗi(ẩn)  # ẩn
+rọi mã_hoá_b64(ẩn)        # ẩn
+rọi giải_b64(ẩn)          # ẩn
+rọi định_dạng(ẩn, [1])    # ẩn
+
+# --- lib_chuoi số↔chuỗi: ẩn (trước: số_chuỗi crash · chuỗi_số lặp-vô-tận) ---
+rọi số_chuỗi(ẩn)          # ẩn
+rọi chuỗi_số(ẩn)          # "ẩn"
+
+# --- lib_ngày.ngày_trong_tháng(_, ẩn) (trước: → 31 SAI) ---
+rọi ngày_trong_tháng(2024, ẩn)     # ẩn
+
+# --- lib_tổ_hợp sinh: tổ_hợp/chỉnh_hợp k=ẩn (trước: crash chỉ-mục / [] SAI) ---
+rọi tổ_hợp([1, 2, 3], ẩn)          # ẩn
+rọi chỉnh_hợp([1, 2], ẩn)          # ẩn
+
+# --- regex DoS: catastrophic backtracking + chuỗi-dài → tối/ẩn/đúng, KHÔNG abort ---
+rọi khớp("(a+)+$", "aaaaaaaaaaaaaaaaaaaa!")   # tối (kết-thúc '!' → $ trượt) — KHÔNG abort
+rọi khớp("\\d+", "abc123")                     # sáng (đường thường còn đúng)
+đặt _dài = lặp_lại("a", 600)
+rọi khớp("a*", _dài)                           # sáng — chuỗi 600 ký-tự (>300 cũ-vỡ) KHÔNG abort (lát O(n))
+rọi dài(tìm_tất_cả("a", _dài))                 # 600 — findall chuỗi dài KHÔNG abort
+rọi khớp("a+$", _dài)                          # sáng — lượng-từ đơn-ký khớp ĐÚNG input dài (fast-path iterative, KHÔNG còn tối-sai)
+# (ReDoS catastrophic đã chứng ở dòng `(a+)+$` 20a phía trên; ca lớn để file riêng tránh bộ-đếm-5M tích-lũy)
+
+rọi "=== CA-BIÊN ẨN/DoS: HẾT (không abort) ==="

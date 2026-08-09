@@ -1,0 +1,499 @@
+# ============================================================
+# lib_tệp_hệ.giao — HỆ-TỆP kiểu LINUX cho HĐH-GIAO ("mọi thứ là tệp")
+# ------------------------------------------------------------
+# Học ĐÚNG mô hình Linux (khác lib_khonggian = Object Manager kiểu Windows):
+#   • MỘT CÂY DUY NHẤT bắt rễ ở "/" — thư-mục · tệp · THIẾT-BỊ · ỐNG đều là NÚT trong cây.
+#   • Quyền kiểu Unix: quyền = số 3 chữ-số (vd 755) = chủ·nhóm·khác, bit 4=đọc 2=ghi 1=chạy.
+#   • uid 0 = "gốc" (root) — qua mọi cổng quyền.
+#   • Kiểm quyền ĐÚNG CHỖ Linux kiểm: tạo/xoá tên ⇒ cần GHI trên THƯ-MỤC CHA; đọc/ghi nội-dung
+#     ⇒ cần quyền trên CHÍNH tệp; đi vào thư-mục ⇒ cần bit CHẠY (x = quyền đi-xuyên).
+# GIỮ CỐT LÕI GIAO — errno của Linux ánh-xạ thẳng sang BA-TRỊ:
+#     sáng = xong  ·  tối = TỪ CHỐI (EACCES/EPERM: biết mà không cho)  ·  ẩn = KHÔNG BIẾT (ENOENT).
+#   Không bịa, không crash: đường-dẫn lạ → ẩn, chứ không phải "lỗi".
+# Nạp: nhập "lib_tệp_hệ.giao".
+# ============================================================
+
+# ---------------- đường dẫn ----------------
+hàm _phần_đường(đường) {                   # "/a/./b/../c" → ["a","c"] (bỏ đoạn rỗng · "." · gỡ "..")
+    đặt kq = []
+    lặp p trong tách(đường, "/") {
+        nếu dài(p) == 0 { } khác {
+            nếu p == "." { } khác {
+                nếu p == ".." { đặt kq = _bỏ_cuối(kq) } khác { gom(kq, p) }   # ".." = lên cha
+            }
+        }
+    }
+    trả kq
+}
+
+hàm _bỏ_cuối(ds) {                         # bản SAO bỏ phần-tử cuối (danh-sách GIAO chỉ nối-thêm)
+    đặt r = []
+    đặt i = 0
+    mãi {
+        nếu i >= dài(ds) - 1 { dừng }
+        gom(r, ds[i])
+        đặt i = i + 1
+    }
+    trả r
+}
+
+hàm tên_cuối(đường) {                      # "/a/b" → "b"; "/" → ẩn (gốc không có tên)
+    đặt p = _phần_đường(đường)
+    nếu dài(p) == 0 { trả ẩn }
+    trả p[dài(p) - 1]
+}
+
+hàm đường_cha(đường) {                     # "/a/b" → "/a"; "/a" → "/"
+    đặt p = _phần_đường(đường)
+    nếu dài(p) <= 1 { trả "/" }
+    đặt kq = ""  đặt i = 0
+    mãi {
+        nếu i >= dài(p) - 1 { dừng }
+        đặt kq = kq + "/" + p[i]
+        đặt i = i + 1
+    }
+    trả kq
+}
+
+hàm nối_đường(gốc, tên) {                  # ghép đường-dẫn (đúng cả khi gốc = "/")
+    nếu gốc == "/" { trả "/" + tên }
+    trả gốc + "/" + tên
+}
+
+hàm tuyệt_đối(thư_hiện, đường) {           # đường tương-đối → tuyệt-đối (theo thư-mục hiện-hành)
+    nếu dài(đường) == 0 { trả thư_hiện }
+    nếu đường[0] == "/" { trả đường }
+    trả nối_đường(thư_hiện, đường)
+}
+
+# ---------------- nút (inode) ----------------
+# Nút = 'bản' { "hạng": "thư"|"tệp"|"thiết_bị"|"ống", "chủ": uid, "quyền": số, ... }
+hàm nút_thư(chủ, quyền) {
+    đặt n = bản()
+    đặt_khoá(n, "hạng", "thư")  đặt_khoá(n, "chủ", chủ)  đặt_khoá(n, "quyền", quyền)
+    đặt_khoá(n, "con", bản())
+    trả n
+}
+hàm nút_tệp(chủ, quyền, nội) {
+    đặt n = bản()
+    đặt_khoá(n, "hạng", "tệp")  đặt_khoá(n, "chủ", chủ)  đặt_khoá(n, "quyền", quyền)
+    đặt_khoá(n, "nội", nội)
+    trả n
+}
+# ỐNG (FIFO) — nút hạng "ống": KHÔNG chứa nội dung tĩnh mà là HÀNG GÓI giữa hai tiến trình.
+#   • đệm + đầu: hàng FIFO. GIAO chỉ nối-thêm được vào danh sách, nên "lấy ra" = dịch con-trỏ `đầu`.
+#   • sức: sức chứa (số gói tối đa còn đọng) ⇒ đầy thì BÊN GHI phải chờ = PHẢN ÁP thật.
+#   • đóng: bên ghi đã đóng ⇒ đọc hết đệm thì bên đọc thấy EOF (chứ không chờ mãi).
+#   • chờ_đọc / chờ_ghi: tid đang ngủ vì ống — nhân đánh thức khi có gói / có chỗ.
+hàm nút_ống(chủ, quyền, sức) {
+    đặt n = bản()
+    đặt_khoá(n, "hạng", "ống")  đặt_khoá(n, "chủ", chủ)  đặt_khoá(n, "quyền", quyền)
+    đặt_khoá(n, "đệm", [])   đặt_khoá(n, "đầu", 0)   đặt_khoá(n, "sức", sức)
+    đặt_khoá(n, "đóng", tối)
+    đặt_khoá(n, "chờ_đọc", [])  đặt_khoá(n, "chờ_ghi", [])
+    trả n
+}
+hàm ống_số_gói(n) { trả dài(lấy_khoá(n, "đệm")) - lấy_khoá(n, "đầu") }
+hàm ống_đầy(n) {
+    nếu ống_số_gói(n) >= lấy_khoá(n, "sức") { trả sáng }
+    trả tối
+}
+
+hàm nút_thiết_bị(chủ, quyền, trình_điều) {   # /dev/… — "tệp" nhưng đọc/ghi đi tới TRÌNH ĐIỀU KHIỂN
+    đặt n = bản()
+    đặt_khoá(n, "hạng", "thiết_bị")  đặt_khoá(n, "chủ", chủ)  đặt_khoá(n, "quyền", quyền)
+    đặt_khoá(n, "nội", "")  đặt_khoá(n, "trình", trình_điều)
+    trả n
+}
+
+# ---------------- hệ-tệp ----------------
+hàm tạo_tth() {                            # hệ-tệp MỚI: chỉ có gốc "/" (chủ = gốc-quyền, 755)
+    đặt fs = bản()
+    đặt_khoá(fs, "gốc", nút_thư(0, 755))
+    trả fs
+}
+
+hàm tra_nút(fs, đường) {                   # đường → nút; không có → ẩn (KHÔNG kiểm quyền — dùng nội-bộ)
+    nếu loại(fs) == "ẩn" { trả ẩn }
+    nếu loại(đường) == "ẩn" { trả ẩn }
+    đặt cur = lấy_khoá(fs, "gốc")
+    lặp tên trong _phần_đường(đường) {
+        nếu loại(cur) == "bản" { } khác { trả ẩn }
+        nếu lấy_khoá(cur, "hạng") == "thư" { } khác { trả ẩn }   # gặp TỆP giữa đường → vô hiệu
+        đặt con = lấy_khoá(cur, "con")
+        nếu có_khoá(con, tên) { } khác { trả ẩn }
+        đặt cur = lấy_khoá(con, tên)
+    }
+    trả cur
+}
+
+hàm có_nút(fs, đường) {                    # tồn tại? → sáng/tối
+    nếu loại(tra_nút(fs, đường)) == "ẩn" { trả tối }
+    trả sáng
+}
+
+# ---------------- TÊN TỆP KHÔNG CÒN LÀ BÃI MÌN (bổ khuyết Linux H5) ----------------
+# Linux hỏng: hạt nhân chỉ cấm ĐÚNG HAI thứ trong tên tệp — byte 0 và '/'. Mọi thứ khác đều lọt:
+#   • tệp tên `-rf` biến thành CỜ khi vỏ nối chuỗi rồi tách lại ⇒ `rm *` xoá nhầm;
+#   • xuống dòng / tab trong tên phá mọi kịch bản kiểu `ls | while read`;
+#   • ký tự điều khiển vẽ lung tung ra terminal, ANSI escape còn giả được cả dòng chữ khác;
+#   • tên chỉ toàn khoảng trắng, hoặc lề trắng thừa, nhìn y hệt tên thật.
+# GIAO chặn TỪ LÚC TẠO, ở tầng hệ-tệp, nên mọi đường vào đều bị chặn như nhau.
+# (Còn `-rf` thì vô hại theo KIẾN TẠO: vỏ GIAO truyền DANH SÁCH đối, không nối rồi tách như sh.)
+# (Chỉ dùng builtin `mã`/`dài` — KHÔNG gọi lib_chuoi, để lib_tệp_hệ đứng một mình vẫn chạy.)
+hàm _là_trắng_mã(m) {
+    nếu m == 32 { trả sáng }
+    nếu m == 9 { trả sáng }
+    nếu m == 10 { trả sáng }
+    nếu m == 13 { trả sáng }
+    trả tối
+}
+hàm lý_do_tên_xấu(tên) {
+    "→ chuỗi lý do nếu tên XẤU · ẩn nếu tên dùng được."
+    nếu loại(tên) != "chuỗi" { trả "phần cuối đường dẫn không phải một tên ('.', '..' hay rỗng)" }
+    nếu dài(tên) == 0 { trả "tên rỗng" }
+    nếu dài(tên) > 120 { trả "tên dài quá 120 ký tự" }
+    nếu tên == "." { trả "'.' là chính thư mục này — không đặt tên vậy được" }
+    nếu tên == ".." { trả "'..' là thư mục cha — không đặt tên vậy được" }
+    nếu _là_trắng_mã(mã(tên[0])) == sáng { trả "tên có lề trắng thừa ở đầu/cuối (nhìn y hệt tên thật, rất dễ nhầm)" }
+    nếu _là_trắng_mã(mã(tên[dài(tên) - 1])) == sáng { trả "tên có lề trắng thừa ở đầu/cuối (nhìn y hệt tên thật, rất dễ nhầm)" }
+    lặp c trong tên {
+        nếu c == "/" { trả "tên chứa '/' — đó là dấu ngăn đường dẫn" }
+        nếu mã(c) < 32 { trả "tên chứa ký tự điều khiển (mã " + mã(c) + ") — phá kịch bản và vẽ bậy ra màn hình" }
+        nếu mã(c) == 127 { trả "tên chứa ký tự xoá (mã 127)" }
+    }
+    trả ẩn
+}
+hàm tên_dùng_được(tên) {
+    nếu loại(lý_do_tên_xấu(tên)) == "ẩn" { trả sáng }
+    trả tối
+}
+
+# ---------------- NHÓM người dùng (CÒN_THIẾU C2) ----------------
+# Bảng credential nhóm: uid → danh sách gid. Như Linux, tư cách nhóm được NẠP LÚC ĐĂNG NHẬP
+# (đồng_bộ_nhóm trong lib_người_dùng đọc /hệ/nhóm rồi đổ vào đây) — được_phép chỉ TRA, không đọc tệp
+# (tránh vòng lặp "muốn đọc tệp phải kiểm quyền, muốn kiểm quyền phải đọc tệp").
+đặt TTH_NHÓM = bản()
+
+hàm nhóm_uid_đặt(uid, ds_gid) { đặt_khoá(TTH_NHÓM, uid, ds_gid)  trả sáng }
+hàm nhóm_uid_của(uid) {
+    đặt ds = lấy_khoá(TTH_NHÓM, uid)
+    nếu loại(ds) == "ẩn" { trả [] }
+    trả ds
+}
+hàm thuộc_nhóm_uid(uid, gid) {
+    nếu chứa(nhóm_uid_của(uid), gid) { trả sáng }
+    trả tối
+}
+# gid của nút — nút cũ (trước C2) không có khoá "gid" → coi là nhóm 0 (nhóm gốc)
+hàm gid_nút(n) {
+    nếu có_khoá(n, "gid") { trả lấy_khoá(n, "gid") }
+    trả 0
+}
+
+# ---------------- quyền kiểu Unix ----------------
+hàm _chữ_quyền(quyền, vị) {                # vị: 0 = chủ · 1 = nhóm · 2 = khác
+    nếu vị == 0 { trả chia_nguyên(quyền, 100) }
+    nếu vị == 1 { trả dư(chia_nguyên(quyền, 10), 10) }
+    trả dư(quyền, 10)
+}
+
+# được_phép(nút, uid, cần): cần = 4 (đọc) · 2 (ghi) · 1 (chạy/đi-xuyên) → sáng/tối; nút lạ → ẩn
+# Thứ tự Unix chuẩn: CHỦ thắng NHÓM thắng KHÁC — là chủ thì chỉ xét bit chủ (kể cả khi bit nhóm rộng hơn).
+hàm được_phép(nút, uid, cần) {
+    nếu loại(nút) == "ẩn" { trả ẩn }
+    nếu uid == 0 { trả sáng }                                  # gốc-quyền (root) đi qua mọi cổng
+    đặt vị = 2
+    nếu thuộc_nhóm_uid(uid, gid_nút(nút)) == sáng { đặt vị = 1 }   # bit NHÓM (C2)
+    nếu lấy_khoá(nút, "chủ") == uid { đặt vị = 0 }
+    đặt d = _chữ_quyền(lấy_khoá(nút, "quyền"), vị)
+    nếu dư(chia_nguyên(d, cần), 2) == 1 { trả sáng }
+    trả tối
+}
+
+hàm chuỗi_quyền(nút) {                     # 755 → "rwxr-xr-x" (kiểu `ls -l`)
+    nếu loại(nút) == "ẩn" { trả ẩn }
+    đặt q = lấy_khoá(nút, "quyền")
+    đặt kq = ""
+    lặp vị trong [0, 1, 2] {
+        đặt d = _chữ_quyền(q, vị)
+        nếu dư(chia_nguyên(d, 4), 2) == 1 { đặt kq = kq + "r" } khác { đặt kq = kq + "-" }
+        nếu dư(chia_nguyên(d, 2), 2) == 1 { đặt kq = kq + "w" } khác { đặt kq = kq + "-" }
+        nếu dư(d, 2) == 1 { đặt kq = kq + "x" } khác { đặt kq = kq + "-" }
+    }
+    trả kq
+}
+
+# _đi_được_tới_cha: mọi thư-mục TRÊN đường phải cho bit CHẠY (x) — đúng ngữ nghĩa Linux.
+hàm _xuyên_được(fs, uid, đường) {
+    đặt cur = lấy_khoá(fs, "gốc")
+    nếu được_phép(cur, uid, 1) == sáng { } khác { trả tối }
+    lặp tên trong _phần_đường(đường) {
+        nếu lấy_khoá(cur, "hạng") == "thư" { } khác { trả ẩn }
+        đặt con = lấy_khoá(cur, "con")
+        nếu có_khoá(con, tên) { } khác { trả ẩn }
+        đặt cur = lấy_khoá(con, tên)
+        nếu lấy_khoá(cur, "hạng") == "thư" {
+            nếu được_phép(cur, uid, 1) == sáng { } khác { trả tối }
+        }
+    }
+    trả sáng
+}
+
+# ---------------- thao tác có KIỂM QUYỀN (đây là "VFS" mà gọi-hệ gọi xuống) ----------------
+
+# tth_tạo_thư: mkdir — cần GHI trên thư-mục CHA. Đã có → tối. Cha không có → ẩn.
+hàm tth_tạo_thư(fs, uid, đường, quyền) {
+    đặt cha = tra_nút(fs, đường_cha(đường))
+    nếu loại(cha) == "ẩn" { trả ẩn }
+    nếu lấy_khoá(cha, "hạng") == "thư" { } khác { trả tối }
+    nếu _xuyên_được(fs, uid, đường_cha(đường)) == sáng { } khác { trả tối }
+    nếu được_phép(cha, uid, 2) == sáng { } khác { trả tối }
+    đặt tên = tên_cuối(đường)
+    nếu loại(tên) == "ẩn" { trả tối }
+    nếu tên_dùng_được(tên) == sáng { } khác { trả tối }          # H5: chặn tên bãi mìn
+    nếu có_khoá(lấy_khoá(cha, "con"), tên) { trả tối }          # đã tồn tại
+    đặt_khoá(lấy_khoá(cha, "con"), tên, nút_thư(uid, quyền))
+    trả sáng
+}
+
+# tth_tạo_tệp: creat — cần GHI trên thư-mục CHA; tệp đã có → GHI ĐÈ nếu có quyền ghi tệp.
+hàm tth_tạo_tệp(fs, uid, đường, quyền, nội) {
+    đặt cha = tra_nút(fs, đường_cha(đường))
+    nếu loại(cha) == "ẩn" { trả ẩn }
+    nếu lấy_khoá(cha, "hạng") == "thư" { } khác { trả tối }
+    nếu _xuyên_được(fs, uid, đường_cha(đường)) == sáng { } khác { trả tối }
+    đặt tên = tên_cuối(đường)
+    nếu loại(tên) == "ẩn" { trả tối }
+    nếu tên_dùng_được(tên) == sáng { } khác { trả tối }          # H5: chặn tên bãi mìn
+    đặt con = lấy_khoá(cha, "con")
+    nếu có_khoá(con, tên) {                                     # đã có → ghi đè (cần quyền GHI trên TỆP)
+        đặt cũ = lấy_khoá(con, tên)
+        nếu được_phép(cũ, uid, 2) == sáng { } khác { trả tối }
+        đặt_khoá(cũ, "nội", nội)
+        trả sáng
+    }
+    nếu được_phép(cha, uid, 2) == sáng { } khác { trả tối }
+    đặt_khoá(con, tên, nút_tệp(uid, quyền, nội))
+    trả sáng
+}
+
+# tth_xem_được: KIỂM QUYỀN ĐỌC TÁCH RIÊNG (như open() của Linux kiểm trước, read() chỉ trả byte).
+#   Cần tách vì nội-dung tệp CŨNG là chuỗi — nếu trộn tín-hiệu vào giá-trị trả về thì một tệp
+#   chứa đúng chữ "tối" sẽ bị hiểu nhầm là "bị cấm". Tách kênh: quyền hỏi ở đây, nội-dung ở tth_đọc.
+hàm tth_xem_được(fs, uid, đường) {          # sáng = đọc được · tối = cấm · ẩn = không có
+    đặt n = tra_nút(fs, đường)
+    nếu loại(n) == "ẩn" { trả ẩn }
+    nếu lấy_khoá(n, "hạng") == "thư" { trả tối }
+    nếu _xuyên_được(fs, uid, đường_cha(đường)) == sáng { } khác { trả tối }
+    trả được_phép(n, uid, 4)
+}
+hàm tth_ghi_được(fs, uid, đường) {          # sáng/tối/ẩn — cho tệp ĐÃ CÓ
+    đặt n = tra_nút(fs, đường)
+    nếu loại(n) == "ẩn" { trả ẩn }
+    nếu _xuyên_được(fs, uid, đường_cha(đường)) == sáng { } khác { trả tối }
+    trả được_phép(n, uid, 2)
+}
+
+# tth_đọc: nội-dung tệp — cần ĐỌC trên tệp. Không có → ẩn · cấm → tối.
+hàm tth_đọc(fs, uid, đường) {
+    đặt n = tra_nút(fs, đường)
+    nếu loại(n) == "ẩn" { trả ẩn }
+    nếu lấy_khoá(n, "hạng") == "thư" { trả tối }                # đọc thư-mục ⇒ dùng tth_liệt
+    nếu _xuyên_được(fs, uid, đường_cha(đường)) == sáng { } khác { trả tối }
+    nếu được_phép(n, uid, 4) == sáng { } khác { trả tối }
+    trả lấy_khoá(n, "nội")
+}
+
+# tth_ghi: ghi ĐÈ nội-dung tệp đã có — cần GHI trên tệp.
+hàm tth_ghi(fs, uid, đường, nội) {
+    đặt n = tra_nút(fs, đường)
+    nếu loại(n) == "ẩn" { trả ẩn }
+    nếu lấy_khoá(n, "hạng") == "thư" { trả tối }
+    nếu _xuyên_được(fs, uid, đường_cha(đường)) == sáng { } khác { trả tối }
+    nếu được_phép(n, uid, 2) == sáng { } khác { trả tối }
+    đặt_khoá(n, "nội", nội)
+    trả sáng
+}
+
+hàm tth_thêm_nội(fs, uid, đường, thêm) {   # ">>" — nối thêm vào cuối tệp
+    đặt q = tth_xem_được(fs, uid, đường)
+    nếu loại(q) == "ẩn" { trả ẩn }
+    nếu q == tối { trả tối }
+    trả tth_ghi(fs, uid, đường, tth_đọc(fs, uid, đường) + thêm)
+}
+
+# tth_liệt: ls — cần ĐỌC trên thư-mục.
+hàm tth_liệt(fs, uid, đường) {
+    đặt n = tra_nút(fs, đường)
+    nếu loại(n) == "ẩn" { trả ẩn }
+    nếu lấy_khoá(n, "hạng") == "thư" { } khác { trả [tên_cuối(đường)] }   # ls trên TỆP → chính nó
+    nếu _xuyên_được(fs, uid, đường) == sáng { } khác { trả tối }
+    nếu được_phép(n, uid, 4) == sáng { } khác { trả tối }
+    trả khoá(lấy_khoá(n, "con"))
+}
+
+# tth_xoá: unlink/rmdir — cần GHI trên thư-mục CHA (đúng Linux: xoá là sửa THƯ-MỤC).
+hàm tth_xoá(fs, uid, đường) {
+    đặt n = tra_nút(fs, đường)
+    nếu loại(n) == "ẩn" { trả ẩn }
+    đặt cha = tra_nút(fs, đường_cha(đường))
+    nếu _xuyên_được(fs, uid, đường_cha(đường)) == sáng { } khác { trả tối }
+    nếu được_phép(cha, uid, 2) == sáng { } khác { trả tối }
+    nếu lấy_khoá(n, "hạng") == "thư" {
+        nếu dài(khoá(lấy_khoá(n, "con"))) > 0 { trả tối }        # thư-mục KHÔNG rỗng → từ chối
+    }
+    xoá_khoá(lấy_khoá(cha, "con"), tên_cuối(đường))
+    trả sáng
+}
+
+# tth_soi: stat → [hạng, quyền-chuỗi, chủ, kích-thước]; không có → ẩn
+hàm tth_soi(fs, uid, đường) {
+    đặt n = tra_nút(fs, đường)
+    nếu loại(n) == "ẩn" { trả ẩn }
+    đặt kích = 0
+    nếu lấy_khoá(n, "hạng") == "thư" { đặt kích = dài(khoá(lấy_khoá(n, "con"))) }
+    khác {
+        nếu lấy_khoá(n, "hạng") == "ống" { đặt kích = ống_số_gói(n) }   # số gói đang đọng
+        khác { đặt kích = dài(lấy_khoá(n, "nội")) }
+    }
+    trả [lấy_khoá(n, "hạng"), chuỗi_quyền(n), lấy_khoá(n, "chủ"), kích]
+}
+
+# tth_đổi_quyền: chmod — CHỈ chủ-sở-hữu hoặc gốc-quyền.
+hàm tth_đổi_quyền(fs, uid, đường, quyền) {
+    đặt n = tra_nút(fs, đường)
+    nếu loại(n) == "ẩn" { trả ẩn }
+    nếu uid == 0 { } khác {
+        nếu lấy_khoá(n, "chủ") == uid { } khác { trả tối }
+    }
+    đặt_khoá(n, "quyền", quyền)
+    trả sáng
+}
+
+# tth_chuyển: mv/rename. Cần GHI trên CẢ HAI thư-mục cha (đúng ngữ nghĩa Unix: chuyển là sửa
+# hai thư mục). KHÔNG đè lên thứ đã có — đè là mất dữ liệu im lặng, thứ ta tránh suốt dự án.
+# Chuyển là việc KHẢ HỒI (chuyển ngược lại là xong) nên không cần qua cổng phê duyệt.
+hàm tth_chuyển(fs, uid, từ, tới) {
+    đặt n = tra_nút(fs, từ)
+    nếu loại(n) == "ẩn" { trả ẩn }
+    nếu từ == "/" { trả tối }
+    đặt tên_mới = tên_cuối(tới)
+    nếu tên_dùng_được(tên_mới) == sáng { } khác { trả tối }      # H5: tên đích cũng phải sạch
+    đặt cha_c = tra_nút(fs, đường_cha(từ))
+    đặt cha_m = tra_nút(fs, đường_cha(tới))
+    nếu loại(cha_m) == "ẩn" { trả ẩn }
+    nếu lấy_khoá(cha_m, "hạng") == "thư" { } khác { trả tối }
+    nếu _xuyên_được(fs, uid, đường_cha(từ)) == sáng { } khác { trả tối }
+    nếu _xuyên_được(fs, uid, đường_cha(tới)) == sáng { } khác { trả tối }
+    nếu được_phép(cha_c, uid, 2) == sáng { } khác { trả tối }
+    nếu được_phép(cha_m, uid, 2) == sáng { } khác { trả tối }
+    nếu có_khoá(lấy_khoá(cha_m, "con"), tên_mới) { trả tối }     # đích đã có → TỪ CHỐI, không đè
+    đặt_khoá(lấy_khoá(cha_m, "con"), tên_mới, n)
+    xoá_khoá(lấy_khoá(cha_c, "con"), tên_cuối(từ))
+    trả sáng
+}
+
+# tth_chép: cp — làm BẢN SAO nội dung. Khác `chuyển` đúng chỗ quyền: chuyển cần GHI cả hai
+# thư-mục cha (gỡ chỗ cũ + gắn chỗ mới), chép chỉ cần ĐỌC tệp nguồn + GHI thư-mục đích —
+# tệp gốc không suy suyển gì. Bản sao thuộc NGƯỜI CHÉP (như cp của Linux: chủ là người chạy),
+# QUYỀN theo tệp nguồn, nhóm KHÔNG kế thừa (như tệp mới tạo). KHÔNG đè; chỉ chép TỆP thường
+# (thư mục / ống / thiết bị thì không — chép ống hay thiết bị là chép cái KHÔNG PHẢI dữ liệu).
+hàm tth_chép(fs, uid, từ, tới) {
+    đặt n = tra_nút(fs, từ)
+    nếu loại(n) == "ẩn" { trả ẩn }
+    nếu lấy_khoá(n, "hạng") == "tệp" { } khác { trả tối }
+    đặt tên_mới = tên_cuối(tới)
+    nếu tên_dùng_được(tên_mới) == sáng { } khác { trả tối }      # H5: tên đích cũng phải sạch
+    đặt cha_m = tra_nút(fs, đường_cha(tới))
+    nếu loại(cha_m) == "ẩn" { trả ẩn }
+    nếu lấy_khoá(cha_m, "hạng") == "thư" { } khác { trả tối }
+    nếu _xuyên_được(fs, uid, đường_cha(từ)) == sáng { } khác { trả tối }
+    nếu _xuyên_được(fs, uid, đường_cha(tới)) == sáng { } khác { trả tối }
+    nếu được_phép(n, uid, 4) == sáng { } khác { trả tối }        # ĐỌC nguồn
+    nếu được_phép(cha_m, uid, 2) == sáng { } khác { trả tối }    # GHI thư-mục đích
+    nếu có_khoá(lấy_khoá(cha_m, "con"), tên_mới) { trả tối }     # đích đã có → TỪ CHỐI, không đè
+    đặt_khoá(lấy_khoá(cha_m, "con"), tên_mới, nút_tệp(uid, lấy_khoá(n, "quyền"), lấy_khoá(n, "nội")))
+    trả sáng
+}
+
+# tth_đổi_nhóm: chgrp (C2) — chủ tệp hoặc gốc; người thường CHỈ đổi sang nhóm MÌNH THUỘC (luật Linux).
+hàm tth_đổi_nhóm(fs, uid, đường, gid) {
+    đặt n = tra_nút(fs, đường)
+    nếu loại(n) == "ẩn" { trả ẩn }
+    nếu uid == 0 { } khác {
+        nếu lấy_khoá(n, "chủ") == uid { } khác { trả tối }
+        nếu thuộc_nhóm_uid(uid, gid) == sáng { } khác { trả tối }
+    }
+    đặt_khoá(n, "gid", gid)
+    trả sáng
+}
+
+# tth_đổi_chủ: chown — CHỈ gốc-quyền (như Linux).
+hàm tth_đổi_chủ(fs, uid, đường, chủ_mới) {
+    nếu uid == 0 { } khác { trả tối }
+    đặt n = tra_nút(fs, đường)
+    nếu loại(n) == "ẩn" { trả ẩn }
+    đặt_khoá(n, "chủ", chủ_mới)
+    trả sáng
+}
+
+# tth_gắn_thiết_bị: mknod — CHỈ gốc-quyền; tạo nút /dev/… trỏ tới trình-điều-khiển.
+hàm tth_gắn_thiết_bị(fs, uid, đường, quyền, trình_điều) {
+    nếu uid == 0 { } khác { trả tối }
+    đặt cha = tra_nút(fs, đường_cha(đường))
+    nếu loại(cha) == "ẩn" { trả ẩn }
+    đặt_khoá(lấy_khoá(cha, "con"), tên_cuối(đường), nút_thiết_bị(uid, quyền, trình_điều))
+    trả sáng
+}
+
+# tth_tạo_ống: mkfifo — cần GHI trên thư-mục CHA (như tạo tệp).
+hàm tth_tạo_ống(fs, uid, đường, quyền, sức) {
+    đặt cha = tra_nút(fs, đường_cha(đường))
+    nếu loại(cha) == "ẩn" { trả ẩn }
+    nếu lấy_khoá(cha, "hạng") == "thư" { } khác { trả tối }
+    nếu _xuyên_được(fs, uid, đường_cha(đường)) == sáng { } khác { trả tối }
+    nếu được_phép(cha, uid, 2) == sáng { } khác { trả tối }
+    đặt tên = tên_cuối(đường)
+    nếu loại(tên) == "ẩn" { trả tối }
+    nếu tên_dùng_được(tên) == sáng { } khác { trả tối }          # H5: chặn tên bãi mìn
+    đặt_khoá(lấy_khoá(cha, "con"), tên, nút_ống(uid, quyền, sức))
+    trả sáng
+}
+hàm tth_là_ống(fs, đường) {
+    đặt n = tra_nút(fs, đường)
+    nếu loại(n) == "ẩn" { trả ẩn }
+    nếu lấy_khoá(n, "hạng") == "ống" { trả sáng }
+    trả tối
+}
+
+# tth_là_thiết_bị / tth_trình: nhận biết + lấy tên trình-điều-khiển của nút /dev
+hàm tth_là_thiết_bị(fs, đường) {
+    đặt n = tra_nút(fs, đường)
+    nếu loại(n) == "ẩn" { trả ẩn }
+    nếu lấy_khoá(n, "hạng") == "thiết_bị" { trả sáng }
+    trả tối
+}
+hàm tth_trình(fs, đường) {
+    đặt n = tra_nút(fs, đường)
+    nếu loại(n) == "ẩn" { trả ẩn }
+    trả lấy_khoá(n, "trình")
+}
+
+# tth_cây: in cây thư-mục (gỡ rối / `cây` trong vỏ) — danh-sách chuỗi thụt đầu dòng
+hàm _cây_đệ(fs, uid, đường, thụt, kq) {
+    đặt ds = tth_liệt(fs, uid, đường)
+    nếu loại(ds) == "danh_sách" { } khác { trả kq }
+    lặp tên trong ds {
+        đặt d = nối_đường(đường, tên)
+        đặt n = tra_nút(fs, d)
+        đặt dấu = ""
+        nếu lấy_khoá(n, "hạng") == "thư" { đặt dấu = "/" }
+        nếu lấy_khoá(n, "hạng") == "thiết_bị" { đặt dấu = " (thiết bị)" }
+        nếu lấy_khoá(n, "hạng") == "ống" { đặt dấu = " (ống)" }
+        gom(kq, thụt + tên + dấu)
+        nếu lấy_khoá(n, "hạng") == "thư" { _cây_đệ(fs, uid, d, thụt + "  ", kq) }
+    }
+    trả kq
+}
+hàm tth_cây(fs, uid, đường) { trả _cây_đệ(fs, uid, đường, "  ", []) }

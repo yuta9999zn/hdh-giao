@@ -1,0 +1,19 @@
+# ============================================================
+# kiem_phuc_tap.giao — PERF-GUARD: hàm đã tối-ưu O(n²)→O(n)/O(n log n) (2026-06-19)
+# ------------------------------------------------------------
+# Chạy ở n=1500 — nếu ai REVERT về O(n²) (chứa-scan / ghép-copy / vòng-lồng / thêm-copy heap)
+# thì chạm MAX_STEPS 5M → ABORT → marker cuối KHÔNG in → test RỚT.
+# ============================================================
+nhập "lib_tập.giao"
+nhập "lib_đống.giao"
+nhập "lib_thống_kê.giao"
+
+đặt _ds = dải((1500))                          # [0..1499] toàn phần-tử KHÁC NHAU (worst-case cho chứa-scan)
+
+rọi dài(duy_nhất(ghép(_ds, _ds)))              # 1500 — duy_nhất O(n) qua bản (trước O(n²) chạm-trần n=2000)
+rọi dài(hợp_tập(_ds, _ds))                     # 1500 — lib_tập O(n) qua bản (trước O(n²) n=1600)
+rọi con_của(_ds, _ds)                          # sáng — con_của O(n)
+rọi mốt(_ds)                                   # 0 — mốt O(n) đếm-bản (trước O(n²) vòng-lồng n=1000)
+rọi đầu(sắp_đống(đảo(_ds)))                     # 0 — heapsort O(n log n) cons-prepend (trước O(n²) n=800)
+
+rọi "=== PERF-GUARD O(n): HẾT (không chạm-trần) ==="

@@ -1,0 +1,62 @@
+# ============================================================
+# lib_so_lon.giao — SỐ HỌC SỐ LỚN: mũ-modulo, hex ⟷ số
+# ------------------------------------------------------------
+# Đây là mảnh còn thiếu để GIAO KIỂM được chữ ký khoá-công-khai (CÒN_THIẾU I1). GIAO tính số
+# nguyên CHÍNH XÁC mọi cỡ (không có trần 64-bit, không mất bit như số thực), nên chỉ cần thêm
+# đúng một phép: `mũ_mod`. Có nó là dựng được RSA-verify.
+#
+# `mũ_mod` dùng BÌNH-PHƯƠNG-VÀ-NHÂN: đi theo từng bit của số mũ, chứ không nhân lặp `mũ` lần.
+# Với mũ 65537 (17 bit) thì chỉ 17 vòng — kiểm một chữ ký là chuyện tức thì.
+# Nhờ A1 (phép bit) mà đọc bit của số mũ được: `và_bit(m,1)` lấy bit thấp, `dịch_phải(m,1)` bước tiếp.
+# ============================================================
+nhập "chuẩn.giao"
+
+đặt SL_HEX = "0123456789abcdef"
+
+hàm mũ_mod(cơ, mũ, mod) {
+    "→ (cơ ^ mũ) mod mod. Mũ âm hoặc mod <= 0 → ẩn (không bịa)."
+    nếu mod <= 0 { trả ẩn }
+    nếu mũ < 0 { trả ẩn }
+    đặt kq = 1
+    đặt c = dư(cơ, mod)
+    đặt m = mũ
+    mãi {
+        nếu m == 0 { dừng }
+        nếu và_bit(m, 1) == 1 { đặt kq = dư(kq * c, mod) }
+        đặt m = dịch_phải(m, 1)
+        nếu m == 0 { dừng }                 # khỏi bình phương thừa một lượt cuối
+        đặt c = dư(c * c, mod)
+    }
+    trả kq
+}
+
+hàm _hex_giá(c) {
+    đặt i = 0
+    mãi {
+        nếu i >= 16 { trả ẩn }
+        nếu SL_HEX[i] == c { trả i }
+        đặt i = i + 1
+    }
+}
+
+hàm hex_sang_số(s) {
+    "Chuỗi hex (chữ thường) → số nguyên lớn. Gặp ký tự lạ → ẩn."
+    đặt n = 0
+    lặp c trong s {
+        đặt g = _hex_giá(c)
+        nếu loại(g) == "ẩn" { trả ẩn }
+        đặt n = n * 16 + g
+    }
+    trả n
+}
+
+hàm số_sang_hex(n, rộng) {
+    "Số → chuỗi hex ĐỆM 0 cho đủ `rộng` ký tự (để so byte-đối-byte với khuôn chữ ký)."
+    đặt ra = ""
+    đặt v = n
+    lặp rộng {
+        đặt ra = SL_HEX[dư(v, 16)] + ra
+        đặt v = v // 16
+    }
+    trả ra
+}

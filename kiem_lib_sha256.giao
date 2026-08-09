@@ -1,0 +1,20 @@
+# Kiểm lib_sha256 — đối chiếu TỪNG KÝ TỰ với hashlib.sha256 của Python (vector cố định)
+nhập "lib_sha256.giao"
+
+# vector FIPS/quen thuộc
+rọi sha256_hex("")        # e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+rọi sha256_hex("abc")     # ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
+rọi sha256_hex("hello")   # 2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824
+
+# UTF-8 nhiều byte (tiếng Việt + emoji 4-byte) — utf8_mã thuần GIAO phải khớp Python
+rọi sha256_hex("mật khẩu tiếng Việt 🔐")
+# d9defc99671f93c3d55304e3cb1be019081a0624b8bf1dca421351258e4521ff
+
+# dài hơn một khối (100 byte → 2 khối)
+đặt trăm_a = ""
+lặp 100 { đặt trăm_a = trăm_a + "a" }
+rọi sha256_hex(trăm_a)
+# 2816597888e4a0d3a36b82b83316ab32680eb8f00f8cd3b904d681246d285a0e
+
+# utf8_mã: byte đúng chuẩn
+rọi utf8_mã("aă")         # [97, 196, 131]

@@ -1,0 +1,184 @@
+# ============================================================
+# lib_sha256.giao — SHA-256 THUẦN GIAO (FIPS 180-4)
+# ------------------------------------------------------------
+# Mở khoá bởi phép toán BIT (CÒN_THIẾU A1: xor/và_bit/hoặc_bit/dịch) và viết gọn nhờ
+# gán theo chỉ mục (A2: `đặt W[t] = …`). Đối chiếu từng vector với hashlib của Python
+# trong kiem_lib_sha256 — KHỚP TỪNG KÝ TỰ hex.
+#
+# Vào: CHUỖI bất kỳ (mã hoá UTF-8 tại đây, thuần GIAO) hoặc DANH SÁCH BYTE.
+# Ra:  chuỗi hex 64 ký tự (thường).
+#
+# ⚠ Tốc độ: đây là đường THÔNG DỊCH (~10–15 nghìn bước/khối 64 byte) — đủ cho băm mật khẩu,
+#   chữ ký tệp nhỏ, kiểm toàn vẹn. Muốn nhanh gấp trăm lần thì chờ tập-con-máy có phép bit.
+# ============================================================
+nhập "lib_chuoi.giao"
+
+đặt SHA_MOD = 4294967295                     # mặt nạ 32-bit (2^32 − 1)
+
+đặt SHA_K = [
+    1116352408, 1899447441, 3049323471, 3921009573, 961987163, 1508970993, 2453635748, 2870763221,
+    3624381080, 310598401, 607225278, 1426881987, 1925078388, 2162078206, 2614888103, 3248222580,
+    3835390401, 4022224774, 264347078, 604807628, 770255983, 1249150122, 1555081692, 1996064986,
+    2554220882, 2821834349, 2952996808, 3210313671, 3336571891, 3584528711, 113926993, 338241895,
+    666307205, 773529912, 1294757372, 1396182291, 1695183700, 1986661051, 2177026350, 2456956037,
+    2730485921, 2820302411, 3259730800, 3345764771, 3516065817, 3600352804, 4094571909, 275423344,
+    430227734, 506948616, 659060556, 883997877, 958139571, 1322822218, 1537002063, 1747873779,
+    1955562222, 2024104815, 2227730452, 2361852424, 2428436474, 2756734187, 3204031479, 3329325298]
+
+đặt SHA_H0 = [1779033703, 3144134277, 1013904242, 2773480762,
+              1359893119, 2600822924, 528734635, 1541459225]
+
+hàm _s_ép32(x) { trả và_bit(x, SHA_MOD) }
+
+# quay phải 32-bit (rotr)
+hàm _s_quay(x, n) { trả và_bit(hoặc_bit(dịch_phải(x, n), dịch_trái(x, 32 - n)), SHA_MOD) }
+
+# ---------------- UTF-8: chuỗi → danh sách byte (thuần GIAO, nhờ phép bit) ----------------
+hàm utf8_mã(s) {
+    đặt ra = []
+    lặp c trong s {
+        đặt cp = mã(c)
+        nếu cp < 128 { gom(ra, cp) }
+        khác { nếu cp < 2048 {
+            gom(ra, 192 + dịch_phải(cp, 6))
+            gom(ra, 128 + và_bit(cp, 63))
+        } khác { nếu cp < 65536 {
+            gom(ra, 224 + dịch_phải(cp, 12))
+            gom(ra, 128 + và_bit(dịch_phải(cp, 6), 63))
+            gom(ra, 128 + và_bit(cp, 63))
+        } khác {
+            gom(ra, 240 + dịch_phải(cp, 18))
+            gom(ra, 128 + và_bit(dịch_phải(cp, 12), 63))
+            gom(ra, 128 + và_bit(dịch_phải(cp, 6), 63))
+            gom(ra, 128 + và_bit(cp, 63))
+        } } }
+    }
+    trả ra
+}
+
+# utf8_giải: dãy byte → CHUỖI (cặp đôi của utf8_mã). Byte hỏng → thay bằng '?' chứ không nổ.
+hàm utf8_giải(bs) {
+    đặt ra = ""
+    đặt i = 0
+    mãi {
+        nếu i >= dài(bs) { dừng }
+        đặt b = bs[i]
+        nếu b < 128 { đặt ra = ra + ký_tự(b)  đặt i = i + 1 }
+        khác { nếu b < 224 {
+            nếu i + 1 >= dài(bs) { đặt ra = ra + "?"  đặt i = i + 1 }
+            khác {
+                đặt cp = và_bit(b, 31) * 64 + và_bit(bs[i + 1], 63)
+                đặt ra = ra + ký_tự(cp)  đặt i = i + 2
+            }
+        } khác { nếu b < 240 {
+            nếu i + 2 >= dài(bs) { đặt ra = ra + "?"  đặt i = i + 1 }
+            khác {
+                đặt cp = và_bit(b, 15) * 4096 + và_bit(bs[i + 1], 63) * 64 + và_bit(bs[i + 2], 63)
+                đặt ra = ra + ký_tự(cp)  đặt i = i + 3
+            }
+        } khác {
+            nếu i + 3 >= dài(bs) { đặt ra = ra + "?"  đặt i = i + 1 }
+            khác {
+                đặt cp = và_bit(b, 7) * 262144 + và_bit(bs[i + 1], 63) * 4096
+                đặt cp = cp + và_bit(bs[i + 2], 63) * 64 + và_bit(bs[i + 3], 63)
+                đặt ra = ra + ký_tự(cp)  đặt i = i + 4
+            }
+        } } }
+    }
+    trả ra
+}
+
+# ---------------- lõi: danh sách byte → 8 từ 32-bit ----------------
+hàm sha256_bytes(bs) {
+    đặt n = dài(bs)
+    đặt m = ghép(bs, [])                     # bản sao — không sửa của người gọi
+    gom(m, 128)                              # bit '1' mở đệm
+    mãi {
+        nếu dư(dài(m), 64) == 56 { dừng }
+        gom(m, 0)
+    }
+    đặt bít = n * 8                          # độ dài GỐC tính bằng bit, big-endian 8 byte
+    đặt i = 7
+    mãi {
+        nếu i < 0 { dừng }
+        gom(m, và_bit(dịch_phải(bít, i * 8), 255))
+        đặt i = i - 1
+    }
+
+    đặt H = ghép(SHA_H0, [])
+    đặt khối = 0
+    đặt số_khối = dài(m) // 64
+    mãi {
+        nếu khối >= số_khối { dừng }
+        đặt gốc = khối * 64
+
+        # lịch thông điệp W[0..63]
+        # (VÒNG NÓNG: quay/ép INLINE thay vì gọi _s_quay/_s_ép32 — mỗi lời gọi hàm GIAO tốn một
+        #  môi trường mới, 448 lời/khối là phần đắt nhất. Mặt nạ 32-bit chỉ cần MỘT lần cuối vì
+        #  `và` PHÂN PHỐI trên `xor`: (a^b^c)∧M = (a∧M)^(b∧M)^(c∧M).)
+        đặt W = []
+        đặt t = 0
+        lặp 16 {
+            đặt p = gốc + t * 4
+            gom(W, hoặc_bit(hoặc_bit(dịch_trái(m[p], 24), dịch_trái(m[p + 1], 16)),
+                            hoặc_bit(dịch_trái(m[p + 2], 8), m[p + 3])))
+            đặt t = t + 1
+        }
+        lặp 48 {
+            đặt x = W[t - 15]
+            đặt y = W[t - 2]
+            đặt s0 = xor(xor(hoặc_bit(dịch_phải(x, 7), dịch_trái(x, 25)),
+                             hoặc_bit(dịch_phải(x, 18), dịch_trái(x, 14))), dịch_phải(x, 3))
+            đặt s1 = xor(xor(hoặc_bit(dịch_phải(y, 17), dịch_trái(y, 15)),
+                             hoặc_bit(dịch_phải(y, 19), dịch_trái(y, 13))), dịch_phải(y, 10))
+            gom(W, và_bit(W[t - 16] + và_bit(s0, SHA_MOD) + W[t - 7] + và_bit(s1, SHA_MOD), SHA_MOD))
+            đặt t = t + 1
+        }
+
+        # nén
+        đặt a = H[0]  đặt b = H[1]  đặt c = H[2]  đặt d = H[3]
+        đặt e = H[4]  đặt f = H[5]  đặt g = H[6]  đặt h = H[7]
+        đặt t = 0
+        lặp 64 {
+            đặt S1 = và_bit(xor(xor(hoặc_bit(dịch_phải(e, 6), dịch_trái(e, 26)),
+                                    hoặc_bit(dịch_phải(e, 11), dịch_trái(e, 21))),
+                                hoặc_bit(dịch_phải(e, 25), dịch_trái(e, 7))), SHA_MOD)
+            đặt ch = xor(và_bit(e, f), và_bit(xor(e, SHA_MOD), g))      # (¬e)∧g trong 32-bit
+            đặt t1 = và_bit(h + S1 + ch + SHA_K[t] + W[t], SHA_MOD)
+            đặt S0 = và_bit(xor(xor(hoặc_bit(dịch_phải(a, 2), dịch_trái(a, 30)),
+                                    hoặc_bit(dịch_phải(a, 13), dịch_trái(a, 19))),
+                                hoặc_bit(dịch_phải(a, 22), dịch_trái(a, 10))), SHA_MOD)
+            đặt mj = xor(xor(và_bit(a, b), và_bit(a, c)), và_bit(b, c))
+            đặt t2 = và_bit(S0 + mj, SHA_MOD)
+            đặt h = g  đặt g = f  đặt f = e  đặt e = và_bit(d + t1, SHA_MOD)
+            đặt d = c  đặt c = b  đặt b = a  đặt a = và_bit(t1 + t2, SHA_MOD)
+            đặt t = t + 1
+        }
+        đặt H[0] = và_bit(H[0] + a, SHA_MOD)  đặt H[1] = và_bit(H[1] + b, SHA_MOD)   # (A2) tại chỗ
+        đặt H[2] = và_bit(H[2] + c, SHA_MOD)  đặt H[3] = và_bit(H[3] + d, SHA_MOD)
+        đặt H[4] = và_bit(H[4] + e, SHA_MOD)  đặt H[5] = và_bit(H[5] + f, SHA_MOD)
+        đặt H[6] = và_bit(H[6] + g, SHA_MOD)  đặt H[7] = và_bit(H[7] + h, SHA_MOD)
+        đặt khối = khối + 1
+    }
+    trả H
+}
+
+# ---------------- hex ----------------
+hàm _s_hex32(v) {
+    đặt ra = ""
+    đặt x = v
+    lặp 8 {
+        đặt d = và_bit(x, 15)
+        đặt ra = lát_chuỗi("0123456789abcdef", d, d + 1) + ra
+        đặt x = dịch_phải(x, 4)
+    }
+    trả ra
+}
+
+# sha256_hex(chuỗi) → hex 64 ký tự (mã hoá UTF-8 trước khi băm — khớp hashlib Python)
+hàm sha256_hex(s) {
+    đặt H = sha256_bytes(utf8_mã(s))
+    đặt ra = ""
+    lặp w trong H { đặt ra = ra + _s_hex32(w) }
+    trả ra
+}

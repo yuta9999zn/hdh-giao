@@ -1,0 +1,2 @@
+# fixture va-tên #2 — ĐỊNH-NGHĨA LẠI 'va_thử' (bản B) ở tệp KHÁC → phải cảnh-báo va-tên.
+hàm va_thử(x) { trả x + 2 }

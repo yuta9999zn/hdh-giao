@@ -1,0 +1,114 @@
+# ============================================================
+# lib_tổ_hợp.giao — TỔ HỢP (itertools/combinatorics kiểu Python) cho GIAO
+# ------------------------------------------------------------
+# GIỮ CỐT LÕI GIAO: ba-trị (giai_thừa số-ÂM → 'ẩn' = không xác định) · idiom Việt ·
+#   TỰ-THÂN (dựng trên builtin + chuẩn.giao + lib_duyet `bỏ_n`) · thứ-tự sinh KHỚP itertools.
+# Nạp: nhập "lib_tổ_hợp.giao".
+# ============================================================
+nhập "lib_duyet.giao"     # bỏ_n (drop), lấy_n có ở chuẩn.giao
+
+# ---------------- đếm (counting) ----------------
+hàm giai_thừa(n) {                       # n!; n<0 → ẩn (không xác định) ; ẩn → ẩn (tránh lặp vô tận)
+    nếu loại(n) == "ẩn" { trả ẩn }
+    nếu n < 0 { trả ẩn }
+    đặt r = 1  đặt i = 2
+    mãi { nếu i > n { dừng }  đặt r = r * i  đặt i = i + 1 }
+    trả r
+}
+hàm số_chỉnh_hợp(n, k) {                 # P(n,k) = n!/(n-k)!; n<0 → ẩn; k<0 hoặc k>n → 0
+    nếu loại(n) == "ẩn" { trả ẩn }
+    nếu loại(k) == "ẩn" { trả ẩn }
+    nếu n < 0 { trả ẩn }                  # không xác định (đồng bộ giai_thừa(âm)→ẩn)
+    nếu k < 0 { trả 0 }
+    nếu k > n { trả 0 }
+    đặt r = 1  đặt i = 0
+    mãi { nếu i >= k { dừng }  đặt r = r * (n - i)  đặt i = i + 1 }
+    trả r
+}
+hàm số_tổ_hợp(n, k) {                    # C(n,k); n<0 → ẩn; k<0 hoặc k>n → 0 (công thức nhân)
+    nếu loại(n) == "ẩn" { trả ẩn }
+    nếu loại(k) == "ẩn" { trả ẩn }
+    nếu n < 0 { trả ẩn }                  # không xác định (đồng bộ giai_thừa(âm)→ẩn)
+    nếu k < 0 { trả 0 }
+    nếu k > n { trả 0 }
+    đặt kk = k
+    nếu k > n - k { đặt kk = n - k }      # đối xứng → ít vòng hơn
+    đặt r = 1  đặt i = 0
+    mãi {
+        nếu i >= kk { dừng }
+        đặt r = r * (n - i) // (i + 1)
+        đặt i = i + 1
+    }
+    trả r
+}
+
+# ---------------- sinh (generators) ----------------
+hàm tổ_hợp(ds, k) {                      # combinations: mọi tập-con k phần-tử, GIỮ thứ tự nguồn
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    nếu loại(k) == "ẩn" { trả ẩn }         # k ẩn → ẩn (không đệ-quy hỏng / crash chỉ-mục)
+    nếu k == 0 { trả [[]] }
+    nếu dài(ds) < k { trả [] }
+    đặt đầu = ds[0]
+    đặt còn = bỏ_n(ds, 1)
+    đặt kq = []
+    lặp c trong tổ_hợp(còn, k - 1) {       # các tổ-hợp CÓ phần-tử đầu
+        đặt mới = [đầu]
+        lặp e trong c { gom(mới, e) }
+        gom(kq, mới)
+    }
+    lặp c trong tổ_hợp(còn, k) { gom(kq, c) }   # các tổ-hợp KHÔNG có phần-tử đầu
+    trả kq
+}
+hàm chỉnh_hợp(ds, k) {                   # k-permutations: chọn có thứ tự, không lặp
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    nếu loại(k) == "ẩn" { trả ẩn }         # k ẩn → ẩn (không trả [] SAI)
+    nếu k == 0 { trả [[]] }
+    nếu dài(ds) < k { trả [] }
+    đặt kq = []
+    đặt i = 0
+    lặp x trong ds {
+        đặt còn = []  đặt j = 0
+        lặp y trong ds { nếu j == i { } khác { gom(còn, y) }  đặt j = j + 1 }
+        lặp p trong chỉnh_hợp(còn, k - 1) {
+            đặt mới = [x]
+            lặp e trong p { gom(mới, e) }
+            gom(kq, mới)
+        }
+        đặt i = i + 1
+    }
+    trả kq
+}
+hàm hoán_vị(ds) { nếu loại(ds) == "ẩn" { trả ẩn }  trả chỉnh_hợp(ds, dài(ds)) }   # mọi hoán vị đầy đủ
+
+hàm tích_đề(a, b) {                      # cartesian product → [[x,y]...]
+    nếu loại(a) == "ẩn" { trả ẩn }
+    nếu loại(b) == "ẩn" { trả ẩn }
+    đặt kq = []
+    lặp x trong a { lặp y trong b { gom(kq, [x, y]) } }
+    trả kq
+}
+hàm tập_lũy_thừa(ds) {                   # power set: mọi tập-con (2^n cái)
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    đặt kq = [[]]
+    lặp x trong ds {
+        đặt thêm = []
+        lặp s trong kq {
+            đặt mới = []
+            lặp e trong s { gom(mới, e) }
+            gom(mới, x)
+            gom(thêm, mới)
+        }
+        lặp m trong thêm { gom(kq, m) }
+    }
+    trả kq
+}
+hàm cặp_kề(ds) {                         # pairwise → [[a,b],[b,c],...]
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    đặt kq = []  đặt i = 1
+    mãi {
+        nếu i >= dài(ds) { dừng }
+        gom(kq, [ds[i - 1], ds[i]])
+        đặt i = i + 1
+    }
+    trả kq
+}

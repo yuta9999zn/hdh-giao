@@ -1,0 +1,63 @@
+# ============================================================
+# DRIVER BARE-METAL bằng GIAO — MMIO (đường "xuống chip": phần mềm điều khiển thanh ghi thiết bị)
+# Mẫu "first driver" của build-your-own-x (os-tutorial/littleosbook): blink LED + serial UART + timer.
+# Thanh ghi: UART_TX=0 · UART_ST=4 · TIMER=8 · LED=12 (mô hình nền; FPGA→chân thật hw/gvm.v, Pha 1).
+# Cần cấp năng lực:  python giao.py examples/driver_mmio.giao --cho-mmio
+# Lịch phục vụ thiết bị dùng γ SKILL-SCORE MỚI (F.4) — nối phần (a)↔(b).
+# ============================================================
+
+# ---------- DRIVER UART (cổng nối tiếp) ----------
+hàm uart_byte(b) { mmio(0, b) }                      # ghi 1 byte ra TX
+hàm uart_puts_i(s, i, n) {                           # ghi chuỗi: đệ quy qua từng ký tự
+    nếu i >= n { trả 0 }
+    uart_byte(mã(s[i]))
+    trả uart_puts_i(s, i + 1, n)
+}
+hàm uart_puts(s) { uart_puts_i(s, 0, dài(s))  mmio(0, 10) }   # xong → xả dòng (10='\n')
+
+# ---------- DRIVER GPIO/LED ----------
+hàm led_đặt(mẫu) { mmio(12, mẫu) }                   # ghi thanh ghi LED
+hàm blink_i(k, mẫu) {                                # nhấp nháy k lần: mẫu → tắt → ...
+    nếu k <= 0 { trả 0 }
+    led_đặt(mẫu)  led_đặt(0)
+    trả blink_i(k - 1, mẫu)
+}
+
+# ---------- DRIVER TIMER (đọc bộ đếm chu-kỳ tự chạy) ----------
+hàm timer() { trả mmio(8) }
+
+rọi "── 1) UART: HELLO ra cổng nối tiếp ──"
+uart_puts("GIAO xuong chip: xin chao!")
+
+rọi ""
+rọi "── 2) GPIO: nhấp nháy LED (mẫu 0b10110010) 3 lần ──"
+blink_i(3, 178)      # 178 = 0b10110010
+
+rọi ""
+rọi "── 3) TIMER: đọc bộ đếm chu-kỳ (2 lần, phải TĂNG) ──"
+đặt t0 = timer()
+đặt t1 = timer()
+rọi "  t0=" + t0 + "  t1=" + t1 + "  Δ=" + (t1 - t0) + "  (timer tự chạy → t1>t0)"
+
+rọi ""
+rọi "── 4) LỊCH PHỤC VỤ THIẾT BỊ theo γ MỚI (F.4) ──"
+# Hai 'tác vụ thiết bị': mỗi cái có [tên, đã_làm, mục_tiêu, thanh_ghi]. Lịch chọn cái γ THẤP nhất
+# (cộng hưởng niềm-tin↔mục-tiêu thấp = còn xa đích = phục vụ trước) — nhưng KHÔNG phục vụ γ<0 (ảo).
+hàm γ_tv(tv) { trả cộng_hưởng(tv[1], tv[2]) }        # skill-score tiến độ
+hàm phục_vụ(tv) {                                     # phục vụ 1 nhịp → tiến 1 bước về mục tiêu
+    đặt g = γ_tv(tv)
+    nếu g < 0 { rọi "  ✗ " + tv[0] + " γ<0 (ảo) → BỎ, không phục vụ ảo"  trả tv }
+    led_đặt(tv[1])                                    # phản ánh tiến độ ra LED
+    rọi "  ⚙ phục vụ " + tv[0] + " (γ=" + g + ", đã_làm=" + tv[1] + "/" + tv[2] + ")"
+    trả [tv[0], tv[1] + 1, tv[2], tv[3]]
+}
+# một vòng lịch: so γ hai tv, phục vụ cái γ nhỏ hơn (xa đích hơn)
+hàm vòng_lịch(a, b) {
+    nếu γ_tv(a) <= γ_tv(b) { trả [phục_vụ(a), b] }
+    trả [a, phục_vụ(b)]
+}
+đặt tvs = [["blink", 0, 3, 12], ["uart", 1, 3, 0]]
+đặt r1 = vòng_lịch(tvs[0], tvs[1])
+đặt r2 = vòng_lịch(r1[0], r1[1])
+đặt r3 = vòng_lịch(r2[0], r2[1])
+rọi "  → sau 3 nhịp: blink=" + r3[0][1] + "/3  uart=" + r3[1][1] + "/3  (lịch dồn cho cái xa đích nhất)"

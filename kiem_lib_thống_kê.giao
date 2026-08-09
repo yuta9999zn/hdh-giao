@@ -1,0 +1,24 @@
+# Kiểm lib_thống_kê — Statistics kiểu Python/Ruby (ba-trị-aware)
+nhập "lib_thống_kê.giao"
+
+rọi trung_vị([3, 1, 2])              # 2  (lẻ)
+rọi trung_vị([1, 2, 3, 4])          # 2.5 (chẵn)
+rọi trung_vị([])                    # ẩn (rỗng → chưa-biết)
+rọi mốt([1, 2, 2, 3, 3, 3])         # 3
+rọi mốt([4, 4, 7, 7])               # 4  (hoà → gặp-đầu)
+rọi mốt([])                         # ẩn
+rọi khoảng_biến_thiên([5, 1, 9, 3]) # 8
+rọi khoảng_biến_thiên([])           # ẩn
+rọi phương_sai([2, 4, 6])           # 2.6666 (chia n)
+rọi phương_sai_mẫu([2, 4, 6])       # 4 (chia n-1)
+rọi phương_sai_mẫu([5])             # ẩn (cần ≥2)
+rọi độ_lệch_chuẩn([2, 4, 6])        # ~1.632
+rọi độ_lệch_chuẩn_mẫu([2, 4, 6])    # 2
+rọi độ_lệch_chuẩn([])               # ẩn
+rọi trung_bình_điều_hòa([1, 2, 4])  # ~1.714  (3 / (1+0.5+0.25))
+rọi trung_bình_điều_hòa([1, 0, 4])  # ẩn (gặp 0)
+rọi trung_bình_điều_hòa([2, 0-1])   # ẩn (gặp số âm)
+rọi phân_vị([1, 2, 3, 4], 50)       # 2.5 (= median)
+rọi phân_vị([1, 2, 3, 4], 0)        # 1
+rọi phân_vị([1, 2, 3, 4], 100)      # 4
+rọi tứ_phân_vị([1, 2, 3, 4, 5])     # [2, 3, 4]

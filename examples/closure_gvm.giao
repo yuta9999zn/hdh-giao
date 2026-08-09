@@ -1,0 +1,11 @@
+# CLOSURE trên MÁY GVM — hàm hạng nhất biên dịch xuống bytecode (mốc 3a)
+# closure = khối heap [code_addr, ncap, bắt…]; GỌI_CLOSURE dựng khung [bắt…, đối…] rồi nhảy.
+
+hàm nhân(k){ trả hàm(x){ trả x*k } }     # nhân(k) trả về closure bắt k
+hàm áp(f, x){ trả f(x) }                  # bậc cao: gọi tham-số-hàm
+hàm dựng(a, b){ trả hàm(c){ trả a+b+c } } # bắt NHIỀU biến
+
+rọi áp(nhân(3), 5)        # = 15  (3*5)
+rọi nhân(7)(6)            # = 42  (gọi closure tức thì)
+rọi dựng(1, 2)(100)       # = 103 (bắt 2 biến)
+rọi (hàm(a, b){ trả a+b })(4, 9)   # = 13 (IIFE — lam gọi ngay)

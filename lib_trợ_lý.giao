@@ -1,0 +1,541 @@
+# ============================================================
+# lib_trợ_lý.giao — TRỢ LÝ AI NẰM TRONG HỆ ĐIỀU HÀNH (dịch vụ hệ thống, không phải app)
+# ------------------------------------------------------------
+# Ý chính (điểm KHÁC Linux): trong Linux, muốn nhờ máy làm việc thì PHẢI biết cú pháp lệnh.
+# Ở HĐH-GIAO, "nói bằng lời" là một GỌI-HỆ hạng nhất (GH_NHỜ) — trợ lý là tiến-trình hệ thống
+# nghe lời rồi TỰ GÕ LỆNH cho bạn. Nhưng nó bị ràng ba lớp (kiến trúc an-toàn CDFL):
+#   1. ĐỒNG DANH TÍNH — trợ lý chạy lệnh QUA CHÍNH tid của người nhờ ⇒ uid y hệt.
+#      Không có cửa hậu, không leo thang: người dùng cấm gì thì trợ lý cấm nấy.
+#   2. CỔNG CỘNG-HƯỞNG γ (trái tim + σ/Φ) — mỗi kỹ năng có mô-tả; γ = cộng_hưởng(nhúng(mô-tả),
+#      nhúng(lời nhờ)). γ dưới ngưỡng ⇒ TỪ CHỐI, nói "chưa hiểu", KHÔNG bịa việc để làm.
+#      (Đúng cổng-phủ "học-1-hiểu-10": thà từ chối còn hơn ảo tưởng — đốm tối.)
+#   3. CỔNG BẤT-KHẢ-HỒI — kỹ năng phá huỷ (xoá, định dạng ổ) KHÔNG được tự chạy: trợ lý chỉ
+#      TRÌNH BÀY dự định rồi chờ NGƯỜI gõ `duyệt`. Tầng gọi-hệ chặn lần hai (phòng thủ kép).
+# Trái tim = tim_llm (Ollama nếu có, không thì bản dự-phòng tất-định) qua builtin nhúng/tim.
+# Nạp: nhập "lib_trợ_lý.giao".
+# ============================================================
+nhập "lib_vỏ.giao"
+
+# ---------------- KHO KỸ NĂNG ----------------
+# kỹ năng = [ tên, mô-tả (dùng để cộng hưởng), danh-sách dòng lệnh, khả-hồi (sáng = hoàn tác được) ]
+hàm kho_rỗng() { trả [] }
+hàm thêm_kỹ_năng(kho, tên, mô_tả, lệnh, khả_hồi) {
+    gom(kho, [tên, mô_tả, lệnh, khả_hồi])
+    trả kho
+}
+
+# ---------------- NGƯỠNG γ tự chỉnh theo TRÁI TIM đang dùng ----------------
+# bge-m3/Ollama cho phổ γ rộng (≈0.3–0.8) ⇒ ngưỡng cao; bản dự-phòng băm-dấu cho γ thưa ⇒ ngưỡng thấp.
+hàm ngưỡng_γ() {
+    nếu nhịp_tim()[1] == "dự-phòng" { trả 0.2 }   # bản dự-phòng băm-dấu: γ thưa
+    trả 0.5                                         # trái tim thật (ollama/bge-m3): thang rộng
+}
+
+# σ của kỹ năng được NHÚNG SẴN một lần (kn[4]) — mỗi lời nhờ chỉ còn 1 lần gọi trái tim.
+hàm nhúng_sẵn_kho(kho) {
+    lặp kn trong kho { nếu dài(kn) < 5 { gom(kn, nhúng(kn[1])) } }
+    trả kho
+}
+hàm _γ_kỹ_năng(kn, ρ) {
+    nếu dài(kn) >= 5 { trả cộng_hưởng(kn[4], ρ) }
+    trả cộng_hưởng(nhúng(kn[1]), ρ)
+}
+
+# xếp_hạng: mọi kỹ năng kèm γ, sắp GIẢM DẦN (chọn lựa MINH BẠCH — người soi được vì sao)
+hàm xếp_hạng(kho, lời) {
+    đặt ρ = nhúng(lời)
+    đặt ds = []
+    lặp kn trong kho { gom(ds, [_γ_kỹ_năng(kn, ρ), kn]) }
+    # sắp xếp chèn (danh sách nhỏ)
+    đặt kq = []
+    lặp x trong ds {
+        đặt chèn = []
+        đặt đã = tối
+        lặp y trong kq {
+            nếu đã == tối { nếu x[0] > y[0] { gom(chèn, x)  đặt đã = sáng } }
+            gom(chèn, y)
+        }
+        nếu đã == tối { gom(chèn, x) }
+        đặt kq = chèn
+    }
+    trả kq
+}
+
+hàm _phần_trăm(g) { trả nguyên(g * 100) }
+
+# ---------------- BỘ NÃO: nhận lời → chọn việc → làm (hoặc từ chối) ----------------
+# Trả về VĂN BẢN báo cáo cho người dùng (vỏ in ra). Mọi hành động đi qua `chạy_dòng` ⇒ qua gọi-hệ.
+hàm trợ_lý_làm(máy, tid, lời) {
+    đặt kho = lấy_khoá(máy, "kho_kỹ_năng")
+    nếu loại(kho) == "ẩn" { trả "trợ lý: chưa nạp kho kỹ năng" }
+    đặt hạng = xếp_hạng(kho, lời)
+    nếu dài(hạng) == 0 { trả "trợ lý: kho kỹ năng rỗng" }
+
+    đặt tốt = hạng[0]
+    đặt γ = tốt[0]
+    đặt kn = tốt[1]
+    đặt τ = ngưỡng_γ()
+
+    đặt báo = ["🤖 trợ lý nghe: \"" + lời + "\""]
+    gom(báo, "   cộng hưởng: " + _kê_hạng(hạng, 3) + "   (ngưỡng " + _phần_trăm(τ) + "%)")
+
+    # --- CỔNG 1: kho kỹ năng không đủ hiểu → chuyển sang TỰ SOẠN LỆNH (tầng 2) ---
+    đặt ứng = sinh_ứng_viên(máy, tid, lời)           # DÒ MỘT LẦN, dùng lại ở mọi nhánh dưới
+    nếu γ < τ {
+        gom(báo, "   ⟡ kho kỹ năng chỉ khớp " + _phần_trăm(γ) + "% < ngưỡng ⇒ không có việc sẵn nào đúng.")
+        trả trợ_lý_sinh(máy, tid, lời, báo, ứng)
+    }
+
+    # --- CÓ CĂN CỨ THẮNG MƠ HỒ ---
+    # Soạn được lệnh CỤ THỂ (động từ trong lời + đối tượng DÒ THẤY trong hệ-tệp) thì TIN CÁI CÓ CĂN
+    # CỨ, trừ khi kỹ năng trong kho khớp áp đảo (γ ≥ τ+0.30). Lý do: kho là mô-tả chung chung, còn
+    # lệnh soạn ra đã được đối chiếu với thực tại. (Bẫy đã gặp: "xoá rác1 trong /tạm" và "trong /tạm
+    # có gì" đều bị kỹ năng "liệt-kê-nhà" giành mất → trả lời sai chỗ.)
+    nếu γ < τ + 0.30 {
+        nếu dài(ứng) > 0 {
+            gom(báo, "   ⟡ kỹ năng \"" + kn[0] + "\" chỉ khớp lửng lơ; tôi có lệnh CỤ THỂ hơn dò được từ hệ-tệp:")
+            trả trợ_lý_sinh(máy, tid, lời, báo, ứng)
+        }
+    }
+
+    # --- CỔNG 2: việc BẤT KHẢ HỒI → chỉ trình bày, chờ người duyệt ---
+    nếu kn[3] == sáng { } khác {
+        gom(báo, "   ⛔ việc \"" + kn[0] + "\" là BẤT KHẢ HỒI — tôi KHÔNG tự làm.")
+        gom(báo, "   Dự định của tôi (bạn tự quyết định):")
+        lặp l trong kn[2] { gom(báo, "      $ " + l) }
+        gom(báo, "   Muốn làm thì bạn gõ tay, hoặc gõ lệnh rồi `duyệt`. Tôi giữ quyền lựa chọn cho bạn.")
+        trả _dòng_hoá(báo)
+    }
+
+    # --- LÀM: gõ từng lệnh QUA CHÍNH tid của người nhờ (cùng uid ⇒ cùng giới hạn) ---
+    gom(báo, "   ✓ chọn \"" + kn[0] + "\" (γ=" + _phần_trăm(γ) + "%) — làm bằng chính quyền của bạn:")
+    lặp l trong kn[2] {
+        gom(báo, "      $ " + l)
+        đặt r = chạy_dòng_im(máy, tid, l)
+        nếu r[0] == 0 {
+            nếu dài(r[1]) > 0 { lặp d trong tách(r[1], "\n") { gom(báo, "        " + d) } }
+        } khác {
+            gom(báo, "        ✗ " + r[1])
+            gom(báo, "      (dừng ở đây — tôi không lách quyền của bạn)")
+            trả _dòng_hoá(báo)
+        }
+    }
+    trả _dòng_hoá(báo)
+}
+
+hàm _kê_hạng(hạng, n) {                 # "dọn tạm 71% · xem nhật ký 43% · …"
+    đặt kq = ""
+    đặt i = 0
+    lặp h trong hạng {
+        nếu i < n {
+            nếu dài(kq) > 0 { đặt kq = kq + " · " }
+            đặt kq = kq + h[1][0] + " " + _phần_trăm(h[0]) + "%"
+        }
+        đặt i = i + 1
+    }
+    trả kq
+}
+
+# ============================================================
+# ★ TẦNG 2 — TRỢ LÝ TỰ SINH LỆNH (không còn chỉ chọn trong kho)
+# ------------------------------------------------------------
+# Kho kỹ năng là hữu hạn: hỏi cái ngoài kho thì trợ lý đành chịu. Tầng này cho nó SOẠN một dòng
+# lệnh MỚI. Nhưng "sinh" mà không có phanh thì thành bịa, nên mọi lệnh sinh ra phải qua BA cửa:
+#   1. THẨM ĐỊNH — mỗi lệnh trong dòng phải THẬT SỰ CÓ trong /lệnh và người nhờ CHẠY ĐƯỢC nó
+#      (hỏi bằng gọi-hệ, không tin trí nhớ). Bịa ra `khởi_động_lại_máy` là bị chặn ngay.
+#   2. ĐỐI TƯỢNG CÓ THẬT — đường dẫn trong lệnh phải do trợ lý DÒ THẤY bằng `liệt`/`soi`, chứ
+#      không phải tự nghĩ ra. Không dò thấy ⇒ không sinh.
+#   3. TRÌNH BÀY + CỔNG — luôn IN dòng lệnh trước khi chạy; việc phá huỷ thì CHỈ trình bày và
+#      chờ người `duyệt`. Nhân vẫn chặn lần hai.
+# Hai lối sinh: (a) THEO MẪU — động-từ trong lời + đối-tượng dò được trong hệ-tệp (tất định, không
+# cần LLM); (b) TRÁI TIM viết — chỉ dùng khi có model thật, và vẫn phải qua đúng ba cửa trên.
+# ============================================================
+
+# ---------------- vốn từ: lời người → tên lệnh ----------------
+hàm _bảng_động_từ() {
+    trả [
+        ["xem",     ["xem", "đọc", "mở", "coi", "nội dung", "nội-dung"]],
+        ["liệt",    ["liệt", "kê", "danh sách", "có gì", "những gì", "thư mục", "thư-mục"]],
+        ["soi",     ["soi", "thông tin", "chi tiết", "bao nhiêu", "kích thước"]],
+        ["tt",      ["tiến trình", "tiến-trình", "đang chạy", "chương trình nào"]],
+        ["tôi",     ["tôi là ai", "danh tính", "đang là ai"]],
+        ["ở",       ["đang ở đâu", "thư mục hiện", "chỗ nào"]],
+        ["cây",     ["cây thư mục", "toàn bộ cây", "cấu trúc"]],
+        ["nhật_ký", ["nhật ký hệ", "audit", "lời gọi hệ"]],
+        ["xoá",     ["xoá", "xóa", "dọn", "bỏ đi", "gỡ bỏ"]],
+        ["tạothư",  ["tạo thư mục", "tạo thư-mục", "lập thư mục"]],
+        ["việc",    ["chương trình cài sẵn", "có những việc gì", "làm được gì"]]
+    ]
+}
+
+hàm _động_từ_của(lời) {                  # lời người → tên lệnh | ẩn
+    # Chọn động từ XUẤT HIỆN SỚM NHẤT trong câu — "soi … xem bao nhiêu" phải ra `soi`, không phải
+    # `xem` (bẫy đã gặp: quét theo thứ tự bảng thì lệnh sai vẫn "hợp lệ" nên không ai chặn).
+    đặt tốt = ẩn  đặt vị_tốt = 99999
+    lặp mục trong _bảng_động_từ() {
+        lặp từ trong mục[1] {
+            đặt v = vị_trí(lời, từ)
+            nếu loại(v) == "ẩn" { } khác {
+                nếu v < vị_tốt { đặt vị_tốt = v  đặt tốt = mục[0] }
+            }
+        }
+    }
+    trả tốt
+}
+
+# ---------------- đối tượng: PHẢI dò thấy trong hệ-tệp, không được tự nghĩ ----------------
+hàm _thư_ứng_viên(máy, tid) {
+    đặt kq = [gọi(máy, tid, GH_Ở, []), "/", "/nhà/an", "/hệ", "/tạm", "/ống"]
+    trả kq
+}
+
+hàm _tìm_đối_tượng(máy, tid, lời) {      # → đường dẫn CÓ THẬT khớp lời | ẩn
+    # Lấy tên khớp DÀI NHẤT = cụ thể nhất. (Bẫy đã gặp: "tệp mật_khẩu của hệ thống" khớp cả "hệ"
+    # lẫn "mật_khẩu"; chọn cái gặp trước thì ra `xem /hệ` — sai hẳn ý người.)
+    đặt tốt = ẩn  đặt dài_tốt = 0
+    lặp d trong _thư_ứng_viên(máy, tid) {
+        đặt ds = gọi(máy, tid, GH_LIỆT, [d])
+        nếu loại(ds) == "danh_sách" {
+            lặp tên trong ds {
+                đặt khớp = tối
+                nếu chứa_chuỗi(lời, tên) { đặt khớp = sáng }
+                nếu chứa_chuỗi(lời, thay(tên, "_", " ")) { đặt khớp = sáng }
+                nếu khớp == sáng {
+                    nếu dài(tên) > dài_tốt { đặt dài_tốt = dài(tên)  đặt tốt = nối_đường(d, tên) }
+                }
+            }
+        }
+    }
+    trả tốt
+}
+
+# ---------------- (a) SINH THEO MẪU — tất định, không cần LLM ----------------
+# ---------------- MƠ HỒ THÌ HỎI, KHÔNG ĐOÁN ----------------
+# Heuristic nào cũng có lúc phân vân. Khi phân vân, thứ ĐÚNG ĐẮN không phải là đoán khéo hơn mà là
+# HỎI LẠI — vì đoán sai ở đây không kêu một tiếng nào (lệnh vẫn "hợp lệ", vẫn chạy trơn tru).
+# Hai dấu hiệu mơ hồ: (T1) trong lời có TỪ HAI ĐỘNG TỪ dẫn tới hai lệnh khác nhau; (T2) có từ hai
+# ĐỐI TƯỢNG khớp NGANG NHAU (cùng độ cụ thể). Thêm luật cứng: hễ trong các cách hiểu có cái PHÁ
+# HUỶ mà cũng có cái không, thì TUYỆT ĐỐI hỏi — không bao giờ tự chọn khi có huỷ hoại trên bàn.
+hàm _ứng_viên_động_từ(lời) {             # [[tên lệnh, vị trí]…] theo thứ tự xuất hiện, không trùng
+    đặt kq = []
+    lặp mục trong _bảng_động_từ() {
+        đặt vị = 99999
+        lặp từ trong mục[1] {
+            đặt v = vị_trí(lời, từ)
+            nếu loại(v) == "ẩn" { } khác { nếu v < vị { đặt vị = v } }
+        }
+        nếu vị < 99999 { gom(kq, [mục[0], vị]) }
+    }
+    # sắp theo vị trí tăng dần (chèn)
+    đặt sắp = []
+    lặp x trong kq {
+        đặt m = []  đặt đã = tối
+        lặp y trong sắp {
+            nếu đã == tối { nếu x[1] < y[1] { gom(m, x)  đặt đã = sáng } }
+            gom(m, y)
+        }
+        nếu đã == tối { gom(m, x) }
+        đặt sắp = m
+    }
+    trả sắp
+}
+
+hàm _ứng_viên_đối_tượng(máy, tid, lời) {  # [[đường, độ khớp]…] sắp giảm dần theo độ cụ thể
+    đặt kq = []
+    lặp d trong _thư_ứng_viên(máy, tid) {
+        đặt ds = gọi(máy, tid, GH_LIỆT, [d])
+        nếu loại(ds) == "danh_sách" {
+            lặp tên trong ds {
+                đặt khớp = tối
+                nếu chứa_chuỗi(lời, tên) { đặt khớp = sáng }
+                nếu chứa_chuỗi(lời, thay(tên, "_", " ")) { đặt khớp = sáng }
+                nếu khớp == sáng {
+                    đặt đường = nối_đường(d, tên)
+                    đặt có_rồi = tối
+                    lặp x trong kq { nếu x[0] == đường { đặt có_rồi = sáng } }
+                    nếu có_rồi == tối { gom(kq, [đường, dài(tên)]) }
+                }
+            }
+        }
+    }
+    đặt sắp = []
+    lặp x trong kq {
+        đặt m = []  đặt đã = tối
+        lặp y trong sắp {
+            nếu đã == tối { nếu x[1] > y[1] { gom(m, x)  đặt đã = sáng } }
+            gom(m, y)
+        }
+        nếu đã == tối { gom(m, x) }
+        đặt sắp = m
+    }
+    trả sắp
+}
+
+hàm _hợp_kiểu(máy, tid, v, đ) {          # chỉnh động từ cho khớp KIỂU của đối tượng
+    đặt s = gọi(máy, tid, GH_SOI, [đ])
+    nếu loại(s) == "danh_sách" {
+        nếu s[0] == "thư" { nếu v == "xem" { trả "liệt" } }
+        khác { nếu v == "liệt" { trả "xem" } }
+    }
+    trả v
+}
+
+hàm _động_từ_trống(v) {                  # động từ KHÔNG cần đối tượng
+    nếu v == "tt" { trả sáng }      nếu v == "tôi" { trả sáng }
+    nếu v == "ở" { trả sáng }       nếu v == "việc" { trả sáng }
+    nếu v == "nhật_ký" { trả sáng }
+    trả tối
+}
+
+hàm sinh_theo_mẫu(máy, tid, lời) {       # → dòng lệnh | ẩn
+    đặt v = _động_từ_của(lời)
+    nếu loại(v) == "ẩn" { trả ẩn }
+    đặt đ = _tìm_đối_tượng(máy, tid, lời)
+
+    # (B) ĐỐI TƯỢNG CÓ THẬT thắng ĐỘNG TỪ CHUNG CHUNG: "nhật ký hệ có gì" từng ra `nhật_ký 10`
+    # (sổ audit) trong khi trong máy có hẳn tệp /hệ/nhật_ký. Thực tại dò được thì tin thực tại.
+    nếu _động_từ_trống(v) == sáng {
+        nếu loại(đ) == "ẩn" {
+            nếu v == "nhật_ký" { trả "nhật_ký 10" }
+            trả v                        # tt · tôi · ở · việc — không cần đối tượng
+        }
+        đặt v = "xem"
+    }
+    nếu loại(đ) == "ẩn" { trả ẩn }        # KHÔNG dò thấy đối tượng ⇒ KHÔNG bịa ra đường dẫn
+
+    # (A) HỢP KIỂU động-từ ⟷ đối-tượng: `xem` một THƯ MỤC sinh ra "cấm đọc /tạm" — nghe như lỗi
+    # quyền, thật ra là DÙNG SAI DỤNG CỤ. Hỏi `soi` xem đối tượng là gì rồi tự chỉnh cho khớp.
+    đặt s = gọi(máy, tid, GH_SOI, [đ])
+    nếu loại(s) == "danh_sách" {
+        nếu s[0] == "thư" { nếu v == "xem" { đặt v = "liệt" } }
+        khác { nếu v == "liệt" { đặt v = "xem" } }
+    }
+    trả v + " " + đ
+}
+
+# ---------------- (b) TRÁI TIM VIẾT LỆNH — chỉ khi có model thật ----------------
+hàm sinh_bằng_tim(máy, tid, lời) {
+    nếu nhịp_tim()[0] == "dự-phòng" { trả ẩn }      # không có model ⇒ không giả vờ sinh
+    nếu nhịp_tim()[0] == "chưa-đập" { trả ẩn }
+    đặt ds = gọi(máy, tid, GH_LIỆT, ["/lệnh"])
+    nếu loại(ds) == "danh_sách" { } khác { trả ẩn }
+    đặt lời_nhắc = "Bạn là vỏ lệnh của HĐH-GIAO. Chỉ được dùng các lệnh sau: " + nối(ds, ", ")
+    đặt lời_nhắc = lời_nhắc + ". Thư mục hiện tại: " + gọi(máy, tid, GH_Ở, [])
+    đặt lời_nhắc = lời_nhắc + ". Hãy viết ĐÚNG MỘT dòng lệnh (không giải thích) để làm việc này: " + lời
+    đặt ra = tim(lời_nhắc)
+    nếu loại(ra) == "ẩn" { trả ẩn }
+    đặt dòng = cắt_lề(tách(ra, "\n")[0])
+    nếu dài(dòng) == 0 { trả ẩn }
+    trả dòng
+}
+
+# ---------------- THẨM ĐỊNH: dòng lệnh sinh ra có hợp lệ không? ----------------
+# Trả [sáng/tối, lý do]. Hỏi hệ-tệp qua gọi-hệ — KHÔNG tin vào trí nhớ của model.
+hàm thẩm_định(máy, tid, dòng) {
+    đặt từ = _tách_lệnh(dòng)
+    nếu dài(từ) == 0 { trả [tối, "dòng rỗng"] }
+    lặp đoạn trong _cắt_theo_ống(từ) {
+        nếu dài(đoạn) == 0 { trả [tối, "có đoạn rỗng quanh dấu |"] }
+        đặt tên = _chuẩn_tên(đoạn[0])
+        nếu tên == "về" { } khác {
+            nếu tên == "thoát" { trả [tối, "trợ lý không được đóng phiên của bạn"] }
+            đặt đ = tìm_lệnh(máy, tid, tên)
+            nếu loại(đ) == "ẩn" { trả [tối, "không có lệnh '" + đoạn[0] + "' trong /lệnh"] }
+            đặt s = gọi(máy, tid, GH_SOI, [đ])
+            nếu _chạy_được(máy, tid, s) == sáng { } khác { trả [tối, "bạn không có quyền chạy " + đ] }
+        }
+    }
+    trả [sáng, "hợp lệ"]
+}
+
+# lệnh_phá: lệnh làm thu hẹp lựa chọn của người ⇒ trợ lý KHÔNG tự chạy, dù thẩm định có sạch.
+hàm lệnh_phá(dòng) {
+    đặt từ = _tách_lệnh(dòng)
+    lặp đoạn trong _cắt_theo_ống(từ) {
+        nếu dài(đoạn) > 0 {
+            đặt t = _chuẩn_tên(đoạn[0])
+            nếu t == "xoá" { trả sáng }        nếu t == "quyền" { trả sáng }
+            nếu t == "đổichủ" { trả sáng }     nếu t == "giết" { trả sáng }
+            nếu t == "gắntb" { trả sáng }      nếu t == "duyệt" { trả sáng }
+        }
+    }
+    trả tối
+}
+
+# sinh_ứng_viên: MỌI cách hiểu hợp lý (tối đa 3), để còn biết mình có đang phân vân hay không.
+hàm sinh_ứng_viên(máy, tid, lời) {
+    đặt vs = _ứng_viên_động_từ(lời)
+    nếu dài(vs) == 0 { trả [] }
+    đặt đts = _ứng_viên_đối_tượng(máy, tid, lời)
+    đặt kq = []
+
+    # (T1) mỗi ĐỘNG TỪ (theo thứ tự xuất hiện) ghép với đối tượng cụ thể nhất
+    lặp vm trong vs {
+        nếu dài(kq) < 3 {
+            đặt v = vm[0]
+            nếu _động_từ_trống(v) == sáng {
+                nếu dài(đts) == 0 {
+                    nếu v == "nhật_ký" { gom(kq, "nhật_ký 10") } khác { gom(kq, v) }
+                }
+            } khác {
+                nếu dài(đts) > 0 { gom(kq, _hợp_kiểu(máy, tid, v, đts[0][0]) + " " + đts[0][0]) }
+            }
+        }
+    }
+    # (T2) cùng động từ đầu nhưng ĐỐI TƯỢNG khớp NGANG NHAU ⇒ thêm cách hiểu thứ hai
+    nếu dài(đts) >= 2 {
+        nếu đts[0][1] == đts[1][1] {
+            đặt v0 = vs[0][0]
+            nếu _động_từ_trống(v0) == sáng { đặt v0 = "xem" }
+            đặt d2 = _hợp_kiểu(máy, tid, v0, đts[1][0]) + " " + đts[1][0]
+            đặt có_rồi = tối
+            lặp x trong kq { nếu x == d2 { đặt có_rồi = sáng } }
+            nếu có_rồi == tối { nếu dài(kq) < 3 { gom(kq, d2) } }
+        }
+    }
+    trả kq
+}
+
+hàm _đối_của(dòng) {                     # phần đối tượng của một dòng lệnh ("" nếu không có)
+    đặt t = _tách_lệnh(dòng)
+    nếu dài(t) < 2 { trả "" }
+    trả t[1]
+}
+hàm _khác_đối_tượng(ds) {                # các cách hiểu trỏ vào NHỮNG CHỖ KHÁC NHAU? → sáng
+    nếu dài(ds) < 2 { trả tối }
+    đặt đầu_tiên = _đối_của(ds[0])
+    lặp d trong ds { nếu _đối_của(d) == đầu_tiên { } khác { trả sáng } }
+    trả tối
+}
+
+hàm _có_phá_và_lành(ds) {                # trong các cách hiểu có cả PHÁ HUỶ lẫn lành? → sáng
+    đặt phá = tối  đặt lành = tối
+    lặp d trong ds {
+        nếu lệnh_phá(d) == sáng { đặt phá = sáng } khác { đặt lành = sáng }
+    }
+    nếu phá == sáng { nếu lành == sáng { trả sáng } }
+    trả tối
+}
+
+# ---------------- ĐƯỜNG SINH ĐẦY ĐỦ (dùng khi kho kỹ năng không đủ hiểu) ----------------
+hàm trợ_lý_sinh(máy, tid, lời, báo, ứng_sẵn) {
+    # --- PHÂN VÂN THÌ HỎI, KHÔNG ĐOÁN ---
+    đặt ứng = ứng_sẵn
+    nếu loại(ứng) == "ẩn" { đặt ứng = sinh_ứng_viên(máy, tid, lời) }
+    nếu dài(ứng) >= 2 {
+        # HỎI khi hai cách hiểu KHÁC NHAU VỀ HẬU QUẢ, chứ không phải hễ khác là hỏi — hỏi vặt thì
+        # phiền mà chẳng an toàn thêm. Hai trường hợp đáng hỏi:
+        #   • có cái PHÁ HUỶ lẫn cái lành  ⇒ tuyệt đối không tự chọn khi có huỷ hoại trên bàn;
+        #   • hai ĐỐI TƯỢNG khác nhau       ⇒ làm đúng việc nhưng SAI CHỖ là hỏng.
+        # Còn "soi… xem bao nhiêu" (hai động từ nhưng đều chỉ ĐỌC, cùng một tệp) thì cứ làm.
+        đặt phải_hỏi = _có_phá_và_lành(ứng)
+        nếu _khác_đối_tượng(ứng) == sáng { đặt phải_hỏi = sáng }
+        nếu phải_hỏi == sáng {
+            đặt_khoá(máy, "hỏi_trợ_lý", ứng)
+            gom(báo, "   ？ tôi thấy " + dài(ứng) + " cách hiểu — KHÔNG đoán bừa:")
+            đặt i = 0
+            lặp d trong ứng {
+                đặt i = i + 1
+                đặt dấu = ""
+                nếu lệnh_phá(d) == sáng { đặt dấu = "   [BẤT KHẢ HỒI — tôi sẽ chỉ trình bày]" }
+                gom(báo, "      " + i + ") $ " + d + dấu)
+            }
+            gom(báo, "   Gõ `chọn 1` … `chọn " + dài(ứng) + "`, hoặc nói rõ hơn.")
+            trả _dòng_hoá(báo)
+        }
+    }
+
+    # THỨ TỰ: MẪU + DÒ HỆ-TỆP TRƯỚC, trái tim SAU — cùng một lẽ với luật "có căn cứ thắng mơ hồ":
+    # lệnh soạn theo mẫu đã được đối chiếu với thực tại, còn trái tim thì đang đoán. Trái tim chỉ
+    # vào cuộc khi mẫu BÓ TAY (động từ ngoài vốn từ) — bổ khuyết, không tranh chỗ.
+    đặt lối = "mẫu + dò hệ-tệp"
+    đặt dòng = ẩn
+    nếu dài(ứng) > 0 { đặt dòng = ứng[0] }
+    nếu loại(dòng) == "ẩn" {
+        đặt dòng = sinh_bằng_tim(máy, tid, lời)
+        đặt lối = "trái tim viết"
+    }
+    nếu loại(dòng) == "ẩn" {
+        gom(báo, "   ⟡ tôi KHÔNG soạn nổi lệnh nào cho việc này (không thấy động từ/đối tượng có thật).")
+        gom(báo, "   Tôi thà nói không biết còn hơn bịa ra một câu lệnh.")
+        trả _dòng_hoá(báo)
+    }
+    gom(báo, "   ✎ tôi TỰ SOẠN (" + lối + "): $ " + dòng)
+    trả _qua_cửa_rồi_chạy(máy, tid, lời, dòng, báo)
+}
+
+# _qua_cửa_rồi_chạy: BA CỬA cho MỌI dòng lệnh trợ lý đưa ra — dù tự soạn hay do người `chọn`.
+hàm _qua_cửa_rồi_chạy(máy, tid, lời, dòng, báo) {
+    đặt td = thẩm_định(máy, tid, dòng)                # CỬA 1: lệnh có thật + chạy được
+    nếu td[0] == sáng { } khác {
+        gom(báo, "   ⛔ tự thẩm định KHÔNG QUA: " + td[1] + " ⇒ tôi bỏ, không chạy.")
+        trả _dòng_hoá(báo)
+    }
+    đặt γ = cộng_hưởng(nhúng(dòng), nhúng(lời))
+    gom(báo, "   thẩm định: " + td[1] + " · cộng hưởng lệnh↔lời = " + _phần_trăm(γ) + "%")
+
+    nếu lệnh_phá(dòng) == sáng {                      # CỬA 2: việc phá huỷ ⇒ KHÔNG tự chạy
+        gom(báo, "   ⛔ đây là việc BẤT KHẢ HỒI / đổi quyền — tôi KHÔNG tự làm.")
+        gom(báo, "   Bạn tự gõ dòng trên nếu thấy đúng (rồi `duyệt`). Tôi giữ quyền quyết cho bạn.")
+        trả _dòng_hoá(báo)
+    }
+
+    đặt r = chạy_dòng_im(máy, tid, dòng)              # CỬA 3: chạy QUA VỎ, bằng chính uid người nhờ
+    nếu r[0] == 0 {
+        nếu dài(r[1]) > 0 { lặp d trong tách(r[1], "\n") { gom(báo, "        " + d) } }
+        khác { gom(báo, "        (xong, không có gì để in)") }
+    } khác {
+        gom(báo, "        ✗ " + r[1])
+        gom(báo, "      (nhân chặn — tôi không lách quyền của bạn)")
+    }
+    trả _dòng_hoá(báo)
+}
+
+# chạy_ứng_viên: người đã CHỌN cách hiểu thứ n ⇒ chạy nó, nhưng VẪN qua đủ ba cửa.
+hàm chạy_ứng_viên(máy, tid, n) {
+    đặt ứng = lấy_khoá(máy, "hỏi_trợ_lý")
+    nếu loại(ứng) == "ẩn" { trả "không có câu hỏi nào đang chờ bạn chọn" }
+    nếu loại(n) == "ẩn" { trả "chọn mấy? (gõ `chọn 1`, `chọn 2`…)" }
+    nếu n < 1 { trả "số thứ tự phải từ 1 tới " + dài(ứng) }
+    nếu n > dài(ứng) { trả "số thứ tự phải từ 1 tới " + dài(ứng) }
+    đặt dòng = ứng[n - 1]
+    đặt_khoá(máy, "hỏi_trợ_lý", ẩn)
+    đặt báo = ["🤖 bạn chọn cách " + n + ": $ " + dòng]
+    trả _qua_cửa_rồi_chạy(máy, tid, dòng, dòng, báo)
+}
+
+# ---------------- LẮP TRỢ LÝ VÀO MÁY (thành trình xử lý của GH_NHỜ) ----------------
+hàm lắp_trợ_lý(máy, kho) {
+    nhúng_sẵn_kho(kho)                                   # trái tim đập một lượt lúc khởi động
+    đặt_khoá(máy, "kho_kỹ_năng", kho)
+    gắn_trợ_lý(máy, hàm(m, t, lời) { trả trợ_lý_làm(m, t, lời) })
+    gắn_chọn(máy, hàm(m, t, n) { trả chạy_ứng_viên(m, t, n) })
+    trả máy
+}
+
+# ---------------- KHO KỸ NĂNG MẶC ĐỊNH cho một máy GIAO ----------------
+hàm kho_mặc_định() {
+    đặt k = kho_rỗng()
+    thêm_kỹ_năng(k, "xem-nhật-ký",
+        "xem nhật ký hệ thống, kiểm tra máy có gì bất thường, sự cố, báo động",
+        ["xem /hệ/nhật_ký"], sáng)
+    thêm_kỹ_năng(k, "liệt-kê-nhà",
+        "liệt kê xem trong thư mục nhà của tôi đang có những tệp gì",
+        ["liệt /nhà/an"], sáng)
+    thêm_kỹ_năng(k, "soi-tiến-trình",
+        "xem các tiến trình chương trình nào đang chạy trong máy, cái gì đang hoạt động",
+        ["tt"], sáng)
+    thêm_kỹ_năng(k, "báo-cáo-máy",
+        "báo cáo tình trạng chung của máy: tôi là ai, đang ở đâu, có gì đang chạy",
+        ["tôi", "ở", "tt"], sáng)
+    thêm_kỹ_năng(k, "ghi-việc",
+        "ghi chú lại một việc cần nhớ vào sổ tay công việc trong thư mục nhà",
+        ["nói \"(trợ lý ghi hộ)\" >> /nhà/an/sổ_tay"], sáng)
+    thêm_kỹ_năng(k, "dọn-rác",
+        "dọn dẹp xoá rác trong thư mục tạm cho gọn nhẹ, giải phóng chỗ trống ổ đĩa",
+        ["xoá /tạm/rác1", "xoá /tạm/rác2"], tối)          # xoá = KHÔNG hoàn tác được
+    thêm_kỹ_năng(k, "định-dạng-ổ",
+        "định dạng ghi đè xoá sạch toàn bộ ổ đĩa, cài lại máy từ đầu",
+        ["ghi /tb/đĩa0 ZERO"], tối)                        # phá huỷ toàn phần
+    trả k
+}

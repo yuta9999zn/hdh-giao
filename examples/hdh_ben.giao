@@ -1,0 +1,21 @@
+# HĐH-GIAO — PERSISTENCE TRỰC GIAO (ảnh-RAM bền qua REBOOT, kiểu Smalltalk/EUMEL).
+# ----------------------------------------------------------------------------------------
+# Nhân giữ một SỔ CÁI (bản) trên heap + bộ đếm. Toàn bộ THẾ GIỚI (RAM + ngăn xếp + heap +
+# vị trí lệnh) có thể CHỤP ẢNH giữa chừng, rồi RESUME y nguyên trên một GVM KHÁC ("bật lại
+# máy") — như chưa hề tắt. Không "tệp" rời: cả trạng thái GIAO được lưu & khôi phục nguyên vẹn.
+#
+# Vòng tích luỹ 1+2+…+10 = 55 vào sổ. Runner sẽ TẮT MÁY giữa chừng (chụp ảnh) rồi bật lại;
+# nhân TIẾP TỤC cộng nốt tới 55 — bộ đếm & sổ cái BỀN qua ranh giới reboot.
+
+đặt sổ = bản()
+đặt_khoá(sổ, "tổng", 0)
+đặt_khoá(sổ, "lần", 0)
+đặt i = 0
+mãi {
+    đặt i = i + 1
+    đặt_khoá(sổ, "tổng", lấy_khoá(sổ, "tổng") + i)   # tích luỹ vào SỔ CÁI bền
+    đặt_khoá(sổ, "lần", lấy_khoá(sổ, "lần") + 1)
+    rọi lấy_khoá(sổ, "tổng")                          # in tổng tích luỹ từng bước
+    nếu i >= 10 { dừng }
+}
+rọi lấy_khoá(sổ, "lần")                               # số bước đã làm (10) — qua cả reboot

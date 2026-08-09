@@ -1,0 +1,95 @@
+# ============================================================
+# hdh_sync_may.giao — ĐỒNG-BỘ-HOÁ trong TẬP-CON-MÁY (biên-dịch xuống GVM/silicon)
+# ------------------------------------------------------------
+# Bản máy của lib_đồng_bộ: lock/semaphore + đánh-thức γ-công-bằng, viết bằng cấu-trúc BIÊN-DỊCH-ĐƯỢC
+#   (bản/ghép/đầu/đuôi/dài/closure/số-học). TRÁNH: gom (dùng ghép), ẩn-check (dùng sentinel 0=rảnh).
+# Hàng-chờ = list tid (ghép đuôi, bỏ-đầu qua đầu()/đuôi()). Chạy gate-level: hw/lam_sync.py
+# ============================================================
+
+# ── LOCK (mutex) máy: bản{"chu": tid (0=rảnh), "cho": [tids]} ──
+hàm k_tạo() { đặt L = bản()  đặt_khoá(L, "chu", 0)  đặt_khoá(L, "cho", [])  trả L }
+hàm k_chủ(L) { trả lấy_khoá(L, "chu") }
+hàm k_lấy(L, tid) {                          # acquire: rảnh(0) → GIỮ (sáng) · bận → xếp-hàng (tối)
+    nếu lấy_khoá(L, "chu") == 0 { đặt_khoá(L, "chu", tid)  trả sáng }
+    đặt_khoá(L, "cho", ghép(lấy_khoá(L, "cho"), [tid]))  trả tối
+}
+hàm k_mở(L, tid) {                            # release FIFO: trao cho waiter ĐẦU → trả tid-mới (0 nếu hết)
+    nếu lấy_khoá(L, "chu") == tid {
+        đặt q = lấy_khoá(L, "cho")
+        nếu dài(q) > 0 { đặt kế = đầu(q)  đặt_khoá(L, "cho", đuôi(q))  đặt_khoá(L, "chu", kế)  trả kế }
+        đặt_khoá(L, "chu", 0)
+    }
+    trả 0
+}
+hàm sg_của(σ_b, t) { nếu có_khoá(σ_b, t) { trả lấy_khoá(σ_b, t) }  trả 0 }
+hàm k_mở_γ(L, tid, σ_b) {                     # ★ release CÔNG-BẰNG-γ: trao cho waiter σ CAO nhất (σ_b: tid→σ)
+    nếu lấy_khoá(L, "chu") == tid {
+        đặt q = lấy_khoá(L, "cho")
+        nếu dài(q) > 0 {
+            đặt tốt = đầu(q)  đặt điểm = sg_của(σ_b, tốt)
+            lặp t trong đuôi(q) { đặt e = sg_của(σ_b, t)  nếu e > điểm { đặt tốt = t  đặt điểm = e } }
+            đặt q2 = []  đặt đã = tối           # bỏ MỘT `tốt` khỏi hàng-chờ (ghép, không gom)
+            lặp t trong q {
+                nếu đã { đặt q2 = ghép(q2, [t]) }
+                khác { nếu t == tốt { đặt đã = sáng } khác { đặt q2 = ghép(q2, [t]) } }
+            }
+            đặt_khoá(L, "cho", q2)  đặt_khoá(L, "chu", tốt)  trả tốt
+        }
+        đặt_khoá(L, "chu", 0)
+    }
+    trả 0
+}
+
+# ── SEMAPHORE máy: bản{"dem": n, "cho": []} ──
+hàm s_tạo(n) { đặt S = bản()  đặt_khoá(S, "dem", n)  đặt_khoá(S, "cho", [])  trả S }
+hàm s_đếm(S) { trả lấy_khoá(S, "dem") }
+hàm s_xuống(S, tid) {                         # P/wait: đếm>0 → đếm-- (sáng) · else xếp-hàng (tối)
+    nếu lấy_khoá(S, "dem") > 0 { đặt_khoá(S, "dem", lấy_khoá(S, "dem") - 1)  trả sáng }
+    đặt_khoá(S, "cho", ghép(lấy_khoá(S, "cho"), [tid]))  trả tối
+}
+hàm s_lên(S) {                                # V/signal: có waiter → WAKE FIFO (trả tid) · else đếm++ (trả 0)
+    đặt q = lấy_khoá(S, "cho")
+    nếu dài(q) > 0 { đặt kế = đầu(q)  đặt_khoá(S, "cho", đuôi(q))  trả kế }
+    đặt_khoá(S, "dem", lấy_khoá(S, "dem") + 1)  trả 0
+}
+
+# ── helper IN (sáng/tối → chữ; KHÔNG concat sáng/tối trực-tiếp) ──
+hàm báo_lấy(tên, r) {
+    nếu r == sáng { rọi "  [" + tên + " lay lock] GIU" }
+    nếu r == tối { rọi "  [" + tên + " lay lock] CHO-xep-hang" }
+    trả r
+}
+hàm báo_sem(tên, r) {
+    nếu r == sáng { rọi "  [" + tên + " sem-P] OK" }
+    nếu r == tối { rọi "  [" + tên + " sem-P] CHO-xep-hang" }
+    trả r
+}
+
+# ── DEMO ──
+rọi "=== SYNC TAP-CON-MAY: lock + semaphore + gamma-fair ==="
+
+# LOCK FIFO: t1 giữ, t2/t3 chờ, mở → t2
+đặt L = k_tạo()
+báo_lấy("t1", k_lấy(L, 1))
+báo_lấy("t2", k_lấy(L, 2))
+báo_lấy("t3", k_lấy(L, 3))
+rọi "  [t1 mo lock FIFO] trao cho t" + k_mở(L, 1)
+rọi "  [chu lock hien] t" + k_chủ(L)
+
+# LOCK gamma-fair: hàng [5,9,7] σ=[100,250,180] → trao t9 (KHONG FIFO t5)
+đặt L2 = k_tạo()
+k_lấy(L2, 1)  k_lấy(L2, 5)  k_lấy(L2, 9)  k_lấy(L2, 7)
+đặt SG = bản()  đặt_khoá(SG, 5, 100)  đặt_khoá(SG, 9, 250)  đặt_khoá(SG, 7, 180)
+rọi "  [gamma-fair mo] trao cho t" + k_mở_γ(L2, 1, SG)
+rọi "  [chu L2 hien] t" + k_chủ(L2)
+
+# SEMAPHORE: đếm=2, 3 xuống (2 OK 1 CHO), lên → wake t3
+đặt S = s_tạo(2)
+báo_sem("p1", s_xuống(S, 1))
+báo_sem("p2", s_xuống(S, 2))
+báo_sem("p3", s_xuống(S, 3))
+rọi "  [sem-V len] wake t" + s_lên(S)
+s_lên(S)
+rọi "  [sem-V len khong-waiter] dem=" + s_đếm(S)
+
+rọi "=== XONG: sync chay tap-con-may ==="

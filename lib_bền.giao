@@ -1,0 +1,161 @@
+# ============================================================
+# lib_bền.giao — CHỤP & PHỤC HỒI TOÀN MÁY (persistence) cho HĐH-GIAO
+# ------------------------------------------------------------
+# Chụp CẢ MỘT HỆ ĐIỀU HÀNH ĐANG SỐNG ra MỘT chuỗi JSON, rồi dựng lại từ đó và CHẠY TIẾP:
+#   hệ-tệp (cả cây, cả ống với gói còn đọng) · bảng tiến-trình · hàng lập-lịch · hộp thư IPC ·
+#   danh tính (uid/thư-mục) · sổ người dùng · đồng hồ nhịp · nhật ký audit · việc đang chờ duyệt ·
+#   TRẠNG THÁI BỀN của từng tiến-trình + gốc gác (chương trình nào, đối gì).
+#
+# RANH GIỚI TRUNG THỰC — cái gì KHÔNG chụp được:
+#   • THÂN tiến-trình là CLOSURE (mã đang chạy) ⇒ không JSON hoá được. Nên ta chụp DỮ LIỆU
+#     (trạng_ct) + GỐC GÁC (khai_sinh), rồi khi phục hồi thì DỰNG LẠI thân từ kho chương trình
+#     và nối vào state cũ ⇒ tiến trình chạy tiếp đúng chỗ đang dở (đếm tới 3 thì đếm tiếp 4).
+#     Đây chính là cách các HĐH thật làm checkpoint/restore (CRIU): dữ liệu bền, mã thì nạp lại.
+#   • Kho chương trình và trợ lý AI là MÃ ⇒ máy phục hồi phải `nạp_chương_trình` + `lắp_trợ_lý` lại.
+#   • JSON biến MỌI KHOÁ thành CHUỖI ⇒ tid/uid phải đổi ngược về SỐ (xem `_khoá_số`), nếu không
+#     `lấy_khoá(bảng, 3)` sẽ trượt trong khi `lấy_khoá(bảng, "3")` mới trúng.
+# Nạp: nhập "lib_bền.giao".
+# ============================================================
+nhập "lib_gọi_hệ.giao"       # khởi_máy · các khoá của máy · có_ct
+
+# ---------------- khoá SỐ (JSON làm rụng kiểu của khoá) ----------------
+hàm _chuỗi_sang_số(s) {                    # "12" → 12 ; "a" → ẩn
+    nếu loại(s) == "số" { trả s }
+    nếu loại(s) == "ẩn" { trả ẩn }
+    nếu dài(s) == 0 { trả ẩn }
+    đặt n = 0  đặt i = 0
+    mãi {
+        nếu i >= dài(s) { dừng }
+        đặt d = mã(s[i]) - 48
+        nếu d < 0 { trả ẩn }
+        nếu d > 9 { trả ẩn }
+        đặt n = n * 10 + d
+        đặt i = i + 1
+    }
+    trả n
+}
+
+hàm _khoá_số(b) {                          # bản có khoá "1","2" → khoá 1,2 (giữ nguyên khoá chữ)
+    nếu loại(b) == "bản" { } khác { trả b }
+    đặt r = bản()
+    lặp k trong b {
+        đặt n = _chuỗi_sang_số(k)
+        nếu loại(n) == "ẩn" { đặt_khoá(r, k, lấy_khoá(b, k)) }
+        khác { đặt_khoá(r, n, lấy_khoá(b, k)) }
+    }
+    trả r
+}
+
+# ---------------- CHỤP ----------------
+hàm ảnh_máy(máy) {                         # phần DỮ LIỆU của máy (bỏ mọi closure)
+    đặt ả = bản()
+    đặt_khoá(ả, "phiên_bản", 1)
+    đặt_khoá(ả, "tth", lấy_khoá(máy, "tth"))
+    đặt_khoá(ả, "nhân", lấy_khoá(máy, "nhân"))
+    đặt_khoá(ả, "cred", lấy_khoá(máy, "cred"))
+    đặt_khoá(ả, "người", lấy_khoá(máy, "người"))
+    đặt_khoá(ả, "tid_kế", lấy_khoá(máy, "tid_kế"))
+    đặt_khoá(ả, "nhật_ký", lấy_khoá(máy, "nhật_ký"))
+    đặt_khoá(ả, "nhịp", lấy_khoá(máy, "nhịp"))
+    đặt_khoá(ả, "chờ_duyệt", lấy_khoá(máy, "chờ_duyệt"))
+    đặt_khoá(ả, "trạng_ct", lấy_khoá(máy, "trạng_ct"))
+    đặt_khoá(ả, "khai_sinh", lấy_khoá(máy, "khai_sinh"))
+    đặt_khoá(ả, "vỏ_hiện", lấy_khoá(máy, "vỏ_hiện"))       # phiên đăng nhập đang mở (tid của vỏ)
+    đặt_khoá(ả, "ct_máy", lấy_khoá(máy, "ct_máy"))         # NGUỒN các chương trình máy (chuỗi)
+    đặt_khoá(ả, "lõi_ảnh", _chụp_lõi(máy))                 # ★ NGỮ CẢNH từng lõi GVM đang chạy
+    trả ả
+}
+
+# _chụp_lõi: ảnh của MỌI tiến-trình MÁY còn sống. Không chụp bytecode (biên dịch lại từ nguồn cho ra
+# đúng thế) mà chụp NGỮ CẢNH: ip · ngăn xếp · RAM đã dùng. Thiếu phần này thì ảnh "chụp thành công"
+# nhưng tiến trình máy sống lại thành XÁC — đúng loại lỗi im lặng nguy hiểm nhất (đã gặp thật).
+hàm _chụp_lõi(máy) {
+    đặt kq = bản()
+    đặt kho = lấy_khoá(máy, "lõi")
+    nếu loại(kho) == "ẩn" { trả kq }
+    lặp tid trong kho {
+        nếu có_máy() == sáng { đặt_khoá(kq, tid, máy_ảnh(lấy_khoá(kho, tid))) }
+    }
+    trả kq
+}
+
+hàm chụp_máy(máy) { trả thành_json(ảnh_máy(máy)) }      # → MỘT chuỗi JSON, đem ghi đĩa/gửi mạng
+
+# ---------------- PHỤC HỒI ----------------
+# phục_hồi_máy: JSON → máy MỚI (dữ liệu đủ, chưa có mã). Sau đó PHẢI:
+#     nạp_chương_trình(máy)  ·  lắp_trợ_lý(máy, kho)  ·  dựng_lại_thân(máy)
+# (hoặc gọi gọn `hồi_sinh(máy)` sau khi đã nạp chương trình).
+hàm phục_hồi_máy(chuỗi) {
+    đặt d = phân_tích_json(chuỗi)
+    nếu loại(d) == "bản" { } khác { trả ẩn }
+    đặt máy = khởi_máy()
+
+    đặt_khoá(máy, "tth", lấy_khoá(d, "tth"))
+
+    đặt nhân = lấy_khoá(d, "nhân")
+    đặt_khoá(nhân, "bảng", _khoá_số(lấy_khoá(nhân, "bảng")))
+    đặt lịch = lấy_khoá(nhân, "lịch")
+    đặt_khoá(lịch, "hộp", _khoá_số(lấy_khoá(lịch, "hộp")))
+    đặt_khoá(lịch, "chặn", _khoá_số(lấy_khoá(lịch, "chặn")))
+    đặt_khoá(máy, "nhân", nhân)
+
+    đặt_khoá(máy, "cred", _khoá_số(lấy_khoá(d, "cred")))
+    đặt_khoá(máy, "người", _khoá_số(lấy_khoá(d, "người")))
+    đặt_khoá(máy, "trạng_ct", _khoá_số(lấy_khoá(d, "trạng_ct")))
+    đặt_khoá(máy, "khai_sinh", _khoá_số(lấy_khoá(d, "khai_sinh")))
+    đặt_khoá(máy, "tid_kế", lấy_khoá(d, "tid_kế"))
+    đặt_khoá(máy, "nhật_ký", lấy_khoá(d, "nhật_ký"))
+    đặt_khoá(máy, "nhịp", lấy_khoá(d, "nhịp"))
+    đặt_khoá(máy, "chờ_duyệt", lấy_khoá(d, "chờ_duyệt"))
+    đặt_khoá(máy, "vỏ_hiện", lấy_khoá(d, "vỏ_hiện"))
+    nếu loại(lấy_khoá(d, "ct_máy")) == "ẩn" { } khác { đặt_khoá(máy, "ct_máy", lấy_khoá(d, "ct_máy")) }
+    đặt_khoá(máy, "lõi_ảnh_chờ", _khoá_số(lấy_khoá(d, "lõi_ảnh")))   # chờ `hồi_sinh` dựng lại
+    trả máy
+}
+
+# dựng_lại_thân: với MỌI tiến-trình còn sống có gốc gác, gọi lại XƯỞNG của chương trình đó.
+# Xưởng sẽ thấy `lấy_trạng` KHÔNG rỗng ⇒ dùng lại state cũ ⇒ chạy tiếp, không khởi tạo lại.
+hàm dựng_lại_thân(máy) {
+    đặt nhân = lấy_khoá(máy, "nhân")
+    đặt bảng = lấy_khoá(nhân, "bảng")
+    đặt ks_kho = lấy_khoá(máy, "khai_sinh")
+    đặt ảnh_lõi = lấy_khoá(máy, "lõi_ảnh_chờ")
+    đặt dựng = 0
+    lặp tid trong bảng {
+        nếu trạng_của(bảng, tid) == "chết" { } khác {
+            nếu có_khoá(ks_kho, tid) {
+                đặt ks = lấy_khoá(ks_kho, tid)
+                nếu có_ct(máy, ks[0]) == sáng {                    # tiến trình CLOSURE
+                    đặt xưởng = lấy_khoá(lấy_khoá(máy, "chương_trình"), ks[0])
+                    đặt_khoá(lấy_khoá(máy, "thân"), tid, xưởng(máy, tid, ks[1]))
+                    đặt dựng = dựng + 1
+                }
+                khác {
+                    # ★ tiến trình MÁY: biên dịch lại nguồn rồi NẠP NGƯỢC ngữ cảnh đã chụp
+                    nếu có_ct_máy(máy, ks[0]) == sáng {
+                        nếu loại(ảnh_lõi) == "ẩn" { } khác {
+                            nếu có_khoá(ảnh_lõi, tid) {
+                                đặt mã = biên_dịch(lấy_khoá(lấy_khoá(máy, "ct_máy"), ks[0]), 32)
+                                nếu loại(mã) == "ẩn" { } khác {
+                                    đặt_khoá(lấy_khoá(máy, "lõi"), tid,
+                                             máy_nạp_ảnh(mã, lấy_khoá(ảnh_lõi, tid)))
+                                    đặt dựng = dựng + 1
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    trả dựng
+}
+
+# hồi_sinh: gọi sau khi đã `nạp_chương_trình(máy)` — dựng lại thân cho mọi tiến trình còn sống.
+hàm hồi_sinh(máy) { trả dựng_lại_thân(máy) }
+
+# ---------------- so sánh hai máy (dùng để nghiệm thu round-trip) ----------------
+hàm giống_nhau(máy_a, máy_b) {             # ảnh JSON của hai máy y hệt nhau? → sáng/tối
+    nếu chụp_máy(máy_a) == chụp_máy(máy_b) { trả sáng }
+    trả tối
+}

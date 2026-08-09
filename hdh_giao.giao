@@ -1,0 +1,157 @@
+# ============================================================
+# hdh_giao.giao — HỆ ĐIỀU HÀNH GIAO, DỰNG THEO LỐI LINUX + TRỢ LÝ AI TRONG NHÂN
+# ------------------------------------------------------------
+#   khởi (tiến-trình 1)  →  gắn hệ-tệp gốc  →  /tb (thiết bị) · /tt (tiến trình) · /hệ · /nhà · /tạm
+#   →  sinh dịch-vụ nền  →  sinh vỏ đăng nhập cho người dùng 'an'  →  phiên làm việc.
+# Toàn bộ nếp Linux: một cây "/" · mọi thứ là tệp · quyền rwx · uid/gốc-quyền · gọi-hệ có số hiệu ·
+#   vỏ có ống `|`, `>`, `&&` · procfs `/tt` · devfs `/tb` · nhật ký audit.
+# ĐIỂM KHÁC: có TRỢ LÝ AI là DỊCH VỤ HỆ THỐNG — `nhờ <lời>` là một GỌI-HỆ (GH_NHỜ).
+#   Trợ lý chạy bằng CHÍNH uid của người nhờ, phải qua cổng cộng-hưởng γ, và KHÔNG được tự làm
+#   việc bất-khả-hồi. Máy nghe được tiếng người, nhưng không bao giờ vượt quyền người.
+# Chạy:  python giao.py hdh_giao.giao
+# ============================================================
+nhập "lib_trợ_lý.giao"
+nhập "lib_chương_trình.giao"   # chương trình THẬT chạy dưới bộ lập lịch
+
+đặt M = khởi_máy()
+
+# ───────────────────────── BOOT: nhân dựng thế giới ─────────────────────────
+hàm khởi_động() {
+    rọi "┌──────────────────────────────────────────────────────────────┐"
+    rọi "│  HĐH-GIAO  ·  nhân CDFL  ·  lối Linux  ·  có trợ lý AI       │"
+    rọi "└──────────────────────────────────────────────────────────────┘"
+    thêm_người(M, 0, "gốc")
+    thêm_người(M, 1000, "an")
+
+    đặt khởi = sinh_tt(M, "khởi", 0, 0, "/")          # tiến-trình 1 = init, quyền gốc
+    rọi "[khởi] tiến-trình 1 lên — đang dựng cây hệ-tệp…"
+
+    gọi(M, khởi, GH_TẠO_THƯ, ["/hệ", 755])            # ~ /etc  (cấu hình, chỉ gốc-quyền ghi)
+    gọi(M, khởi, GH_TẠO_THƯ, ["/nhà", 755])           # ~ /home
+    gọi(M, khởi, GH_TẠO_THƯ, ["/tb", 755])            # ~ /dev
+    gọi(M, khởi, GH_TẠO_THƯ, ["/tt", 555])            # ~ /proc  (nhân tự sinh)
+    gọi(M, khởi, GH_TẠO_THƯ, ["/tạm", 777])
+    gọi(M, khởi, GH_TẠO_THƯ, ["/ống", 777])           # nơi treo ỐNG liên-tiến-trình (FIFO)
+    cài_lệnh(M, khởi)                                 # ~ /bin — MỌI lệnh vỏ là một TỆP trong /lệnh
+
+    gọi(M, khởi, GH_TẠO, ["/hệ/người_dùng", 644, "gốc:0:/\nan:1000:/nhà/an"])
+    gọi(M, khởi, GH_TẠO, ["/hệ/mật_khẩu", 600, "gốc:*\nan:*"])             # chỉ gốc-quyền đọc
+    gọi(M, khởi, GH_TẠO, ["/hệ/tên_máy", 644, "giao-01"])
+    gọi(M, khởi, GH_TẠO, ["/hệ/nhật_ký", 644,
+        "nhịp 1  khởi: nhân lên\nnhịp 2  đĩa: /tạm đầy 91%\nnhịp 3  mạng: bình thường\nnhịp 4  đĩa: cảnh báo chỗ trống"])
+
+    gọi(M, khởi, GH_GẮN_TB, ["/tb/màn", 666, "màn_hình"])   # ghi → hiện ra màn hình
+    gọi(M, khởi, GH_GẮN_TB, ["/tb/không", 666, "không"])    # ~ /dev/null
+    gọi(M, khởi, GH_GẮN_TB, ["/tb/giờ", 444, "giờ"])        # đồng hồ nhịp (tất định)
+    gọi(M, khởi, GH_GẮN_TB, ["/tb/ngẫu", 444, "ngẫu"])      # ~ /dev/random (LCG của GIAO)
+    gọi(M, khởi, GH_GẮN_TB, ["/tb/đĩa0", 600, "đĩa0"])      # ổ đĩa — ghi = BẤT KHẢ HỒI
+
+    # nhà của 'an' + ít rác trong /tạm (để trợ lý có việc thật mà làm)
+    gọi(M, khởi, GH_TẠO_THƯ, ["/nhà/an", 700])
+    gọi(M, khởi, GH_TẠO_THƯ, ["/nhà/an/lệnh", 755])          # thư mục lệnh RIÊNG của người dùng
+    gọi(M, khởi, GH_ĐỔI_CHỦ, ["/nhà/an", 1000])
+    duyệt(M)
+    gọi(M, khởi, GH_ĐỔI_CHỦ, ["/nhà/an/lệnh", 1000])         # thư mục lệnh riêng: 'an' làm chủ
+    duyệt(M)                                                # đổi chủ là bất-khả-hồi → khởi tự duyệt lúc boot
+    gọi(M, khởi, GH_TẠO, ["/tạm/rác1", 666, "tệp tạm 1"])
+    gọi(M, khởi, GH_TẠO, ["/tạm/rác2", 666, "tệp tạm 2"])
+
+    # dịch vụ nền (như systemd/daemon)
+    nạp_chương_trình(M)                                     # đăng ký kho chương trình
+    gọi(M, khởi, GH_SINH, ["nhật_ký_hệ", 3])                # DỊCH VỤ NỀN THẬT: ngủ chờ tin (trạng "chặn")
+    sinh_tt(M, "trợ_lý_ai", 2, 0, "/")                      # trợ lý chạy đồng bộ trong GH_NHỜ → bản ghi
+    rọi "[khởi] dịch vụ nền: nhật_ký_hệ · trợ_lý_ai"
+
+    lắp_trợ_lý(M, kho_mặc_định())                           # trái tim đập lần đầu (nhúng kho kỹ năng)
+    rọi "[khởi] trái tim trợ lý: " + nối(nhịp_tim(), " + ")
+    rọi "[khởi] xong. Mời đăng nhập."
+    rọi ""
+    trả khởi
+}
+
+hàm đăng_nhập(tên, uid, thư) {                              # ~ getty/login: sinh vỏ mang danh tính
+    đặt v = sinh_tt(M, "vỏ", 5, uid, thư)
+    rọi "── đăng nhập: " + tên + " (uid " + uid + ") · vỏ = tiến-trình " + v + " ──"
+    trả v
+}
+
+# ───────────────────────── CHẠY ─────────────────────────
+đặt tt_khởi = khởi_động()
+đặt V = đăng_nhập("an", 1000, "/nhà/an")
+
+rọi ""
+rọi "════ 1. NẾP LINUX QUEN THUỘC (mọi thứ là tệp, quyền rwx, ống, chuyển hướng) ════"
+gõ(M, V, "tôi")
+gõ(M, V, "cây /")
+gõ(M, V, "xem /hệ/tên_máy")
+gõ(M, V, "liệt /hệ")
+gõ(M, V, "nói \"việc hôm nay: xem lại nhật ký\" > sổ_tay")
+gõ(M, V, "xem sổ_tay")
+gõ(M, V, "soi sổ_tay")
+gõ(M, V, "xem /hệ/nhật_ký | tìm đĩa")
+gõ(M, V, "xem /hệ/nhật_ký | tìm đĩa | đếm")
+gõ(M, V, "tt")
+
+rọi ""
+rọi "════ 2. RANH GIỚI QUYỀN — người thường không vượt được (uid thật sự có hiệu lực) ════"
+gõ(M, V, "xem /hệ/mật_khẩu")
+gõ(M, V, "ghi /hệ/cửa_sau 777 xin_chao")
+gõ(M, V, "về /nhà")
+gõ(M, V, "liệt")
+gõ(M, V, "về /nhà/an")
+
+rọi ""
+rọi "════ 3. CỔNG BẤT-KHẢ-HỒI — máy giữ lại việc không hoàn tác được ════"
+gõ(M, V, "xoá /tạm/rác1")
+gõ(M, V, "chờ")
+gõ(M, V, "duyệt")
+gõ(M, V, "liệt /tạm")
+
+rọi ""
+rọi "════ 4. ★ TRỢ LÝ AI — nói bằng lời, máy tự gõ lệnh (nhưng bằng QUYỀN CỦA BẠN) ════"
+gõ(M, V, "nhờ cho tôi xem nhật ký hệ thống xem có gì bất thường không")
+rọi ""
+gõ(M, V, "nhờ trong máy đang có những chương trình nào chạy vậy")
+rọi ""
+gõ(M, V, "nhờ hãy định dạng xoá sạch toàn bộ ổ đĩa giúp tôi")
+rọi ""
+gõ(M, V, "nhờ làm cho tôi một bài thơ về mùa thu Hà Nội")
+
+rọi ""
+rọi "════ 5. TRỢ LÝ KHÔNG CÓ CỬA HẬU — nhờ việc vượt quyền vẫn bị nhân chặn ════"
+thêm_kỹ_năng(lấy_khoá(M, "kho_kỹ_năng"), "đọc-mật-khẩu",
+    "đọc tệp mật khẩu tài khoản của hệ thống để kiểm tra", ["xem /hệ/mật_khẩu"], sáng)
+nhúng_sẵn_kho(lấy_khoá(M, "kho_kỹ_năng"))
+gõ(M, V, "nhờ kiểm tra giúp tôi tệp mật khẩu tài khoản của hệ thống")
+rọi "  ── nhật ký audit ghi lại chính những lời NHỜ đó (ống + tìm trên nhật ký) ──"
+gõ(M, V, "nhật_ký 24 | tìm nhờ")
+
+rọi ""
+rọi "════ 6. ★ /lệnh LÀ THƯ MỤC LỆNH THẬT — lệnh cũng chỉ là TỆP ════"
+gõ(M, V, "liệt /lệnh | đếm")
+gõ(M, V, "xem /lệnh/soi_hệ")
+gõ(M, V, "soi_hệ")
+rọi "  ── lệnh KỊCH BẢN có đối số ──"
+gõ(M, V, "lỗi đĩa")
+rọi "  ── tệp lệnh làm BỆ PHÓNG TIẾN TRÌNH (nối với việc số 1) ──"
+gõ(M, V, "đếm_số 3 /nhà/an/nhịp_đếm")
+gõ(M, V, "xem /nhà/an/nhịp_đếm")
+rọi "  ── NGƯỜI DÙNG TỰ VIẾT LỆNH MỚI lúc máy đang chạy ──"
+gõ(M, V, "ghi /nhà/an/lệnh/nhà_tôi \"liệt /nhà/an | đếm\"")
+gõ(M, V, "quyền /nhà/an/lệnh/nhà_tôi 755")
+gõ(M, V, "nhà_tôi")
+rọi "  ── QUYỀN x có hiệu lực thật: gốc-quyền khoá lệnh `xoá` lại ──"
+gõ(M, tt_khởi, "quyền /lệnh/xoá 644")
+gõ(M, V, "xoá /tạm/rác2")
+gõ(M, tt_khởi, "quyền /lệnh/xoá 755")
+rọi "  ── xoá TỆP LỆNH là mất lệnh (như Linux) ──"
+gõ(M, tt_khởi, "xoá /lệnh/cây")
+gõ(M, tt_khởi, "duyệt")
+gõ(M, V, "cây /nhà")
+
+rọi ""
+rọi "════ 7. NHẬT KÝ AUDIT — soi lại mọi lời gọi hệ (kể cả của trợ lý) ════"
+gõ(M, V, "nhật_ký 8")
+
+rọi ""
+rọi "[hệ] tổng số lời gọi hệ: " + dài(lấy_khoá(M, "nhật_ký")) + " · nhịp máy: " + lấy_khoá(M, "nhịp")

@@ -1,0 +1,22 @@
+# HƯỚNG 3: chọn BỐN MẶT đầy đủ — chấm điểm hành động theo mặt DE nó xử lý.
+# Ưu tiên (theo thuật toán của bạn): TRỒI đốm sáng (DE) > SOI lại đốm tối (ảo tưởng)
+# > LÀM TƯƠI tri thức cũ (DE_T). Cùng ưu tiên thì xét ΔOR kỳ vọng.
+# Hành động = [tên, mặt, ΔOR].  mặt: 3=trồi-sáng · 2=soi-tối · 1=làm-tươi-cũ
+
+hàm điểm(hđ) { trả hđ[1] * 1000 + hđ[2] }    # mặt làm trọng số ưu tiên, rồi ΔOR
+
+đặt hành_động = [
+    ["soi lại ảo tưởng X (đốm tối)", 2, 90],   # ΔOR cao nhưng mặt thấp hơn
+    ["trồi trực giác Y (đốm sáng)",  3, 20],   # mặt cao nhất → ƯU TIÊN
+    ["làm tươi tri thức cũ Z (DE_T)",1, 95]
+]
+
+đặt tốt = argmax(điểm, hành_động)
+rọi "Các hành động (tên, mặt, ΔOR):"
+rọi "  " + đầu(hành_động)
+rọi "  " + đầu(đuôi(hành_động))
+rọi "  " + đầu(đuôi(đuôi(hành_động)))
+rọi ""
+rọi "chọn (bốn mặt): " + đầu(tốt)
+rọi "→ Trồi đốm sáng được ưu tiên dù ΔOR thấp hơn — vì mở DE thành tri thức MỚI"
+rọi "  có giá trị hơn tinh chỉnh cái đã biết. Đây là 'tò mò có định hướng' của CDFL."

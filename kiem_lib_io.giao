@@ -1,0 +1,17 @@
+# Kiểm lib_io — I/O theo năng lực (ba-trị + capability-sandbox)
+# Chạy: python giao.py kiem_lib_io.giao --cho-đọc .
+# Host CHỈ cấp quyền ĐỌC → đọc chạy được; ghi/liệt/chạy KHÔNG cấp → ẩn/tối (KHÔNG crash, KHÔNG tự nới).
+nhập "lib_io.giao"
+
+# 1) ĐỌC (được cấp) — tệp thật của dự án
+rọi dài(đọc("chuẩn.giao")) > 1000        # sáng  (đọc được nội dung thật)
+rọi loại(đọc("không_tồn_tại.xyz"))       # ẩn    (thiếu tệp → thực tại chưa phơi)
+rọi dài(đọc_dòng("chuẩn.giao")) > 10     # sáng  (tách dòng)
+rọi tồn_tại("chuẩn.giao")                # sáng
+rọi tồn_tại("không_tồn_tại.xyz")         # tối
+
+# 2) LIỆT (kèm trong phạm-vi ĐỌC) → danh_sách
+rọi loại(liệt("."))                      # danh_sách  (đọc-thư-mục gồm liệt-kê)
+# 3) GHI/CHẠY (KHÔNG cấp) — phải tối/ẩn, KHÔNG crash, KHÔNG tự nới quyền (sandbox bẩm sinh)
+rọi ghi("thử.txt", "x")                  # tối   (chưa cấp quyền ghi → chặn sạch, KHÔNG tạo tệp)
+rọi loại(chạy_lệnh("python", ["--version"]))  # ẩn (chưa cấp quyền chạy)

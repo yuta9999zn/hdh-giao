@@ -1,0 +1,17 @@
+# synth_gvm.ys — CHỨNG core CDFL gvm.v TỔNG-HỢP-ĐƯỢC xuống cổng (yosys, OSS CAD Suite)
+# Chạy (sau khi PATH có oss-cad-suite/bin + /lib):
+#   yosys -s synth_gvm.ys
+# Kết-quả 2026-06-18 (MEM=256): ~527,948 cells generic (AND/OR/MUX/XOR/NOT + ~13.4k DFF)
+#   + ALU adderN(16×full_adder từ NAND). KHÔNG LỖI → gvm.v (ba-trị+γ-scheduler+SIP+4-nhân) synth-được.
+# Ghi-chú: MEM nhỏ để tránh ABC (tối-ưu cuối) chậm vì quy-mô-CPU; coarse-synth đủ chứng synth-ability.
+#          FPGA thật cần synth_ice40/synth_xilinx (map BRAM/LUT) + nextpnr → bitstream (CHƯA làm).
+read_verilog gvm.v
+chparam -set MEM 256 gvm
+hierarchy -top gvm
+proc
+opt
+memory
+opt
+techmap
+opt
+stat

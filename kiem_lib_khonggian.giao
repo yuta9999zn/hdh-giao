@@ -1,0 +1,23 @@
+# Kiểm lib_khonggian — object namespace (ba-trị: thiếu → ẩn)
+nhập "lib_khonggian.giao"
+
+đặt kg = tạo_kg()
+gắn(kg, "/thiết_bị/đĩa0", "thiết_bị", "ổ SSD")
+gắn(kg, "/thiết_bị/màn", "thiết_bị", "HDMI")
+gắn(kg, "/tiến_trình/đếm_A", "tiến_trình", 1001)
+gắn(kg, "/sự_kiện/khởi_động", "sự_kiện", "xong")
+
+rọi tra_trị(kg, "/thiết_bị/đĩa0")        # ổ SSD
+rọi tra_trị(kg, "/tiến_trình/đếm_A")     # 1001
+rọi loại_của(kg, "/sự_kiện/khởi_động")   # sự_kiện
+rọi loại_của(kg, "/thiết_bị")            # thư_mục
+rọi có(kg, "/thiết_bị/đĩa0")             # sáng
+rọi có(kg, "/thiết_bị/đĩa9")             # tối
+rọi tra_trị(kg, "/không/tồn/tại")        # ẩn  (KHÔNG bịa)
+rọi loại_của(kg, "/thiết_bị/đĩa9")       # ẩn
+rọi liệt_kg(kg, "/thiết_bị")             # [đĩa0, màn]
+rọi liệt_kg(kg, "/")                     # [thiết_bị, tiến_trình, sự_kiện]
+rọi gỡ(kg, "/thiết_bị/màn")             # sáng
+rọi liệt_kg(kg, "/thiết_bị")             # [đĩa0]
+rọi gỡ(kg, "/thiết_bị/màn")             # tối  (đã gỡ rồi)
+rọi loại(liệt_kg(kg, "/thiết_bị/đĩa0"))  # ẩn  (lá, không phải thư-mục)

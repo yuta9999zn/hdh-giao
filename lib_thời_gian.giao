@@ -1,0 +1,87 @@
+# ============================================================
+# lib_thời_gian.giao — THỜI ĐIỂM (datetime + MÚI-GIỜ kiểu Python datetime) cho GIAO
+# ------------------------------------------------------------
+# THUẦN TOÁN (không cần đồng-hồ hệ thống): thời-điểm = [JDN, giây_trong_ngày, lệch_múi_phút].
+#   JDN từ lib_ngày · giây_ngày ∈ [0,86400) · lệch_phút = chênh UTC (vd +420 = UTC+7, -300 = UTC-5).
+# GIỮ CỐT LÕI GIAO: ba-trị (ngày/giờ KHÔNG hợp-lệ → 'ẩn'; so-sánh gặp ẩn → ẩn; trước → sáng/tối) ·
+#   idiom Việt · TỰ-THÂN (trên lib_ngày: số_ngày/từ_số_ngày/định_dạng/_đệm2 + // và dư).
+# Nạp: nhập "lib_thời_gian.giao".
+# ============================================================
+nhập "lib_ngày.giao"     # số_ngày · từ_số_ngày · định_dạng · _đệm2
+
+# ---------------- tạo + truy cập ----------------
+hàm thời_điểm(năm, tháng, ngày, giờ, phút, giây, lệch_phút) {   # → [jdn, giây_ngày, lệch]; sai → ẩn
+    đặt j = số_ngày(năm, tháng, ngày)
+    nếu loại(j) == "ẩn" { trả ẩn }              # ngày không hợp-lệ
+    nếu giờ < 0 { trả ẩn }
+    nếu giờ > 23 { trả ẩn }
+    nếu phút < 0 { trả ẩn }
+    nếu phút > 59 { trả ẩn }
+    nếu giây < 0 { trả ẩn }
+    nếu giây > 59 { trả ẩn }
+    trả [j, giờ * 3600 + phút * 60 + giây, lệch_phút]
+}
+hàm lấy_ngày(td) { nếu loại(td) == "ẩn" { trả ẩn }  trả từ_số_ngày(td[0]) }   # → [năm, tháng, ngày]
+hàm lấy_giờ(td) { nếu loại(td) == "ẩn" { trả ẩn }  trả td[1] // 3600 }
+hàm lấy_phút(td) { nếu loại(td) == "ẩn" { trả ẩn }  trả dư(td[1] // 60, 60) }
+hàm lấy_giây(td) { nếu loại(td) == "ẩn" { trả ẩn }  trả dư(td[1], 60) }
+hàm lấy_lệch(td) { nếu loại(td) == "ẩn" { trả ẩn }  trả td[2] }
+
+# ---------------- mốc UTC tuyệt-đối (nền cho so-sánh + khoảng) ----------------
+hàm utc_giây(td) {                              # tổng giây UTC kể từ mốc JDN; ẩn → ẩn
+    nếu loại(td) == "ẩn" { trả ẩn }
+    trả td[0] * 86400 + td[1] - td[2] * 60
+}
+hàm khoảng_giây(a, b) {                         # b - a (giây); gặp ẩn → ẩn
+    nếu loại(a) == "ẩn" { trả ẩn }
+    nếu loại(b) == "ẩn" { trả ẩn }
+    trả utc_giây(b) - utc_giây(a)
+}
+
+# ---------------- số học + đổi múi (GIỮ NGUYÊN khoảnh-khắc) ----------------
+hàm cộng_giây(td, n) {                          # + n giây (n âm = lùi); GIỮ múi; ẩn → ẩn
+    nếu loại(td) == "ẩn" { trả ẩn }
+    đặt tl = td[0] * 86400 + td[1] + n
+    trả [tl // 86400, dư(tl, 86400), td[2]]
+}
+hàm cộng_phút(td, n) { trả cộng_giây(td, n * 60) }
+hàm cộng_giờ(td, n) { trả cộng_giây(td, n * 3600) }
+hàm đổi_múi(td, lệch_mới) {                     # CÙNG khoảnh-khắc, biểu-diễn ở múi khác; ẩn → ẩn
+    nếu loại(td) == "ẩn" { trả ẩn }
+    đặt u = utc_giây(td)  đặt ln = u + lệch_mới * 60
+    trả [ln // 86400, dư(ln, 86400), lệch_mới]
+}
+
+# ---------------- so sánh (ba-trị) ----------------
+hàm so_thời_điểm(a, b) {                        # -1 / 0 / 1 theo UTC; gặp ẩn → ẩn
+    nếu loại(a) == "ẩn" { trả ẩn }
+    nếu loại(b) == "ẩn" { trả ẩn }
+    đặt ua = utc_giây(a)  đặt ub = utc_giây(b)
+    nếu ua < ub { trả 0 - 1 }
+    nếu ua > ub { trả 1 }
+    trả 0
+}
+hàm trước(a, b) {                               # a TRƯỚC b? → sáng/tối; ẩn → ẩn
+    đặt s = so_thời_điểm(a, b)
+    nếu loại(s) == "ẩn" { trả ẩn }
+    nếu s == 0 - 1 { trả sáng }
+    trả tối
+}
+hàm cùng_lúc(a, b) {                            # CÙNG khoảnh-khắc (dù khác múi)? → sáng/tối; ẩn → ẩn
+    đặt s = so_thời_điểm(a, b)
+    nếu loại(s) == "ẩn" { trả ẩn }
+    nếu s == 0 { trả sáng }
+    trả tối
+}
+
+# ---------------- định dạng ISO 8601 "YYYY-MM-DDThh:mm:ss±hh:mm" ----------------
+hàm định_dạng_tg(td) {
+    nếu loại(td) == "ẩn" { trả "ẩn" }
+    đặt ng = từ_số_ngày(td[0])
+    đặt phần_ngày = định_dạng(ng[0], ng[1], ng[2])
+    đặt phần_giờ = _đệm2(td[1] // 3600) + ":" + _đệm2(dư(td[1] // 60, 60)) + ":" + _đệm2(dư(td[1], 60))
+    đặt l = td[2]  đặt dấu = "+"
+    nếu l < 0 { đặt dấu = "-"  đặt l = 0 - l }
+    đặt phần_múi = dấu + _đệm2(l // 60) + ":" + _đệm2(dư(l, 60))
+    trả phần_ngày + "T" + phần_giờ + phần_múi
+}

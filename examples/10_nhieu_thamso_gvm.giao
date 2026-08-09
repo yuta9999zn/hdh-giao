@@ -1,0 +1,13 @@
+# HÀM NHIỀU THAM SỐ biên dịch xuống GVM (quy ước gọi theo KHUNG).
+# Gồm cả đệ quy 2 tham số. Chạy trên máy trit/γ nền NAND.
+
+hàm cộng(a, b) { trả a + b }
+
+hàm luỹ(cơ, mũ) {                  # đệ quy 2 tham số: cơ^mũ
+    nếu mũ == 0 { trả 1 }
+    trả cơ * luỹ(cơ, mũ - 1)
+}
+
+rọi cộng(3, 4)                     # 7
+rọi luỹ(2, 10)                     # 1024
+rọi cộng(luỹ(2, 5), 100)           # 32 + 100 = 132

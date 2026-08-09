@@ -1,0 +1,61 @@
+# Kiểm lib_chuoi — String kiểu Python/Ruby (ba-trị-aware)
+nhập "lib_chuoi.giao"
+
+rọi hoa("Hello World")           # HELLO WORLD
+rọi thường("Hello World")        # hello world
+rọi hoa_đầu("hello")             # Hello
+rọi đảo_chuỗi("giao")            # oaig
+rọi chuỗi_từ(["a", "b", "c"])    # abc
+rọi thay("a.b.c.d", ".", "-")    # a-b-c-d
+rọi số_lần("banana", "a")        # 3
+rọi chứa_chuỗi("hello", "ell")   # sáng
+rọi chứa_chuỗi("hello", "xyz")   # tối
+rọi vị_trí("hello", "ll")        # 2
+rọi vị_trí("hello", "z")         # ẩn (KHÔNG bịa)
+rọi bắt_đầu("hello", "he")       # sáng
+rọi bắt_đầu("hello", "lo")       # tối
+rọi kết_thúc("hello", "lo")      # sáng
+rọi cắt_lề("   xin chào   ")     # xin chào
+rọi lặp_lại("ab", 3)             # ababab
+
+# --- bổ sung idiom: phân-loại ký-tự / strip-biến-thể / partition / prefix-suffix / title / tách-giữ ---
+rọi là_chữ_số("12345")           # sáng
+rọi là_chữ_số("12a45")           # tối
+rọi là_chữ("Hello")              # sáng
+rọi là_chữ_và_số("abc123")       # sáng
+rọi là_trắng_hết("   ")          # sáng
+rọi cắt_trái("   xin ")          # "xin " (giữ đuôi)
+rọi cắt_phải("   xin ")          # "   xin"
+rọi cắt_ký("xxhelloxx", "x")     # hello
+rọi tách_giữ("a,b,", ",")        # [a, b, ]  (GIỮ mảnh rỗng — khác builtin tách)
+rọi phân_vùng("a=b=c", "=")      # [a, =, b=c]
+rọi phân_vùng("=x", "=")         # [, =, x]  (mở-đầu bằng ngăn — đúng)
+rọi bỏ_tiền_tố("unhappy", "un")  # happy
+rọi bỏ_hậu_tố("running", "ing")  # runn
+rọi tiêu_đề("xin chào thế giới") # Xin Chào Thế Giới
+
+# --- REGRESSION: sửa lỗi pre-existing builtin `tách` bỏ-rỗng (số_lần/thay/vị_trí/chứa_chuỗi) ---
+rọi số_lần("xxhello", "x")       # 2  (khớp KỀ/ĐẦU — trước sai = 0)
+rọi thay("aa", "a", "b")         # bb (trước sai = "")
+rọi chứa_chuỗi("x", "x")         # sáng (chuỗi chứa CHÍNH nó — trước sai = tối)
+rọi vị_trí("=hello", "=")        # 0  (mở-đầu bằng con — trước sai = 5)
+
+# --- đợt 2: rfind / translate / swapcase / common-prefix / wrap / all-indices ---
+rọi tìm_phải("abcabc", "bc")     # 4  (lần CUỐI)
+rọi tìm_phải("abc", "z")         # ẩn
+rọi dịch("hello", "el", "ip")    # hippo  (e→i, l→p)
+rọi hoa_thường_đảo("Hello")      # hELLO
+rọi tiền_tố_chung("phòng", "phố")# ph
+rọi bọc_dòng("the quick brown fox", 9)   # [the quick, brown fox]
+rọi chỉ_mục_tất_cả("aXbXcX", "X")        # [1, 3, 5]
+
+# --- đợt 3: split-maxsplit / squeeze / reverse-words / truncate ---
+rọi tách_n("a,b,c,d", ",", 2)            # [a, b, c,d]
+rọi xoá_lặp_trắng("  the   quick  fox ") # the quick fox
+rọi đảo_từ("the quick fox")              # fox quick the
+rọi viết_tắt("hello world", 8)           # hello w…
+rọi viết_tắt("hi", 8)                    # hi
+
+# --- đợt 4: split-nhiều-dấu / xoá-ký-tập ---
+rọi chia_ký("a,b; c  d", ",; ")          # [a, b, c, d]
+rọi bỏ_ký("a1b2c3", "123")               # abc

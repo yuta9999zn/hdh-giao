@@ -1,0 +1,14 @@
+nhập "lib_url.giao"
+đặt u = phân_tích_url("https://example.com:8080/tin/tức?id=42&sx=mới")
+rọi lấy_khoá(u, "scheme")              # https
+rọi lấy_khoá(u, "host")                # example.com
+rọi lấy_khoá(u, "cổng")                # 8080
+rọi lấy_khoá(u, "đường")               # /tin/tức
+rọi lấy_khoá(lấy_khoá(u, "truy_vấn"), "id")   # 42
+rọi lấy_khoá(lấy_khoá(u, "truy_vấn"), "sx")   # mới
+đặt u2 = phân_tích_url("http://giao.vn/")
+rọi loại(lấy_khoá(u2, "cổng"))         # ẩn (không có cổng)
+rọi lấy_khoá(u2, "đường")              # /
+đặt q = phân_tích_truy_vấn("a=1&b=2&c=3")
+rọi lấy_khoá(q, "b")                   # 2
+rọi thành_truy_vấn(q)                  # a=1&b=2&c=3

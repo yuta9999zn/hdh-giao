@@ -1,0 +1,485 @@
+# ============================================================
+# lib_thập_phân.giao — SỐ THẬP PHÂN chính-xác ĐỘ-TUỲ-Ý (kiểu `decimal` của Python) cho GIAO
+# ------------------------------------------------------------
+# Vì float GIAO là điểm-cố-định ×10000 (chỉ 4 chữ-số-lẻ), lib này cho số-thập-phân CHÍNH-XÁC,
+# số-chữ-số-lẻ TUỲ-Ý, không sai-số nhị-phân. Biểu diễn: thập-phân = [hệ_số, thang]
+#   (giá-trị = hệ_số / 10^thang). hệ_số là SỐ-NGUYÊN độ-tuỳ-ý (interp dùng int Python) → tuyệt đối đúng.
+#   thang ≥ 0 = số chữ-số-lẻ. Ví dụ: 3.14=[314,2] · −0.5=[-5,1] · 42=[42,0].
+# GIỮ CỐT LÕI GIAO: ba-trị (chuỗi SAI-định-dạng → 'ẩn' · chia cho 0 → ẩn · thang âm → ẩn ·
+#   gặp ẩn → lan-truyền) · idiom Việt · lõi-số trên builtin + // dư tuyệt của chuẩn.giao;
+#   số↔chuỗi (chuỗi_số/lát_chuỗi) dùng chung của lib_chuoi (hết trùng-lặp _chữ/_lát/_số_ra_chuỗi).
+# Làm tròn: NỬA-LÊN (half-up, ra-xa-0) — quy ước tài-chính.
+# Nạp: nhập "lib_thập_phân.giao".
+# ============================================================
+nhập "lib_chuoi.giao"     # chuỗi_số (số nguyên → chuỗi), lát_chuỗi (chuỗi-con)
+
+# ---------------- tiện ích nội bộ ----------------
+hàm _mười_mũ(k) {                        # 10^k (k ≥ 0)
+    nếu loại(k) == "ẩn" { trả ẩn }       # k ẩn → ẩn (không lặp vô tận ở `i >= k`)
+    đặt r = 1  đặt i = 0
+    mãi { nếu i >= k { dừng }  đặt r = r * 10  đặt i = i + 1 }
+    trả r
+}
+hàm _ẩn_td(d) { nếu loại(d) == "ẩn" { trả sáng }  trả tối }   # d là 'ẩn'?
+# (_chữ/_số_ra_chuỗi/_lát đã chuyển sang lib_chuoi: chữ_số/chuỗi_số/lát_chuỗi)
+hàm _tròn_lên(P, Q) { trả (2 * P + Q) // (2 * Q) }            # P,Q ≥ 0: làm-tròn-nửa-lên của P/Q
+
+# ---------------- dựng ----------------
+hàm từ_nguyên(n) { nếu loại(n) == "ẩn" { trả ẩn }  trả [n, 0] }          # số nguyên → thập-phân
+hàm thập_phân(s) {                       # phân-tích chuỗi "3.14"/"-0.5"/".5"/"42" → [hệ_số, thang]; SAI → ẩn
+    nếu loại(s) == "ẩn" { trả ẩn }       # input ẩn → ẩn (không crash ở `dài`)
+    đặt n = dài(s)
+    nếu n == 0 { trả ẩn }
+    đặt i = 0  đặt dấu = 1
+    nếu s[0] == "-" { đặt dấu = 0 - 1  đặt i = 1 }
+    nếu s[0] == "+" { đặt i = 1 }
+    đặt hệ = 0  đặt thang = 0  đặt thấy_chấm = tối  đặt có_số = tối
+    mãi {
+        nếu i >= n { dừng }
+        đặt c = s[i]
+        nếu c == "." {
+            nếu thấy_chấm { trả ẩn }      # hai dấu chấm → sai
+            đặt thấy_chấm = sáng
+        } khác {
+            nếu c >= "0" { nếu c <= "9" {
+                đặt hệ = hệ * 10 + (mã(c) - 48)
+                đặt có_số = sáng
+                nếu thấy_chấm { đặt thang = thang + 1 }
+            } khác { trả ẩn } } khác { trả ẩn }   # ký-tự lạ → sai
+        }
+        đặt i = i + 1
+    }
+    nếu có_số { } khác { trả ẩn }         # không chữ-số nào (vd "" / "-" / ".") → sai
+    trả [dấu * hệ, thang]
+}
+
+# ---------------- chuẩn hoá thang chung (cho cộng/trừ/so) ----------------
+hàm _hệ_ở_thang(d, s) { trả d[0] * _mười_mũ(s - d[1]) }   # hệ-số của d khi nâng lên thang s (s ≥ d[1])
+
+# ---------------- số học ----------------
+hàm cộng(a, b) {
+    nếu _ẩn_td(a) { trả ẩn }
+    nếu _ẩn_td(b) { trả ẩn }
+    đặt s = a[1]
+    nếu b[1] > s { đặt s = b[1] }
+    trả [_hệ_ở_thang(a, s) + _hệ_ở_thang(b, s), s]
+}
+hàm trừ(a, b) {
+    nếu _ẩn_td(a) { trả ẩn }
+    nếu _ẩn_td(b) { trả ẩn }
+    đặt s = a[1]
+    nếu b[1] > s { đặt s = b[1] }
+    trả [_hệ_ở_thang(a, s) - _hệ_ở_thang(b, s), s]
+}
+hàm nhân(a, b) {                         # CHÍNH XÁC: hệ×hệ, thang cộng
+    nếu _ẩn_td(a) { trả ẩn }
+    nếu _ẩn_td(b) { trả ẩn }
+    trả [a[0] * b[0], a[1] + b[1]]
+}
+hàm chia(a, b, thang_kq) {               # a/b làm tròn về `thang_kq` chữ-số-lẻ; b=0 hoặc thang_kq<0 → ẩn
+    nếu _ẩn_td(a) { trả ẩn }
+    nếu _ẩn_td(b) { trả ẩn }
+    nếu loại(thang_kq) == "ẩn" { trả ẩn }  nếu thang_kq < 0 { trả ẩn }
+    nếu b[0] == 0 { trả ẩn }              # chia cho 0 → ẩn (ba-trị)
+    đặt p = a[0] * _mười_mũ(thang_kq + b[1])
+    đặt q = b[0] * _mười_mũ(a[1])
+    đặt dấu = 1
+    nếu p < 0 { nếu q < 0 { } khác { đặt dấu = 0 - 1 } }
+    khác { nếu q < 0 { đặt dấu = 0 - 1 } }
+    trả [dấu * _tròn_lên(tuyệt(p), tuyệt(q)), thang_kq]
+}
+
+# ---------------- làm tròn / dấu ----------------
+hàm làm_tròn(d, thang) {                  # về `thang` chữ-số-lẻ (nửa-lên); thang<0 → ẩn
+    nếu _ẩn_td(d) { trả ẩn }
+    nếu loại(thang) == "ẩn" { trả ẩn }  nếu thang < 0 { trả ẩn }
+    nếu thang >= d[1] { trả [d[0] * _mười_mũ(thang - d[1]), thang] }   # nới thang (thêm 0)
+    đặt div = _mười_mũ(d[1] - thang)
+    đặt dấu = 1
+    nếu d[0] < 0 { đặt dấu = 0 - 1 }
+    trả [dấu * _tròn_lên(tuyệt(d[0]), div), thang]
+}
+hàm âm(d) { nếu _ẩn_td(d) { trả ẩn }  trả [0 - d[0], d[1]] }
+hàm trị_tuyệt(d) { nếu _ẩn_td(d) { trả ẩn }  trả [tuyệt(d[0]), d[1]] }
+
+# ---------------- so sánh (ba-trị) ----------------
+hàm so_td(a, b) {                         # -1/0/1 theo GIÁ-TRỊ; gặp ẩn → ẩn
+    nếu _ẩn_td(a) { trả ẩn }
+    nếu _ẩn_td(b) { trả ẩn }
+    đặt s = a[1]
+    nếu b[1] > s { đặt s = b[1] }
+    đặt ca = _hệ_ở_thang(a, s)  đặt cb = _hệ_ở_thang(b, s)
+    nếu ca < cb { trả 0 - 1 }
+    nếu ca > cb { trả 1 }
+    trả 0
+}
+hàm bằng_td(a, b) {                       # bằng GIÁ-TRỊ (3.1 == 3.10)? → sáng/tối; ẩn → ẩn
+    đặt r = so_td(a, b)
+    nếu loại(r) == "ẩn" { trả ẩn }
+    nếu r == 0 { trả sáng }
+    trả tối
+}
+hàm bé_hơn(a, b) {                        # a < b? → sáng/tối; ẩn → ẩn
+    đặt r = so_td(a, b)
+    nếu loại(r) == "ẩn" { trả ẩn }
+    nếu r == 0 - 1 { trả sáng }
+    trả tối
+}
+
+# ---------------- luỹ thừa + căn bậc hai (độ-chính-xác tuỳ-ý) ----------------
+hàm luỹ_thừa(d, n) {                      # d^n, n ≥ 0 (CHÍNH XÁC, nhân lặp); n < 0 → ẩn (dùng chia cho nghịch-đảo)
+    nếu _ẩn_td(d) { trả ẩn }
+    nếu loại(n) == "ẩn" { trả ẩn }         # số-mũ ẩn → ẩn (không lặp vô tận ở `i >= n`)
+    nếu n < 0 { trả ẩn }
+    đặt kq = [1, 0]                         # = 1 (n=0 → 1)
+    đặt i = 0
+    mãi { nếu i >= n { dừng }  đặt kq = nhân(kq, d)  đặt i = i + 1 }
+    trả kq
+}
+hàm căn(d, thang) {                        # √d về `thang` chữ-số-lẻ (Newton trên decimal, nửa-lên)
+    nếu _ẩn_td(d) { trả ẩn }               # d < 0 → ẩn (chưa-biết trong số thực, như lib_toan) · thang < 0 → ẩn
+    nếu loại(thang) == "ẩn" { trả ẩn }  nếu thang < 0 { trả ẩn }
+    đặt dấu_d = so_td(d, [0, 0])
+    nếu dấu_d == 0 - 1 { trả ẩn }           # d < 0 → ẩn
+    nếu dấu_d == 0 { trả [0, 0] }           # √0 = 0
+    đặt w = thang + 5                       # chữ-số BẢO-VỆ (tránh sai-số làm-tròn khi lặp)
+    đặt x = d                               # phỏng đoán đầu (d > 0 → Newton hội tụ)
+    nếu so_td(d, [1, 0]) == 0 - 1 { đặt x = [1, 0] }   # d < 1 → khởi từ 1 (hội tụ nhanh, ổn định)
+    đặt i = 0
+    mãi {
+        nếu i >= 200 { dừng }               # chặn an-toàn (Newton hội tụ bậc-hai, thực tế ~vài chục)
+        đặt xn = chia(cộng(x, chia(d, x, w)), [2, 0], w)   # x' = (x + d/x) / 2
+        nếu bằng_td(xn, x) { đặt x = xn  dừng }            # hội tụ ở độ-chính-xác w
+        đặt x = xn
+        đặt i = i + 1
+    }
+    trả làm_tròn(x, thang)
+}
+hàm căn_bậc(d, n, thang) {                 # căn bậc n: tìm y sao cho y^n = d (Newton tổng-quát trên decimal)
+    nếu _ẩn_td(d) { trả ẩn }               # d ẩn → ẩn (lan-truyền)
+    nếu loại(thang) == "ẩn" { trả ẩn }  nếu thang < 0 { trả ẩn }               # thang âm → ẩn (ba-trị)
+    nếu n < 1 { trả ẩn }                    # bậc phải ≥ 1
+    nếu n == 1 { trả làm_tròn(d, thang) }   # căn bậc 1 = chính nó
+    đặt dấu_d = so_td(d, [0, 0])
+    nếu dấu_d == 0 { trả [0, 0] }           # căn bậc n của 0 = 0
+    nếu dấu_d == 0 - 1 {                     # d < 0: căn THỰC chỉ tồn tại khi n LẺ
+        đặt lẻ = n - (n // 2) * 2
+        nếu lẻ == 0 { trả ẩn }              # n chẵn, d<0 → ẩn (không có căn số thực)
+        đặt r = căn_bậc(trị_tuyệt(d), n, thang)   # n lẻ → −căn(|d|)
+        nếu _ẩn_td(r) { trả ẩn }
+        trả âm(r)
+    }
+    đặt w = thang + 5                        # chữ-số BẢO-VỆ (tránh sai-số làm-tròn khi lặp)
+    đặt nd = [n, 0]                          # n dạng decimal
+    đặt n1 = [n - 1, 0]                      # (n-1) dạng decimal
+    đặt x = d                                # phỏng đoán đầu (d ≥ 1)
+    nếu so_td(d, [1, 0]) == 0 - 1 { đặt x = [1, 0] }   # d < 1 → khởi từ 1 (Newton ổn định)
+    đặt i = 0
+    mãi {
+        nếu i >= 300 { dừng }               # chặn an-toàn (Newton hội tụ bậc-hai)
+        đặt xm = luỹ_thừa(x, n - 1)          # x^(n-1)
+        đặt xn = chia(cộng(nhân(n1, x), chia(d, xm, w)), nd, w)   # x' = ((n−1)·x + d/x^(n−1))/n
+        nếu bằng_td(xn, x) { đặt x = xn  dừng }            # hội tụ ở độ-chính-xác w
+        đặt x = xn
+        đặt i = i + 1
+    }
+    trả làm_tròn(x, thang)
+}
+
+# ---------------- hàm mũ cơ-số e (e^x, độ-chính-xác tuỳ-ý, chuỗi Taylor) ----------------
+hàm mũ_e(x, thang) {                       # e^x = Σ_{k≥0} x^k/k!  về `thang` chữ-số-lẻ (Taylor, nửa-lên)
+    nếu _ẩn_td(x) { trả ẩn }               # gặp ẩn → lan-truyền
+    nếu loại(thang) == "ẩn" { trả ẩn }  nếu thang < 0 { trả ẩn }               # thang âm → ẩn (ba-trị)
+    # GUARD theo ĐỘ-LỚN: e^x có ~ x/ln10 (≤ |x|/2) chữ-số phần-NGUYÊN; guard cố-định bị ăn hết khi x lớn
+    # (vd mũ_e(50) ~ 22 chữ-số nguyên) → cộng thêm phần-nguyên-|x|//2 để chữ-số-có-nghĩa luôn đủ.
+    đặt x_ng = tuyệt(x[0]) // _mười_mũ(x[1])   # phần nguyên của |x|
+    đặt w = thang + 5 + x_ng // 2 + 1
+    đặt tổng = [1, 0]                       # k = 0: số_hạng_0 = x^0/0! = 1
+    đặt số_hạng = [1, 0]                    # số_hạng hiện-thời (bắt đầu = 1)
+    đặt k = 1
+    mãi {
+        nếu k >= 1000 { dừng }              # chặn an-toàn (Taylor e^x hội tụ nhanh)
+        # số_hạng_k = số_hạng_{k-1} * x / k
+        đặt số_hạng = chia(nhân(số_hạng, x), [k, 0], w)
+        đặt tổng = cộng(tổng, số_hạng)
+        # DỪNG khi số_hạng làm-tròn-về-0 ở thang bảo-vệ w (đã qua k≥1 nên x đã nhân vào)
+        nếu bằng_td(làm_tròn(trị_tuyệt(số_hạng), w), [0, 0]) { dừng }
+        đặt k = k + 1
+    }
+    trả làm_tròn(tổng, thang)
+}
+
+# ---------------- hàm HYPERBOLIC (sinh, cosh, tanh — độ-chính-xác tuỳ-ý, dùng mũ_e) ----------------
+# sinh(x) = (e^x − e^−x)/2 · cosh(x) = (e^x + e^−x)/2 · tanh(x) = (e^x − e^−x)/(e^x + e^−x).
+#   Hậu-tố `_hyp` để KHÔNG đụng sin/cos đã có. Ba-trị: gặp ẩn → ẩn · thang âm → ẩn.
+#   Mẫu cosh/tanh = e^x + e^−x > 0 LUÔN (không chia 0). w = thang+8 (chữ-số BẢO-VỆ).
+hàm sinh_hyp(x, thang) {                    # sinh(x) = (e^x − e^−x)/2
+    nếu _ẩn_td(x) { trả ẩn }               # gặp ẩn → lan-truyền
+    nếu loại(thang) == "ẩn" { trả ẩn }  nếu thang < 0 { trả ẩn }               # thang âm → ẩn (ba-trị)
+    đặt w = thang + 10                       # chữ-số BẢO-VỆ (nới +10: tránh sát 0.5 ulp ở thang cao)
+    đặt ex = mũ_e(x, w)                      # e^x
+    đặt enx = mũ_e(âm(x), w)                 # e^−x
+    trả làm_tròn(chia(trừ(ex, enx), [2, 0], w), thang)
+}
+hàm cosh_hyp(x, thang) {                    # cosh(x) = (e^x + e^−x)/2
+    nếu _ẩn_td(x) { trả ẩn }               # gặp ẩn → lan-truyền
+    nếu loại(thang) == "ẩn" { trả ẩn }  nếu thang < 0 { trả ẩn }               # thang âm → ẩn (ba-trị)
+    đặt w = thang + 10                       # chữ-số BẢO-VỆ (nới +10: tránh sát 0.5 ulp ở thang cao)
+    đặt ex = mũ_e(x, w)                      # e^x
+    đặt enx = mũ_e(âm(x), w)                 # e^−x
+    trả làm_tròn(chia(cộng(ex, enx), [2, 0], w), thang)
+}
+hàm tanh_hyp(x, thang) {                    # tanh(x) = (e^x − e^−x)/(e^x + e^−x)
+    nếu _ẩn_td(x) { trả ẩn }               # gặp ẩn → lan-truyền
+    nếu loại(thang) == "ẩn" { trả ẩn }  nếu thang < 0 { trả ẩn }               # thang âm → ẩn (ba-trị)
+    đặt w = thang + 10                       # chữ-số BẢO-VỆ (nới +10: tránh sát 0.5 ulp ở thang cao)
+    đặt ex = mũ_e(x, w)                      # e^x
+    đặt enx = mũ_e(âm(x), w)                 # e^−x; mẫu (ex+enx) > 0 LUÔN → không chia 0
+    trả làm_tròn(chia(trừ(ex, enx), cộng(ex, enx), thang), thang)
+}
+
+# ---------------- logarit tự-nhiên cơ-số e (ln x, độ-chính-xác tuỳ-ý, công-thức atanh) ----------------
+# atanh(y) = Σ_{k≥0} y^(2k+1)/(2k+1) = y + y³/3 + y⁵/5 + ...  (hội-tụ với |y| < 1)
+# ln(x) = 2·atanh((x-1)/(x+1)).  Để hội-tụ NHANH (ít vòng → không vượt chặn-bước),
+#   THU-GỌN đối-số: chia x cho 2 nhiều lần tới x ∈ [2/3, 4/3] (khi đó y nhỏ ≈ ±0.2).
+#   ln(x) = e·ln(2) + ln(x/2^e).  ln(2) tính một-lần tại đây (y=1/3, hội-tụ ~30 vòng).
+hàm _atanh_td(y, w) {                       # atanh(y) ở thang `w`; |y| < 1; y, kết-quả là thập-phân
+    đặt y2 = làm_tròn(nhân(y, y), w)        # y² (giữ thang gọn ở w để khỏi phình)
+    đặt tổng = [0, 0]                       # tích-luỹ atanh(y)
+    đặt hạng_lẻ = y                          # y^(2k+1): bắt đầu y¹ (k=0)
+    đặt mẫu_lẻ = 1                           # mẫu 2k+1: bắt đầu 1
+    đặt vòng = 0
+    mãi {
+        nếu vòng >= 5000 { dừng }           # chặn an-toàn
+        đặt tổng = cộng(tổng, chia(hạng_lẻ, [mẫu_lẻ, 0], w))
+        # nâng sang hạng lẻ kế: y^(2k+1) → y^(2k+3) = nhân y², mẫu += 2
+        đặt hạng_lẻ = làm_tròn(nhân(hạng_lẻ, y2), w)
+        đặt mẫu_lẻ = mẫu_lẻ + 2
+        # DỪNG khi hạng kế làm-tròn-về-0 ở thang bảo-vệ w (đóng-góp tiếp = 0)
+        nếu bằng_td(làm_tròn(trị_tuyệt(hạng_lẻ), w), [0, 0]) { dừng }
+        đặt vòng = vòng + 1
+    }
+    trả làm_tròn(tổng, w)
+}
+hàm _ln_chuỗi(x, w) {                       # ln(x) qua atanh, KHÔNG thu-gọn (x cần gần 1 để nhanh)
+    đặt y = chia(trừ(x, [1, 0]), cộng(x, [1, 0]), w)   # y = (x-1)/(x+1) ∈ (-1,1)
+    trả làm_tròn(nhân([2, 0], _atanh_td(y, w)), w)     # ln(x) = 2·atanh(y)
+}
+hàm ln(x, thang) {                         # ln(x) cho x > 0, về `thang` chữ-số-lẻ
+    nếu _ẩn_td(x) { trả ẩn }               # gặp ẩn → lan-truyền
+    nếu loại(thang) == "ẩn" { trả ẩn }  nếu thang < 0 { trả ẩn }               # thang âm → ẩn (ba-trị)
+    # ln chỉ xác-định cho x > 0 (số thực); x ≤ 0 → ẩn
+    đặt dấu_x = so_td(x, [0, 0])
+    nếu dấu_x == 0 { trả ẩn }              # ln(0) không xác-định → ẩn
+    nếu dấu_x == 0 - 1 { trả ẩn }          # ln(số âm) không xác-định trong số thực → ẩn
+    đặt w = thang + 5                       # chữ-số BẢO-VỆ (tránh sai-số tích-luỹ khi cộng dồn)
+    # ln(2) ở thang bảo-vệ (y = 1/3 → atanh hội-tụ nhanh)
+    đặt ln2 = làm_tròn(nhân([2, 0], _atanh_td(chia([1, 0], [3, 0], w), w)), w)
+    # THU-GỌN đối-số về [2/3, 4/3] bằng cách nhân/chia 2, đếm số mũ e
+    đặt m = làm_tròn(x, w)                   # bản sao x ở thang w
+    đặt e = 0
+    đặt cận_trên = chia([4, 0], [3, 0], w)   # 4/3
+    đặt cận_dưới = chia([2, 0], [3, 0], w)   # 2/3
+    mãi {                                    # x lớn: chia 2 tới m ≤ 4/3
+        nếu bé_hơn(cận_trên, m) { } khác { dừng }   # m > 4/3?
+        đặt m = chia(m, [2, 0], w)
+        đặt e = e + 1
+    }
+    mãi {                                    # x nhỏ: nhân 2 tới m ≥ 2/3
+        nếu bé_hơn(m, cận_dưới) { } khác { dừng }    # m < 2/3?
+        đặt m = làm_tròn(nhân(m, [2, 0]), w)
+        đặt e = e - 1
+    }
+    # ln(x) = e·ln(2) + ln(m)  với m ∈ [2/3, 4/3] → y nhỏ → hội-tụ vài vòng
+    đặt phần_e = nhân([e, 0], ln2)
+    đặt kq = cộng(phần_e, _ln_chuỗi(m, w))
+    trả làm_tròn(kq, thang)
+}
+
+# ---------------- luỹ-thừa THỰC (a^b, b bất-kỳ) + logarit cơ-số bất-kỳ ----------------
+# a^b = e^(b·ln a)  với a > 0 (b decimal bất-kỳ: phân-số/âm/0 đều được).
+#   a ≤ 0 → ẩn (a^b số-thực không xác-định khi a ≤ 0).  ẩn lan-truyền · thang < 0 → ẩn.
+hàm luỹ_thừa_thực(a, b, thang) {           # a^b = e^(b·ln a), độ-chính-xác tuỳ-ý
+    nếu _ẩn_td(a) { trả ẩn }               # gặp ẩn → lan-truyền
+    nếu _ẩn_td(b) { trả ẩn }
+    nếu loại(thang) == "ẩn" { trả ẩn }  nếu thang < 0 { trả ẩn }               # thang âm → ẩn (ba-trị)
+    # a ≤ 0 → ẩn (ln a không xác-định trong số thực)
+    đặt dấu_a = so_td(a, [0, 0])
+    nếu dấu_a == 0 { trả ẩn }              # a = 0 → ẩn
+    nếu dấu_a == 0 - 1 { trả ẩn }          # a < 0 → ẩn
+    # GUARD theo ĐỘ-LỚN kết-quả: a^b có ~ |b·ln a|/ln10 chữ-số nguyên → ln phải đủ chữ-số-CÓ-NGHĨA.
+    đặt la0 = ln(a, thang + 10)             # ln a thô (ước-lượng độ-lớn)
+    đặt mu0 = nhân(b, la0)                  # ≈ b·ln a
+    đặt độ_lớn = tuyệt(mu0[0]) // _mười_mũ(mu0[1])   # phần nguyên |b·ln a| (≈ chữ-số·ln10 của kết-quả)
+    đặt w = thang + 10 + độ_lớn             # nới guard ln theo độ-lớn
+    đặt la = ln(a, w)                       # ln a (đủ chữ-số-có-nghĩa)
+    đặt mu = nhân(b, la)                    # b · ln a
+    trả mũ_e(mu, thang)                     # e^(b·ln a) — mũ_e tự nới guard nội-bộ theo |mu|
+}
+# log_{cơ_số}(x) = ln(x) / ln(cơ_số)  với x > 0, cơ_số > 0, cơ_số ≠ 1.
+#   x ≤ 0 / cơ_số ≤ 0 / cơ_số = 1 → ẩn.  ẩn lan-truyền · thang < 0 → ẩn.
+hàm lô_ga(x, cơ_số, thang) {               # log cơ-số bất-kỳ, độ-chính-xác tuỳ-ý
+    nếu _ẩn_td(x) { trả ẩn }               # gặp ẩn → lan-truyền
+    nếu _ẩn_td(cơ_số) { trả ẩn }
+    nếu loại(thang) == "ẩn" { trả ẩn }  nếu thang < 0 { trả ẩn }               # thang âm → ẩn (ba-trị)
+    # cơ_số = 1 → ẩn (ln 1 = 0 → chia 0); dùng bằng_td (sáng → ẩn)
+    nếu bằng_td(cơ_số, [1, 0]) { trả ẩn }
+    đặt w = thang + 10                      # chữ-số BẢO-VỆ (hai ln + một chia → nới rộng)
+    # ln(x) / ln(cơ_số); ln tự ẩn khi x≤0 hoặc cơ_số≤0 → chia lan-truyền ẩn
+    trả chia(ln(x, w), ln(cơ_số, w), thang)
+}
+
+# ---------------- lượng-giác: π, sin, cos (độ-chính-xác tuỳ-ý) ----------------
+# π — công-thức Machin: π = 16·atan(1/5) − 4·atan(1/239).
+#   atan(y) = Σ_{k≥0} (−1)^k · y^(2k+1)/(2k+1) = y − y³/3 + y⁵/5 − …  (hội-tụ NHANH với y nhỏ).
+# sin/cos — Taylor sau khi THU-GỌN MIỀN về [−π, π] (nhờ bớt bội của 2π) để chuỗi hội-tụ nhanh & đúng.
+hàm _atan_td(y, w) {                        # atan(y) ở thang `w`; y nhỏ (vd 1/5, 1/239) → hội-tụ nhanh
+    đặt y2 = làm_tròn(nhân(y, y), w)        # y² (giữ thang gọn ở w để hệ-số khỏi phình)
+    đặt tổng = [0, 0]                       # tích-luỹ atan(y)
+    đặt hạng_lẻ = y                          # y^(2k+1): bắt đầu y¹ (k=0)
+    đặt mẫu_lẻ = 1                           # mẫu 2k+1: bắt đầu 1
+    đặt dấu = 1                              # dấu (−1)^k: bắt đầu +
+    đặt vòng = 0
+    mãi {
+        nếu vòng >= 5000 { dừng }           # chặn an-toàn
+        đặt số_hạng = chia(hạng_lẻ, [mẫu_lẻ, 0], w)   # y^(2k+1)/(2k+1)
+        nếu dấu == 1 { đặt tổng = cộng(tổng, số_hạng) } khác { đặt tổng = trừ(tổng, số_hạng) }
+        # nâng sang hạng lẻ kế: y^(2k+1) → y^(2k+3) = nhân y², mẫu += 2, đổi dấu
+        đặt hạng_lẻ = làm_tròn(nhân(hạng_lẻ, y2), w)
+        đặt mẫu_lẻ = mẫu_lẻ + 2
+        đặt dấu = 0 - dấu
+        # DỪNG khi hạng kế làm-tròn-về-0 ở thang bảo-vệ w (đóng-góp tiếp = 0)
+        nếu bằng_td(làm_tròn(trị_tuyệt(hạng_lẻ), w), [0, 0]) { dừng }
+        đặt vòng = vòng + 1
+    }
+    trả làm_tròn(tổng, w)
+}
+hàm pi(thang) {                             # π về `thang` chữ-số-lẻ (Machin); thang < 0 → ẩn
+    nếu loại(thang) == "ẩn" { trả ẩn }  nếu thang < 0 { trả ẩn }
+    đặt w = thang + 10                       # chữ-số BẢO-VỆ (nới +10: tránh sát 0.5 ulp ở thang cao)
+    đặt a5 = _atan_td(chia([1, 0], [5, 0], w), w)        # atan(1/5)
+    đặt a239 = _atan_td(chia([1, 0], [239, 0], w), w)    # atan(1/239)
+    đặt kq = trừ(nhân([16, 0], a5), nhân([4, 0], a239))  # 16·atan(1/5) − 4·atan(1/239)
+    trả làm_tròn(kq, thang)
+}
+hàm sin(x, thang) {                         # sin(x) (x radian) về `thang` chữ-số-lẻ; ẩn/thang<0 → ẩn
+    nếu _ẩn_td(x) { trả ẩn }               # gặp ẩn → lan-truyền
+    nếu loại(thang) == "ẩn" { trả ẩn }  nếu thang < 0 { trả ẩn }               # thang âm → ẩn (ba-trị)
+    đặt w = thang + 10                       # chữ-số BẢO-VỆ (nới +10: tránh sát 0.5 ulp ở thang cao)
+    đặt hai_pi = nhân([2, 0], pi(w))         # 2π ở thang ~w
+    # thu-gọn: n = số-nguyên gần nhất của x/(2π); x_thu = x − n·2π ∈ [−π, π]
+    đặt q = chia(x, hai_pi, 0)               # x/(2π) làm-tròn về số-nguyên (thang 0)
+    đặt n = q[0]
+    đặt x_thu = trừ(x, nhân([n, 0], hai_pi))
+    # Taylor: sin = Σ_{k≥0} (−1)^k x^(2k+1)/(2k+1)!  ; hạng_0 = x
+    đặt x2 = làm_tròn(nhân(x_thu, x_thu), w) # x²
+    đặt tổng = làm_tròn(x_thu, w)            # k=0: + x
+    đặt hạng = làm_tròn(x_thu, w)            # hạng hiện-thời = x^(2k+1)/(2k+1)!  (bắt đầu x/1! = x)
+    đặt k = 1
+    mãi {
+        nếu k >= 5000 { dừng }              # chặn an-toàn
+        # hạng_k = hạng_{k-1} · x² / ((2k)·(2k+1)) , dấu xen kẽ
+        đặt mẫu = (2 * k) * (2 * k + 1)
+        đặt hạng = chia(làm_tròn(nhân(hạng, x2), w), [mẫu, 0], w)
+        nếu dư(k, 2) == 1 { đặt tổng = trừ(tổng, hạng) } khác { đặt tổng = cộng(tổng, hạng) }
+        nếu bằng_td(làm_tròn(trị_tuyệt(hạng), w), [0, 0]) { dừng }
+        đặt k = k + 1
+    }
+    trả làm_tròn(tổng, thang)
+}
+hàm cos(x, thang) {                         # cos(x) (x radian) về `thang` chữ-số-lẻ; ẩn/thang<0 → ẩn
+    nếu _ẩn_td(x) { trả ẩn }               # gặp ẩn → lan-truyền
+    nếu loại(thang) == "ẩn" { trả ẩn }  nếu thang < 0 { trả ẩn }               # thang âm → ẩn (ba-trị)
+    đặt w = thang + 10                       # chữ-số BẢO-VỆ (nới +10: tránh sát 0.5 ulp ở thang cao)
+    đặt hai_pi = nhân([2, 0], pi(w))         # 2π
+    đặt q = chia(x, hai_pi, 0)               # x/(2π) → số-nguyên gần nhất
+    đặt n = q[0]
+    đặt x_thu = trừ(x, nhân([n, 0], hai_pi)) # x_thu ∈ [−π, π]
+    # Taylor: cos = Σ_{k≥0} (−1)^k x^(2k)/(2k)!  ; hạng_0 = 1
+    đặt x2 = làm_tròn(nhân(x_thu, x_thu), w) # x²
+    đặt tổng = [1, 0]                        # k=0: + 1
+    đặt hạng = [1, 0]                        # hạng hiện-thời = x^(2k)/(2k)!  (bắt đầu 1)
+    đặt k = 1
+    mãi {
+        nếu k >= 5000 { dừng }              # chặn an-toàn
+        # hạng_k = hạng_{k-1} · x² / ((2k−1)·(2k)) , dấu xen kẽ
+        đặt mẫu = (2 * k - 1) * (2 * k)
+        đặt hạng = chia(làm_tròn(nhân(hạng, x2), w), [mẫu, 0], w)
+        nếu dư(k, 2) == 1 { đặt tổng = trừ(tổng, hạng) } khác { đặt tổng = cộng(tổng, hạng) }
+        nếu bằng_td(làm_tròn(trị_tuyệt(hạng), w), [0, 0]) { dừng }
+        đặt k = k + 1
+    }
+    trả làm_tròn(tổng, thang)
+}
+
+# ---------------- lượng-giác NGƯỢC: arctan, arcsin, arccos (độ-chính-xác tuỳ-ý) ----------------
+# _atan_td CHỈ hội-tụ NHANH khi |y| nhỏ — y gần ±1 hội-tụ rất chậm (chuỗi Leibniz). Hai tầng thu-gọn:
+#   1. Reciprocal: |y| > 1 → atan(y) = ±π/2 − atan(1/y) (đưa về |·| < 1).
+#   2. Nửa-góc: atan(y) = 2·atan( y/(1+√(1+y²)) ) — co đối-số (vd y=1 → ≈0.414) để chuỗi nhanh.
+#   `_atan_nhỏ` áp nửa-góc khi |y| > ~0.42 rồi mới gọi `_atan_td` (đối-số luôn ≤ ~0.42 → vài chục vòng).
+# arcsin(x) = atan( x / √(1−x²) ) cho x ∈ (−1,1); biên x=±1 → ±π/2; |x|>1 → ẩn (ngoài miền).
+# arccos(x) = π/2 − arcsin(x); |x|>1 → ẩn.
+hàm _atan_nhỏ(y, w) {                        # atan(y) cho |y| ≤ 1; co đối-số bằng nửa-góc nếu cần
+    đặt ay = trị_tuyệt(y)
+    # ngưỡng 0.42 ≈ tan(π/8); |y| ≤ 0.42 → chuỗi trực-tiếp (đủ nhanh)
+    nếu bé_hơn(ay, thập_phân("0.42")) { trả _atan_td(y, w) }
+    # |y| > 0.42: nửa-góc — z = y/(1+√(1+y²)); atan(y) = 2·atan(z), |z| ≤ ~0.42
+    đặt gốc = căn(cộng([1, 0], nhân(y, y)), w)        # √(1+y²)
+    đặt z = chia(y, cộng([1, 0], gốc), w)             # y/(1+√(1+y²))
+    trả làm_tròn(nhân([2, 0], _atan_td(z, w)), w)     # 2·atan(z)
+}
+hàm arctan(y, thang) {                      # atan(y) cho MỌI y thực, về `thang` chữ-số-lẻ
+    nếu _ẩn_td(y) { trả ẩn }               # gặp ẩn → lan-truyền
+    nếu loại(thang) == "ẩn" { trả ẩn }  nếu thang < 0 { trả ẩn }               # thang âm → ẩn (ba-trị)
+    đặt w = thang + 10                       # chữ-số BẢO-VỆ (nới +10: tránh sát 0.5 ulp ở thang cao)
+    đặt ay = trị_tuyệt(y)
+    # |y| ≤ 1 → chuỗi (qua nửa-góc)
+    nếu bé_hơn(ay, [1, 0]) { trả làm_tròn(_atan_nhỏ(y, w), thang) }
+    nếu bằng_td(ay, [1, 0]) { trả làm_tròn(_atan_nhỏ(y, w), thang) }
+    # |y| > 1 → thu-gọn: π/2 (cùng dấu y) − atan(1/y)
+    đặt nửa_pi = chia(pi(w), [2, 0], w)      # π/2
+    đặt a_nghịch = _atan_nhỏ(chia([1, 0], y, w), w)   # atan(1/y), |1/y| < 1
+    nếu bé_hơn(y, [0, 0]) {                  # y < −1 → −π/2 − atan(1/y)
+        trả làm_tròn(trừ(âm(nửa_pi), a_nghịch), thang)
+    }
+    # y > 1 → π/2 − atan(1/y)
+    trả làm_tròn(trừ(nửa_pi, a_nghịch), thang)
+}
+hàm arcsin(x, thang) {                      # asin(x) cho x ∈ [−1,1], về `thang` chữ-số-lẻ; |x|>1 → ẩn
+    nếu _ẩn_td(x) { trả ẩn }               # gặp ẩn → lan-truyền
+    nếu loại(thang) == "ẩn" { trả ẩn }  nếu thang < 0 { trả ẩn }               # thang âm → ẩn (ba-trị)
+    đặt w = thang + 10                       # chữ-số BẢO-VỆ (nới +10: tránh sát 0.5 ulp ở thang cao)
+    đặt c_trên = so_td(x, [1, 0])           # so với +1
+    đặt c_dưới = so_td(x, [0 - 1, 0])        # so với −1
+    nếu c_trên == 1 { trả ẩn }              # x > 1 → ngoài miền
+    nếu c_dưới == 0 - 1 { trả ẩn }          # x < −1 → ngoài miền
+    nếu c_trên == 0 { trả làm_tròn(chia(pi(w), [2, 0], w), thang) }    # x = 1 → π/2
+    nếu c_dưới == 0 { trả làm_tròn(âm(chia(pi(w), [2, 0], w)), thang) } # x = −1 → −π/2
+    # x ∈ (−1,1): asin(x) = atan( x / √(1−x²) )
+    đặt ms = trừ([1, 0], nhân(x, x))        # 1 − x² (> 0)
+    đặt gốc = căn(ms, w)                     # √(1−x²)
+    đặt tỷ = chia(x, gốc, w)                 # x / √(1−x²)
+    trả arctan(tỷ, thang)
+}
+hàm arccos(x, thang) {                      # acos(x) = π/2 − asin(x); |x|>1 → ẩn
+    nếu _ẩn_td(x) { trả ẩn }               # gặp ẩn → lan-truyền
+    nếu loại(thang) == "ẩn" { trả ẩn }  nếu thang < 0 { trả ẩn }               # thang âm → ẩn (ba-trị)
+    đặt w = thang + 10                       # chữ-số BẢO-VỆ (nới +10: tránh sát 0.5 ulp ở thang cao)
+    đặt asx = arcsin(x, w)                   # asin(x) (tự ẩn nếu |x|>1)
+    nếu _ẩn_td(asx) { trả ẩn }             # |x|>1 → ẩn lan-truyền
+    đặt nửa_pi = chia(pi(w), [2, 0], w)      # π/2
+    trả làm_tròn(trừ(nửa_pi, asx), thang)
+}
+
+# ---------------- định dạng ----------------
+hàm chuỗi_td(d) {                         # [hệ_số, thang] → chuỗi "3.14"; ẩn → "ẩn"
+    nếu _ẩn_td(d) { trả "ẩn" }
+    đặt c = d[0]  đặt dấu_str = ""
+    nếu c < 0 { đặt dấu_str = "-"  đặt c = 0 - c }
+    đặt ds = chuỗi_số(c)              # |hệ_số| ≥ "0"
+    đặt thang = d[1]
+    nếu thang == 0 { trả dấu_str + ds }
+    mãi { nếu dài(ds) > thang { dừng }  đặt ds = "0" + ds }   # đệm để có ≥ thang+1 chữ số
+    đặt m = dài(ds)
+    trả dấu_str + lát_chuỗi(ds, 0, m - thang) + "." + lát_chuỗi(ds, m - thang, m)
+}

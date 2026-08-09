@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HĐH-GIAO · Bàn làm việc</title>
+<link rel="stylesheet" href="/de.css">
+</head>
+<body>
+
+<!-- ══════════ MÀN ĐĂNG NHẬP ══════════ -->
+<div id="khoá" class="khoá">
+  <div class="khoá-hộp">
+    <div class="khoá-ảnh">A</div>
+    <div class="khoá-máy">giao-01</div>
+    <div class="khoá-nhắc">HĐH-GIAO</div>
+    <input id="ô-tên" class="khoá-ô" placeholder="tên đăng nhập" autocomplete="off" spellcheck="false">
+    <input id="ô-mk" class="khoá-ô" type="password" placeholder="mật khẩu" autocomplete="off">
+    <button id="nút-vào" class="khoá-nút">Đăng nhập</button>
+    <div id="khoá-lỗi" class="khoá-lỗi"></div>
+    <div class="khoá-gợi">an / an &nbsp;·&nbsp; gốc / gốc</div>
+  </div>
+</div>
+
+<!-- ══════════ BÀN LÀM VIỆC ══════════ -->
+<div id="bàn" class="bàn ẩn">
+
+  <!-- thanh trên -->
+  <div class="thanh">
+    <button id="nút-menu" class="thanh-nút thanh-logo" title="Ứng dụng">◈</button>
+    <button id="nút-xếp" class="thanh-nút" title="Xếp gọn mọi cửa sổ thành lưới (hết chồng nhau)">⊞</button>
+    <div class="thanh-giữa"></div>
+    <div class="khay">
+      <span id="khay-nhịp" class="khay-mục" title="đồng hồ nhịp của nhân (GIAO không mượn đồng hồ máy chủ)">◷ 0</span>
+      <span id="khay-tt" class="khay-mục" title="số tiến trình đang sống">▤ 0</span>
+      <span id="khay-người" class="khay-mục">an</span>
+      <span id="khay-giờ" class="khay-giờ"></span>
+      <button id="nút-ra" class="thanh-nút" title="Đăng xuất">⏻</button>
+    </div>
+  </div>
+
+  <!-- widget đồng hồ (như trong ảnh) -->
+  <div class="đồng-hồ">
+    <svg viewBox="0 0 100 100" aria-hidden="true">
+      <g class="dh-vạch" id="dh-vạch"></g>
+      <text x="50" y="20" class="dh-số">12</text>
+      <text x="82" y="54" class="dh-số">3</text>
+      <text x="50" y="88" class="dh-số">6</text>
+      <text x="18" y="54" class="dh-số">9</text>
+      <line id="kim-giờ"  x1="50" y1="50" x2="50" y2="28" class="dh-kim dh-kim-giờ"/>
+      <line id="kim-phút" x1="50" y1="50" x2="50" y2="18" class="dh-kim dh-kim-phút"/>
+      <line id="kim-giây" x1="50" y1="50" x2="50" y2="16" class="dh-kim dh-kim-giây"/>
+      <circle cx="50" cy="50" r="2.6" class="dh-tâm"/>
+    </svg>
+  </div>
+
+  <!-- menu ứng dụng -->
+  <div id="menu" class="menu ẩn">
+    <div class="menu-đầu">
+      <div class="menu-ảnh">A</div>
+      <div id="menu-tên" class="menu-tên">an</div>
+      <input id="menu-tìm" class="menu-tìm" placeholder="Tìm…" autocomplete="off">
+    </div>
+    <div class="menu-thân">
+      <div id="menu-nhóm" class="menu-cột"></div>
+      <div id="menu-lưới" class="menu-lưới"></div>
+    </div>
+    <div class="menu-chân">
+      <button class="chân-nút chân-chọn">▦ Ứng dụng</button>
+      <button class="chân-nút" data-mở="tệp">◈ Nơi chốn</button>
+      <div class="menu-giãn"></div>
+      <button class="chân-nút" id="chân-khoá">◐ Khoá</button>
+      <button class="chân-nút" id="chân-ra">⏻ Đăng xuất</button>
+    </div>
+  </div>
+
+  <!-- vùng cửa sổ -->
+  <div id="vùng" class="vùng"></div>
+
+  <!-- dock -->
+  <div id="dock" class="dock"></div>
+
+  <!-- hộp PHÊ DUYỆT (cổng bất-khả-hồi của CDFL) -->
+  <div id="duyệt-nền" class="duyệt-nền ẩn">
+    <div class="duyệt">
+      <div class="duyệt-biểu">⚠</div>
+      <div class="duyệt-tiêu">Việc này KHÔNG hoàn tác được</div>
+      <div id="duyệt-mô" class="duyệt-mô"></div>
+      <div class="duyệt-giải">
+        Nhân GIAO đã giữ lời gọi này lại. Bấm chuột không đi vòng qua cổng — giao diện
+        dùng đúng tầng gọi-hệ như dòng lệnh.
+      </div>
+      <div class="duyệt-nút">
+        <button id="nút-huỷ" class="nút nút-nhạt">Huỷ</button>
+        <button id="nút-duyệt" class="nút nút-đậm">Phê duyệt</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="/de.js"></script>
+</body>
+</html>

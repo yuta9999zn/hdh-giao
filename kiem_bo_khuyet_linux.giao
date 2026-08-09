@@ -1,0 +1,82 @@
+# kiem_bo_khuyet_linux.giao — nghiệm thu HAI CHỖ GIAO LÀM HƠN LINUX
+#   #1 THÙNG RÁC + HOÀN TÁC ở TẦNG GỌI-HỆ (Linux: `rm` vĩnh viễn, thùng rác chỉ là quy ước desktop)
+#   #2 VÌ_SAO — giải thích đúng nấc hỏng (Linux: chỉ "Permission denied")
+nhập "lib_người_dùng.giao"
+
+đặt M = khởi_máy()
+thêm_người(M, 0, "gốc")  thêm_người(M, 1000, "an")  thêm_người(M, 1001, "bình")
+đặt khởi = sinh_tt(M, "khởi", 0, 0, "/")
+gọi(M, khởi, GH_TẠO_THƯ, ["/hệ", 755])
+gọi(M, khởi, GH_TẠO_THƯ, ["/nhà", 755])
+gọi(M, khởi, GH_TẠO_THƯ, ["/thùng_rác", 777])
+gọi(M, khởi, GH_TẠO, ["/hệ/người_dùng", 644, "gốc:0:/\nan:1000:/nhà/an\nbình:1001:/nhà/bình"])
+gọi(M, khởi, GH_TẠO, ["/hệ/nhóm", 644, "văn:100:an"])
+đồng_bộ_nhóm(M, khởi)
+
+gọi(M, khởi, GH_TẠO_THƯ, ["/nhà/an", 755])
+gọi(M, khởi, GH_ĐỔI_CHỦ, ["/nhà/an", 1000])  duyệt(M)
+đặt V = gọi(M, khởi, GH_SINH, ["vỏ", 5])
+đặt_khoá(lấy_khoá(lấy_khoá(M, "cred"), V), "uid", 1000)
+đặt_khoá(lấy_khoá(lấy_khoá(M, "cred"), V), "thư", "/nhà/an")
+đặt B = gọi(M, khởi, GH_SINH, ["vỏ_bình", 5])
+đặt_khoá(lấy_khoá(lấy_khoá(M, "cred"), B), "uid", 1001)
+
+rọi "══ #1 THÙNG RÁC: xoá mà LẤY LẠI ĐƯỢC ══"
+gọi(M, V, GH_TẠO, ["/nhà/an/thơ", 644, "sen nở đầu mùa"])
+rọi gọi(M, V, GH_ĐỌC, ["/nhà/an/thơ"])
+rọi "-- `bỏ` KHÔNG cần phê duyệt (vì hoàn tác được — đúng học thuyết cổng) --"
+rọi gọi(M, V, GH_BỎ, ["/nhà/an/thơ"])            # sáng, KHÔNG hiện CẦN PHÊ DUYỆT
+rọi lỗi_cuối(M)
+rọi gọi(M, V, GH_ĐỌC, ["/nhà/an/thơ"])           # ẩn — đã đi khỏi chỗ cũ
+rọi "-- vẫn còn NGUYÊN trong thùng, thấy được đường cũ --"
+rọi liệt_rác(M, V)[0][0]
+rọi "-- hoàn tác: về ĐÚNG chỗ cũ, ĐÚNG nội dung --"
+rọi gọi(M, V, GH_HOÀN_TÁC, [])
+rọi gọi(M, V, GH_ĐỌC, ["/nhà/an/thơ"])
+
+rọi "-- bỏ hai tệp TRÙNG TÊN vẫn không đè nhau (tên trong thùng là duy nhất) --"
+gọi(M, V, GH_TẠO_THƯ, ["/nhà/an/kho", 755])
+gọi(M, V, GH_TẠO, ["/nhà/an/kho/thơ", 644, "bản trong kho"])
+gọi(M, V, GH_BỎ, ["/nhà/an/thơ"])
+gọi(M, V, GH_BỎ, ["/nhà/an/kho/thơ"])
+rọi dài(liệt_rác(M, V))
+rọi "-- hoàn tác lấy đúng thứ VỪA bỏ gần nhất (kiểu Ctrl-Z) --"
+rọi gọi(M, V, GH_HOÀN_TÁC, [])
+rọi gọi(M, V, GH_ĐỌC, ["/nhà/an/kho/thơ"])
+rọi gọi(M, V, GH_HOÀN_TÁC, [])
+rọi gọi(M, V, GH_ĐỌC, ["/nhà/an/thơ"])
+rọi gọi(M, V, GH_HOÀN_TÁC, [])                    # thùng trống → ẩn, không bịa
+rọi lỗi_cuối(M)
+
+rọi "-- QUYỀN vẫn chặn: bình không bỏ được tệp trong nhà của an --"
+rọi gọi(M, B, GH_BỎ, ["/nhà/an/thơ"])
+rọi lỗi_cuối(M)
+rọi "-- và không lấy được thứ NGƯỜI KHÁC đã bỏ --"
+gọi(M, V, GH_BỎ, ["/nhà/an/thơ"])
+rọi gọi(M, B, GH_HOÀN_TÁC, [])
+rọi lỗi_cuối(M)
+
+rọi "-- dọn_rác MỚI là việc bất-khả-hồi ⇒ nó đi qua CỔNG DUYỆT --"
+rọi gọi(M, V, GH_DỌN_RÁC, [])
+rọi lỗi_cuối(M)
+rọi duyệt(M)                                       # số thứ đã huỷ hẳn
+rọi dài(liệt_rác(M, V))
+rọi gọi(M, V, GH_HOÀN_TÁC, [])                     # huỷ rồi thì hết đường lấy lại
+rọi lỗi_cuối(M)
+
+rọi "══ #2 VÌ_SAO: nói rõ hỏng ở nấc nào ══"
+gọi(M, khởi, GH_TẠO_THƯ, ["/nhà/bình", 700])
+gọi(M, khởi, GH_ĐỔI_CHỦ, ["/nhà/bình", 1001])  duyệt(M)
+gọi(M, B, GH_TẠO, ["/nhà/bình/sổ", 600, "riêng tư"])
+
+rọi "-- chặn ở THƯ MỤC giữa đường, không phải ở tệp (chỗ người dùng Linux hay tắc) --"
+rọi gọi(M, V, GH_VÌ_SAO, ["/nhà/bình/sổ", 4])
+rọi "-- chặn ở CHÍNH tệp: nói rõ vai, quyền, và cách qua --"
+gọi(M, khởi, GH_ĐỔI_QUYỀN, ["/nhà/bình", 755])
+rọi gọi(M, V, GH_VÌ_SAO, ["/nhà/bình/sổ", 4])
+rọi "-- được phép thì cũng nói rõ nhờ vai nào --"
+rọi gọi(M, V, GH_VÌ_SAO, ["/nhà/an", 4])
+rọi "-- không có đường: nói ẨN, không nói CẤM (Linux trộn hai cái này) --"
+rọi gọi(M, V, GH_VÌ_SAO, ["/nhà/an/không-hề-có", 4])
+rọi "-- gốc-quyền: nói thẳng vì sao qua được --"
+rọi gọi(M, khởi, GH_VÌ_SAO, ["/nhà/bình/sổ", 4])

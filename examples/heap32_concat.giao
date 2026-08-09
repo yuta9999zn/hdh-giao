@@ -1,0 +1,10 @@
+# REPRO chẩn đoán: nối chuỗi TÍCH LŨY → heap mọc lớn. In dài(s) mỗi vòng (số tăng dần)
+# để soi chính xác vòng/địa-chỉ-heap mà phần cứng lệch phần mềm (nghi double-tag khi heap lớn).
+đặt s = "Q"
+đặt i = 0
+mãi {
+    đặt i = i + 1
+    đặt s = s + "ab"
+    rọi dài(s)
+    nếu i == 60 { dừng }
+}

@@ -1,0 +1,18 @@
+# Kiểm lib_tập — Set (ba-trị-aware)
+nhập "lib_tập.giao"
+
+rọi chuẩn_tập([1, 2, 2, 3, 1])      # [1, 2, 3]
+rọi cỡ_tập([1, 2, 2, 3, 1])         # 3
+rọi thuộc(2, [1, 2, 3])             # sáng
+rọi thuộc(9, [1, 2, 3])             # tối
+rọi hợp_tập([1, 2, 3], [3, 4, 5])   # [1, 2, 3, 4, 5]
+rọi giao_tập([1, 2, 3], [2, 3, 4])  # [2, 3]
+rọi hiệu_tập([1, 2, 3], [2])        # [1, 3]
+rọi hiệu_đối_xứng([1, 2, 3], [3, 4])# [1, 2, 4]
+rọi con_của([1, 2], [1, 2, 3])      # sáng
+rọi con_của([1, 9], [1, 2, 3])      # tối
+rọi siêu_của([1, 2, 3], [2, 3])     # sáng
+rọi rời_nhau([1, 2], [3, 4])        # sáng
+rọi rời_nhau([1, 2], [2, 3])        # tối
+rọi bằng_tập([1, 2, 3], [3, 2, 1])  # sáng
+rọi bằng_tập([1, 2], [1, 2, 3])     # tối

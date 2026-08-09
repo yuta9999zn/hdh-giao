@@ -1,0 +1,73 @@
+# ============================================================
+# lib_tập.giao — TẬP HỢP (Set kiểu Python/Ruby) cho GIAO
+# ------------------------------------------------------------
+# GIỮ CỐT LÕI GIAO: ba-trị (quan-hệ tập trả sáng/tối: con_của/rời_nhau/bằng_tập/thuộc) ·
+#   idiom Việt · TỰ-THÂN (tập = danh-sách duy-nhất giữ thứ tự, trên builtin `chứa`+chuẩn.giao).
+# ⚠ Bẫy tên: KHÔNG đặt 'giao' (trùng từ-khoá cộng-hưởng) → giao-tập gọi là `giao_tập`.
+# Nạp: nhập "lib_tập.giao".
+# ============================================================
+
+# Tra thành-viên O(1) qua `bản`: phần-tử vô-hướng (số/chuỗi/trị) → khoá dict; list/bản/ẩn → KHÔNG key-được, lùi `chứa` tuyến-tính.
+hàm _vô_hướng(x) {                       # x key-được vào bản? (vô-hướng) → sáng/tối
+    đặt lo = loại(x)
+    nếu lo == "danh_sách" { trả tối }
+    nếu lo == "bản" { trả tối }
+    nếu lo == "ẩn" { trả tối }
+    trả sáng
+}
+hàm _chỉ_mục(ds) {                       # bản{phần-tử-vô-hướng: sáng} (phần-tử list/bản/ẩn bỏ qua → tra tuyến-tính)
+    đặt idx = bản()
+    lặp x trong ds { nếu _vô_hướng(x) { đặt_khoá(idx, x, sáng) } }
+    trả idx
+}
+hàm _thuộc_idx(idx, ds, x) {             # x ∈ ds? (idx = _chỉ_mục(ds)) — O(1) nếu x vô-hướng, else chứa(ds,x)
+    nếu _vô_hướng(x) { trả có_khoá(idx, x) }
+    trả chứa(ds, x)
+}
+hàm chuẩn_tập(ds) {                      # uniq giữ thứ tự (xem danh-sách như TẬP) — O(n) qua bản
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    đặt thấy = bản()  đặt kq = []
+    lặp x trong ds {
+        nếu _vô_hướng(x) { nếu có_khoá(thấy, x) { } khác { đặt_khoá(thấy, x, sáng)  gom(kq, x) } }
+        khác { nếu chứa(kq, x) { } khác { gom(kq, x) } }
+    }
+    trả kq
+}
+hàm cỡ_tập(ds) { trả dài(chuẩn_tập(ds)) }       # lực-lượng (cardinality)
+hàm thuộc(x, ds) {                       # ∈ → sáng/tối
+    nếu chứa(ds, x) { trả sáng }
+    trả tối
+}
+
+# ---------------- phép toán tập (O(n) qua bản) ----------------
+hàm hợp_tập(a, b) { trả chuẩn_tập(ghép(a, b)) }  # union a ∪ b = uniq(a ++ b) — O(n), GIỮ thứ-tự (a trước, b mới sau)
+hàm giao_tập(a, b) {                     # intersection  a ∩ b  (KHÔNG dùng tên 'giao')
+    đặt idx_b = _chỉ_mục(b)  đặt kq = []
+    lặp x trong chuẩn_tập(a) { nếu _thuộc_idx(idx_b, b, x) { gom(kq, x) } }
+    trả kq
+}
+hàm hiệu_tập(a, b) {                     # difference  a \ b
+    đặt idx_b = _chỉ_mục(b)  đặt kq = []
+    lặp x trong chuẩn_tập(a) { nếu _thuộc_idx(idx_b, b, x) { } khác { gom(kq, x) } }
+    trả kq
+}
+hàm hiệu_đối_xứng(a, b) {                # symmetric difference  (a\b) ∪ (b\a)
+    trả hợp_tập(hiệu_tập(a, b), hiệu_tập(b, a))
+}
+
+# ---------------- quan hệ tập (ba-trị: sáng/tối) ----------------
+hàm con_của(a, b) {                      # a ⊆ b — O(n)
+    đặt idx_b = _chỉ_mục(b)
+    lặp x trong a { nếu _thuộc_idx(idx_b, b, x) { } khác { trả tối } }
+    trả sáng
+}
+hàm siêu_của(a, b) { trả con_của(b, a) }         # a ⊇ b
+hàm rời_nhau(a, b) {                     # disjoint: a ∩ b = ∅ — O(n)
+    đặt idx_b = _chỉ_mục(b)
+    lặp x trong a { nếu _thuộc_idx(idx_b, b, x) { trả tối } }
+    trả sáng
+}
+hàm bằng_tập(a, b) {                     # set equality (bỏ qua thứ tự + trùng)
+    nếu con_của(a, b) { nếu con_của(b, a) { trả sáng } }
+    trả tối
+}

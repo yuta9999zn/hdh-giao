@@ -1,0 +1,70 @@
+# ============================================================
+# kiem_ca_bien_an_lib.giao — CHỐT-REGRESSION ca-biên 'ẩn' (sweep 2026-06-19): collection/stat/OS-layer
+# ------------------------------------------------------------
+# Hợp-đồng: đối số ẩn → ẩn SẠCH, KHÔNG crash/lặp. Nếu thiếu guard → abort → marker cuối KHÔNG in → RỚT.
+# Gồm: builtin khoá-bản(ẩn) + chuẩn.giao + thống_kê + đống + hàng + tiến_trình + khonggian + băm.
+# ============================================================
+nhập "lib_thống_kê.giao"
+nhập "lib_đống.giao"
+nhập "lib_hàng.giao"
+nhập "lib_tiến_trình.giao"
+nhập "lib_khonggian.giao"
+nhập "lib_băm.giao"
+nhập "lib_chuoi.giao"
+nhập "lib_ngày.giao"
+
+# --- builtin khoá-bản với khoá ẩn (gốc Group-2): suy-biến êm ---
+đặt _b = bản()
+rọi lấy_khoá(_b, ẩn)         # ẩn (không-biết khoá → không-biết trị)
+rọi có_khoá(_b, ẩn)         # tối (ẩn không phải khoá hiện-diện)
+rọi đặt_khoá(_b, ẩn, 5)     # bản rỗng (no-op, KHÔNG crash)
+
+# --- chuẩn.giao prelude ---
+rọi sắp_xếp(ẩn)             # ẩn
+rọi max_ds(ẩn)             # ẩn
+rọi dải_từ(0, ẩn)          # ẩn (trước: lặp vô tận)
+
+# --- lib_thống_kê (Group 1): ẩn → ẩn; đường-thường vẫn đúng ---
+rọi trung_vị(ẩn)           # ẩn
+rọi phương_sai(ẩn)         # ẩn
+rọi tứ_phân_vị(ẩn)         # ẩn
+rọi trung_vị([3, 1, 2])    # 2
+
+# --- lib_đống (Group 1) ---
+rọi sắp_đống(ẩn)           # ẩn
+rọi đỉnh(ẩn)               # ẩn
+rọi vị_trí_trái(ẩn, 3)     # ẩn
+rọi sắp_đống([3, 1, 2])    # [1, 2, 3]
+
+# --- lib_hàng (Group 1) ---
+rọi rỗng_hàng(ẩn)          # ẩn
+rọi thêm_đầu(ẩn, 5)        # ẩn (trước: "[5]ẩn" chuỗi SAI)
+rọi xem_đầu(ẩn)            # ẩn
+
+# --- lib_chuoi (qua deps) ---
+rọi chuỗi_từ(ẩn)           # ẩn
+rọi đảo_chuỗi(ẩn)          # ẩn
+rọi băm(ẩn)               # ẩn (trước: seed 5381 SAI)
+
+# --- lib_tiến_trình (Group 2): tid/bảng ẩn ---
+rọi trạng_của(bảng_tt(), ẩn)   # ẩn
+rọi tạo_tt(ẩn, 1, "a", 5)      # ẩn
+rọi đếm_sống(ẩn)              # ẩn
+
+# --- lib_khonggian (Group 2): đường/kg ẩn ---
+rọi tra_kg(ẩn, "/a")        # ẩn
+rọi gắn(ẩn, "/a", "thiết_bị", 1)   # ẩn
+rọi tra_kg(tạo_kg(), ẩn)    # ẩn
+
+# --- sót sweep-cuối: merge-helper + CDFL ensemble/đếm + builtin xoá_khoá + predicate ---
+rọi trộn(ẩn, [1])          # ẩn (helper merge-sort, trước CRASH)
+rọi trộn([1, 3], [2, 4])   # [1, 2, 3, 4] (đường thường)
+rọi đếm_or_thật(ẩn)        # ẩn (cụm CDFL, trước CRASH)
+rọi các_σ(ẩn)             # ẩn
+rọi γ_các_tác_tử(ẩn, 50)   # ẩn
+rọi chẵn(ẩn)              # ẩn (predicate, trước → tối SAI)
+rọi năm_nhuận(ẩn)         # ẩn (trước → tối SAI)
+rọi xoá_khoá(ẩn, "x")     # ẩn (builtin thứ-4, trước CRASH)
+rọi xoá_khoá(_b, ẩn)      # bản (no-op, không crash)
+
+rọi "=== CA-BIÊN ẨN lib (collection/OS): HẾT (không abort) ==="

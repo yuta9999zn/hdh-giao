@@ -1,0 +1,7 @@
+nhập "lib_base64.giao"
+rọi b64_chuỗi("Man")               # TWFu
+rọi b64_chuỗi("M")                 # TQ==
+rọi b64_chuỗi("Ma")                # TWE=
+rọi b64_giải_chuỗi("SGVsbG8=")     # Hello
+rọi b64_chuỗi("Xin chào GIAO")     # (Việt — đối chiếu Python)
+rọi b64_giải_chuỗi(b64_chuỗi("Tiếng Việt: ăâđêôơư"))   # round-trip Việt

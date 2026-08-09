@@ -1,0 +1,7 @@
+# gvm_fpga.pcf — ràng-buộc chân cho top-wrapper gvm_fpga (iCE40 UP5K, iCEBreaker sg48).
+# Tên-net scalar (khớp gvm_fpga.v). Pin theo iCEBreaker rev 1.x.
+set_io clk       35     # 12 MHz onboard
+set_io rst_n     10     # nút bấm mức-thấp
+set_io uart_tx    9     # FPGA TX → FTDI RX
+set_io led_halt  11     # LED đỏ onboard = CPU DỪNG
+set_io led_act   37     # LED xanh onboard = nhịp output

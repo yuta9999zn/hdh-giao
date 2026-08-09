@@ -1,0 +1,20 @@
+# lib_mẫu.giao — MẪU chuỗi (template "{tên}"; tham-chiếu str.format / f-string của Python)
+# điền(mẫu, bản) → thay {khoá} bằng bản[khoá]; thiếu-khoá → GIỮ "{khoá}" (graceful).
+hàm điền(mẫu, dữ) {
+    nếu loại(mẫu) == "ẩn" { trả ẩn }       # mẫu ẩn → ẩn (không crash ở `dài`)
+    nếu loại(dữ) == "ẩn" { trả ẩn }
+    đặt kq = ""  đặt i = 0  đặt n = dài(mẫu)
+    mãi {
+        nếu i >= n { dừng }
+        nếu mẫu[i] == "{" {
+            đặt j = i + 1  đặt khoá = ""  đặt đóng = tối
+            mãi { nếu j >= n { dừng }  nếu mẫu[j] == "}" { đặt đóng = sáng  dừng }  đặt khoá = khoá + mẫu[j]  đặt j = j + 1 }
+            nếu đóng {
+                nếu có_khoá(dữ, khoá) { đặt kq = kq + ("" + lấy_khoá(dữ, khoá)) }
+                khác { đặt kq = kq + "{" + khoá + "}" }                # thiếu-khoá → giữ "{khoá}"
+                đặt i = j + 1
+            } khác { đặt kq = kq + "{" + khoá  đặt i = j }             # '{' KHÔNG đóng → giữ literal tới hết (không crash)
+        } khác { đặt kq = kq + mẫu[i]  đặt i = i + 1 }
+    }
+    trả kq
+}

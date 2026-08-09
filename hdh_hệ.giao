@@ -1,0 +1,86 @@
+# ============================================================
+# hdh_hệ.giao — KỊCH BẢN NHÂN HĐH-GIAO HOÀN-CHỈNH (deterministic) qua lib_hệ
+# ------------------------------------------------------------
+# Chứng minh MỘT nhân hợp-nhất: sinh → điều-phối → chặn → gửi/đánh-thức → kết-thúc → persistence.
+# Chạy: PYTHONIOENCODING=utf-8 PYTHONUTF8=1 python giao.py hdh_hệ.giao
+# ============================================================
+nhập "lib_hệ.giao"
+
+hàm in(x) { rọi x  trả ẩn }
+
+in("=== NHÂN HĐH-GIAO HỢP-NHẤT: bảng + lập-lịch + IPC + persistence ===")
+
+# ───────── 1) SINH 3 tiến-trình (ưu nhỏ = cao) ─────────
+đặt hệ = tạo_hệ()
+sinh(hệ, "lưu", "lưu-trữ", 1)
+sinh(hệ, "web", "máy-chủ-web", 3)
+sinh(hệ, "log", "ghi-nhật-ký", 5)
+in("[1] sinh: lưu@1, web@3, log@5")
+in("    số_sống = " + số_sống(hệ) + "  (kỳ-vọng 3)")
+in("    theo_trạng(sẵn-sàng) = " + nối(theo_trạng(hệ, "sẵn-sàng"), ", "))
+
+# ───────── 2) ĐIỀU-PHỐI → chọn 'lưu' (ưu cao nhất), trạng → "chạy" ─────────
+đặt kế = điều_phối(hệ)
+in("[2] điều_phối → " + kế + "  (kỳ-vọng lưu)")
+in("    trạng(lưu) = " + trạng(hệ, "lưu") + "  (kỳ-vọng chạy)")
+
+# ───────── 3) CHẶN-CHỜ 'web' khi CHƯA có tin → web "chặn" ─────────
+đặt t1 = chặn_chờ(hệ, "web")
+in("[3] chặn_chờ(web) = " + loại(t1) + "  (kỳ-vọng ẩn — chưa có tin)")
+in("    trạng(web) = " + trạng(hệ, "web") + "  (kỳ-vọng chặn)")
+in("    theo_trạng(chặn) = " + nối(theo_trạng(hệ, "chặn"), ", "))
+
+# ───────── 4) GỬI-TIN tới 'web' → ĐÁNH-THỨC, web "sẵn-sàng" ─────────
+gửi_tin(hệ, "web", "yêu-cầu")
+in("[4] gửi_tin(web, yêu-cầu) → đánh-thức")
+in("    trạng(web) = " + trạng(hệ, "web") + "  (kỳ-vọng sẵn-sàng)")
+
+# ───────── 5) ĐIỀU-PHỐI lại → web vào CPU, rồi CHẶN-CHỜ lấy được tin ─────────
+đặt kế2 = điều_phối(hệ)
+in("[5] điều_phối → " + kế2 + "  (kỳ-vọng web — đã đánh-thức vào hàng)")
+đặt t2 = chặn_chờ(hệ, "web")
+in("    chặn_chờ(web) = " + t2 + "  (kỳ-vọng yêu-cầu — lấy được tin)")
+in("    trạng(web) = " + trạng(hệ, "web") + "  (kỳ-vọng sẵn-sàng)")
+
+# ───────── 6) KẾT-THÚC 'lưu' → "chết"; số_sống = 2 ─────────
+chấm_dứt(hệ, "lưu")
+in("[6] chấm_dứt(lưu)")
+in("    trạng(lưu) = " + trạng(hệ, "lưu") + "  (kỳ-vọng chết)")
+in("    số_sống = " + số_sống(hệ) + "  (kỳ-vọng 2)")
+in("    theo_trạng(chết) = " + nối(theo_trạng(hệ, "chết"), ", ") + "  (kỳ-vọng lưu)")
+
+# ───────── 7) PERSISTENCE: CHỤP → JSON → PHỤC-HỒI → kiểm còn nguyên ─────────
+in("=== PERSISTENCE: chụp → JSON → phục-hồi ===")
+đặt ảnh = chụp_hệ(hệ)
+in("[7] chụp_hệ → JSON:")
+in("    " + ảnh)
+đặt hệ2 = phục_hồi_hệ(ảnh)
+in("    phục_hồi_hệ → nhân MỚI; kiểm trạng/số_sống còn nguyên:")
+in("    trạng(lưu) = " + trạng(hệ2, "lưu") + "  (kỳ-vọng chết)")
+in("    trạng(web) = " + trạng(hệ2, "web") + "  (kỳ-vọng sẵn-sàng)")
+in("    trạng(log) = " + trạng(hệ2, "log") + "  (kỳ-vọng sẵn-sàng)")
+in("    tên(web)   = " + tên(hệ2, "web") + "  (kỳ-vọng máy-chủ-web)")
+in("    số_sống    = " + số_sống(hệ2) + "  (kỳ-vọng 2)")
+in("    theo_trạng(chết) = " + nối(theo_trạng(hệ2, "chết"), ", ") + "  (kỳ-vọng lưu)")
+in("→ NHÂN hợp-nhất: trạng-thái-bảng ⟷ hàng-lập-lịch đồng-bộ; checkpoint/restore Y NGUYÊN.")
+
+# ───────── 8) BẤT-BIẾN đồng-bộ (chốt-regression sau review-vá lỗ-hổng IPC-chặn) ─────────
+in("=== BẤT-BIẾN đồng-bộ (review-vá lỗ-hổng IPC-chặn) ===")
+đặt k = tạo_hệ()
+sinh(k, "p", "proc", 2)
+chặn_chờ(k, "p")                                   # p chặn (còn bản trong hàng do heap không xoá-tuỳ-ý)
+đặt r8a = điều_phối(k)
+nếu loại(r8a) == "ẩn" { in("[8a] p-chặn KHÔNG dispatch (ẩn) ĐÚNG") } khác { in("[8a] LỖI: dispatch task chặn = " + r8a) }
+chấm_dứt(k, "p")
+gửi_tin(k, "p", "x")                               # gửi tới p CHẾT → KHÔNG hồi-sinh
+in("[8b] trạng(p) sau kết_thúc+gửi_tin = " + trạng(k, "p"))   # chết
+đặt m = tạo_hệ()
+sinh(m, "a", "A", 1)
+điều_phối(m)  chặn_chờ(m, "a")  gửi_tin(m, "a", "v")   # dispatch→chặn→đánh-thức (luồng ĐÚNG)
+đặt d1 = điều_phối(m)  đặt d2 = điều_phối(m)
+nếu loại(d2) == "ẩn" { in("[8c] đánh-thức→điều_phối = " + d1 + " / ẩn ĐÚNG (KHÔNG nhân-đôi)") } khác { in("[8c] LỖI nhân-đôi = " + d1 + " / " + d2) }
+đặt n = tạo_hệ()
+sinh(n, "y", "Y", 1)
+nhường(n, "y")                                     # nhường khi y CÒN trong hàng → bản trùng
+đặt e1 = điều_phối(n)  đặt e2 = điều_phối(n)
+nếu loại(e2) == "ẩn" { in("[8d] nhường-trùng→điều_phối = " + e1 + " / ẩn ĐÚNG (khử nhân-đôi)") } khác { in("[8d] LỖI nhường nhân-đôi = " + e1 + " / " + e2) }

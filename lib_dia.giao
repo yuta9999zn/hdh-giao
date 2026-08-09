@@ -1,0 +1,296 @@
+# ============================================================
+# lib_dia.giao — TẦNG KHỐI + NHẬT KÝ trên "đĩa" (CÒN_THIẾU B3)
+# ------------------------------------------------------------
+# QUAN SÁT MÁY THẬT TRƯỚC (Kali 2026.2 · ext4 · 2026-07-31):
+#   findmnt -no OPTIONS /      →  rw,relatime,discard,errors=remount-ro,**data=ordered**
+#   tune2fs -l                 →  Block size 4096 · Inode size 256 · features … **metadata_csum**
+#   du -B1 (tệp 1 byte)        →  **4096** byte
+#   man 2 fsync                →  *"Calling fsync() does not necessarily ensure that the entry in
+#                                  the directory containing the file has also reached disk."*
+#
+# Bốn điều rút ra, và ba trong đó là CHỖ YẾU đáng làm khác:
+#
+#  ① **`data=ordered` chỉ ghi nhật ký cho SIÊU DỮ LIỆU, KHÔNG cho dữ liệu.** Đây là mặc định của
+#     ext4 trên máy thật, không phải cấu hình lạ. Hậu quả: mất điện giữa lúc ghi thì siêu dữ liệu
+#     có thể đã nói "tệp dài 4KB" trong khi khối dữ liệu còn là **rác của tệp cũ**. Hệ-tệp tự nó
+#     "nhất quán" — nhưng NỘI DUNG thì sai, mà không ai báo.
+#     → Ở đây nhật ký **phủ CẢ DỮ LIỆU**: một lần ghi hoặc **thấy trọn vẹn**, hoặc **không thấy gì**.
+#
+#  ② **`metadata_csum` không phủ dữ liệu người dùng.** Khối dữ liệu hỏng thầm lặng thì ext4
+#     **trả về như thật** — không có cách nào biết. (Muốn có phải sang btrfs/zfs.)
+#     → Ở đây **mỗi khối mang tổng kiểm**; đọc phải khối hỏng thì **BÁO**, không trả rác.
+#
+#  ③ **`fsync(tệp)` không đảm bảo TÊN tệp đã bền** — phải `fsync` cả thư mục cha. Chính trang man
+#     nói vậy. Nghĩa là độ bền của dữ liệu là **chuyện truyền miệng** mà ứng dụng phải tự biết;
+#     ai không biết thì mất dữ liệu, và mất một cách im lặng.
+#     → Ở đây `đĩa_ghi_tệp` trả về **chỉ khi đã bền, kể cả cái TÊN** — không có điệu nhảy fsync,
+#       không có kiến thức truyền miệng nào phải nhớ.
+#
+#  ④ Khối 4096 byte: tệp 1 byte tốn **4096 byte**. Đây KHÔNG phải chỗ yếu — đó là cái giá thật của
+#     việc quản lý theo khối, và ta cũng phải trả. Ghi ra để đừng ai tưởng tầng khối là miễn phí.
+#
+# ⚠ TRUNG THỰC: "đĩa" ở đây là một cấu trúc trong bộ nhớ máy GIAO, chưa phải mặt đĩa vật lý —
+#   phần bền qua tắt máy vẫn nhờ ảnh chụp JSON (`lib_bền.giao`) như cũ. Cái MỚI và thật sự có
+#   giá trị là **NGỮ NGHĨA**: khối · inode · tổng kiểm · nhật ký · gắn-và-phát-lại. Tổng kiểm
+#   dùng djb2 nên bắt được hỏng NGẪU NHIÊN, **không** chống được kẻ cố ý sửa (muốn thế phải dùng
+#   SHA-256/HMAC ở `lib_sha256.giao`).
+# ============================================================
+nhập "lib_chuoi.giao"
+nhập "lib_json.giao"
+
+đặt Đ_SIÊU = 0          # khối 0: siêu khối (cỡ khối, số khối, số khối siêu-dữ-liệu)
+đặt Đ_MÔ_TẢ = 1         # khối 1..: vùng SIÊU DỮ LIỆU (bảng inode + thư mục), JSON cắt theo khối
+
+# ---------------- tổng kiểm từng khối ----------------
+hàm _đ_tổng(s) {
+    "djb2 mod 2^32 — bắt hỏng NGẪU NHIÊN. KHÔNG chống được kẻ cố ý (xem ghi chú đầu tệp)."
+    đặt h = 5381
+    lặp c trong s {
+        đặt h = h * 33 + mã(c)
+        đặt h = h - h // 4294967296 * 4294967296
+    }
+    trả h
+}
+
+# ---------------- dựng đĩa ----------------
+hàm đĩa_mới(số_khối, cỡ_khối, số_mô_tả) {
+    "Định dạng một đĩa trắng. số_mô_tả = số khối dành cho siêu dữ liệu (bảng inode + thư mục)."
+    đặt đ = bản()
+    đặt_khoá(đ, "cỡ_khối", cỡ_khối)
+    đặt_khoá(đ, "số_khối", số_khối)
+    đặt_khoá(đ, "số_mô_tả", số_mô_tả)
+    đặt kh = []
+    lặp số_khối { gom(kh, ["", 0]) }              # mỗi khối = [dữ liệu, tổng kiểm]
+    đặt_khoá(đ, "khối", kh)
+    đặt_khoá(đ, "nhật_ký", [])                    # [[khối_số, dữ], …] — CHƯA cam kết
+    đặt_khoá(đ, "cam_kết", tối)                   # ★ điểm nguyên tử: có dấu này thì phát lại
+    đặt_khoá(đ, "sạch", sáng)                     # tháo đúng cách thì sạch
+    đặt_khoá(đ, "mô_tả", bản())                   # bảng inode trong bộ nhớ (ảnh của vùng mô tả)
+    đặt_khoá(đ, "tự_do", số_mô_tả + 1)            # khối dữ liệu trống đầu tiên
+    _đ_ghi_thẳng(đ, Đ_SIÊU, "" + cỡ_khối + "|" + số_khối + "|" + số_mô_tả)
+    _đ_lưu_mô_tả(đ)
+    trả đ
+}
+
+# ---------------- đọc/ghi khối (ghi THẲNG — chỉ dùng trong giao dịch và lúc phát lại) ----------------
+hàm _đ_ghi_thẳng(đ, i, dữ) {
+    đặt kh = lấy_khoá(đ, "khối")
+    đặt ds = kh
+    đặt ds[i] = [dữ, _đ_tổng(dữ)]
+    trả sáng
+}
+
+hàm đĩa_đọc_khối(đ, i) {
+    "→ [sáng, dữ] · [tối, lý do]. Tổng kiểm SAI thì BÁO, tuyệt đối không trả dữ liệu ra ngoài."
+    nếu i < 0 { trả [tối, "khối " + i + " ngoài đĩa"] }
+    nếu i >= lấy_khoá(đ, "số_khối") { trả [tối, "khối " + i + " ngoài đĩa"] }
+    đặt ô = lấy_khoá(đ, "khối")[i]
+    nếu _đ_tổng(ô[0]) == ô[1] { trả [sáng, ô[0]] }
+    trả [tối, "KHỐI " + i + " HỎNG — tổng kiểm không khớp (ext4 sẽ trả rác này ra như thật)"]
+}
+
+# ---------------- vùng SIÊU DỮ LIỆU: bảng inode + thư mục ----------------
+# Cắt JSON của bảng mô tả ra thành từng khối. Đọc thì nối lại rồi bỏ phần đệm.
+hàm _đ_lưu_mô_tả(đ) {
+    đặt s = thành_json(lấy_khoá(đ, "mô_tả"))
+    đặt c = lấy_khoá(đ, "cỡ_khối")
+    đặt n = lấy_khoá(đ, "số_mô_tả")
+    nếu dài(s) > c * n { trả tối }                # vùng mô tả đầy — nói thẳng, không ghi tràn
+    đặt i = 0
+    mãi {
+        nếu i >= n { dừng }
+        đặt a = i * c
+        đặt b = a + c
+        nếu b > dài(s) { đặt b = dài(s) }
+        đặt phần = ""
+        nếu a < dài(s) { đặt phần = lát_chuỗi(s, a, b) }
+        _đ_ghi_thẳng(đ, Đ_MÔ_TẢ + i, phần)
+        đặt i = i + 1
+    }
+    trả sáng
+}
+
+hàm _đ_đọc_mô_tả(đ) {
+    "→ [sáng, bản] · [tối, lý do] — khối mô tả hỏng thì BÁO chứ không đoán."
+    đặt s = ""
+    đặt i = 0
+    mãi {
+        nếu i >= lấy_khoá(đ, "số_mô_tả") { dừng }
+        đặt r = đĩa_đọc_khối(đ, Đ_MÔ_TẢ + i)
+        nếu r[0] == sáng { } khác { trả [tối, "vùng mô tả hỏng: " + r[1]] }
+        đặt s = s + r[1]
+        đặt i = i + 1
+    }
+    đặt b = phân_tích_json(s)
+    nếu loại(b) == "bản" { trả [sáng, b] }
+    trả [tối, "bảng mô tả không đọc được (JSON hỏng)"]
+}
+
+# ---------------- GIAO DỊCH: nhật ký phủ CẢ DỮ LIỆU ----------------
+# Trình tự (kinh điển, nhưng nhật ký ở đây chở CẢ khối dữ liệu chứ không riêng siêu dữ liệu):
+#   ① gom mọi khối sắp đổi vào NHẬT KÝ (chưa đụng khối thật)
+#   ② đặt DẤU CAM KẾT  ← đây là điểm nguyên tử, trước nó là "chưa có gì", sau nó là "có tất"
+#   ③ chép từ nhật ký ra khối thật
+#   ④ xoá nhật ký
+# Mất điện ở ①/② → phát lại VỨT nhật ký ⇒ dữ liệu CŨ còn nguyên.
+# Mất điện ở ③    → phát lại CHÉP TIẾP ⇒ dữ liệu MỚI trọn vẹn.
+# Không có cửa nào cho "nửa cũ nửa mới" — khác hẳn `data=ordered` của ext4.
+hàm _đ_gd_mở(đ) { đặt_khoá(đ, "nhật_ký", [])  đặt_khoá(đ, "cam_kết", tối)  trả sáng }
+hàm _đ_gd_thêm(đ, i, dữ) { gom(lấy_khoá(đ, "nhật_ký"), [i, dữ])  trả sáng }
+
+hàm _đ_gd_cam_kết(đ, dừng_tại) {
+    "dừng_tại: 0 = chạy trọn · 1 = cắt điện TRƯỚC cam kết · 2 = cắt điện SAU cam kết, giữa lúc chép."
+    nếu dừng_tại == 1 { đặt_khoá(đ, "sạch", tối)  trả "cắt điện trước cam kết" }
+    đặt_khoá(đ, "cam_kết", sáng)                  # ★ ĐIỂM NGUYÊN TỬ
+    đặt_khoá(đ, "sạch", tối)
+    nếu dừng_tại == 2 {
+        đặt nk = lấy_khoá(đ, "nhật_ký")           # chép được MỘT nửa rồi tắt
+        đặt i = 0
+        mãi {
+            nếu i >= dài(nk) // 2 { dừng }
+            _đ_ghi_thẳng(đ, nk[i][0], nk[i][1])
+            đặt i = i + 1
+        }
+        trả "cắt điện giữa lúc chép (đã chép " + (dài(nk) // 2) + "/" + dài(nk) + " khối)"
+    }
+    _đ_dọn_nhật_ký(đ)
+    trả "xong"
+}
+
+hàm _đ_dọn_nhật_ký(đ) {
+    lặp e trong lấy_khoá(đ, "nhật_ký") { _đ_ghi_thẳng(đ, e[0], e[1]) }
+    đặt_khoá(đ, "nhật_ký", [])
+    đặt_khoá(đ, "cam_kết", tối)
+    đặt_khoá(đ, "sạch", sáng)
+    trả sáng
+}
+
+# ---------------- GẮN (mount) — tự phát lại, và NÓI RA đã làm gì ----------------
+# ext4 cũng phát lại nhật ký lúc gắn, nhưng hỏng nặng thì đòi CON NGƯỜI chạy `fsck`. Ở đây việc
+# phát lại là tự động và **có báo cáo**: không ai phải đoán máy vừa làm gì với dữ liệu của mình.
+hàm đĩa_gắn(đ) {
+    "→ [sáng, lời báo] · [tối, lý do]. Luôn nói RÕ đã vứt hay đã chép tiếp giao dịch dở."
+    đặt báo = "sạch — không có giao dịch dở"
+    nếu lấy_khoá(đ, "sạch") == sáng { } khác {
+        nếu lấy_khoá(đ, "cam_kết") == sáng {
+            đặt n = dài(lấy_khoá(đ, "nhật_ký"))
+            _đ_dọn_nhật_ký(đ)
+            đặt báo = "PHÁT LẠI: giao dịch ĐÃ cam kết → chép tiếp " + n + " khối ⇒ giữ bản MỚI trọn vẹn"
+        } khác {
+            đặt n = dài(lấy_khoá(đ, "nhật_ký"))
+            đặt_khoá(đ, "nhật_ký", [])
+            đặt_khoá(đ, "sạch", sáng)
+            đặt báo = "PHÁT LẠI: giao dịch CHƯA cam kết → vứt " + n + " khối ⇒ giữ bản CŨ nguyên vẹn"
+        }
+    }
+    đặt r = _đ_đọc_mô_tả(đ)
+    nếu r[0] == sáng { } khác { trả [tối, r[1]] }
+    đặt_khoá(đ, "mô_tả", r[1])
+    trả [sáng, báo]
+}
+
+hàm đĩa_tháo(đ) { đặt_khoá(đ, "sạch", sáng)  trả sáng }
+
+hàm đĩa_cắt_điện(đ) {
+    "Mô phỏng mất điện: bảng inode trong BỘ NHỚ bay hết, chỉ còn những gì đã nằm trên khối."
+    đặt_khoá(đ, "mô_tả", bản())
+    trả sáng
+}
+
+# ---------------- TỆP trên đĩa ----------------
+hàm _đ_số_khối_cần(đ, nội) {
+    đặt c = lấy_khoá(đ, "cỡ_khối")
+    nếu dài(nội) == 0 { trả 0 }
+    trả (dài(nội) + c - 1) // c
+}
+
+hàm đĩa_ghi_tệp(đ, tên, nội, dừng_tại) {
+    "Ghi MỘT giao dịch: khối dữ liệu + bảng mô tả cùng vào nhật ký rồi mới cam kết.
+     Trả về chỉ khi đã bền, KỂ CẢ CÁI TÊN — không có điệu nhảy fsync như ext4."
+    đặt c = lấy_khoá(đ, "cỡ_khối")
+    đặt cần = _đ_số_khối_cần(đ, nội)
+    đặt mt = lấy_khoá(đ, "mô_tả")
+    đặt đầu = lấy_khoá(đ, "tự_do")
+    nếu có_khoá(mt, tên) { đặt đầu = lấy_khoá(mt, tên)[2] }   # ghi đè: dùng lại chỗ cũ
+    nếu đầu + cần > lấy_khoá(đ, "số_khối") { trả [tối, "hết chỗ trên đĩa"] }
+
+    _đ_gd_mở(đ)
+    đặt i = 0
+    mãi {                                        # ★ khối DỮ LIỆU cũng vào nhật ký (ext4 thì không)
+        nếu i >= cần { dừng }
+        đặt a = i * c
+        đặt b = a + c
+        nếu b > dài(nội) { đặt b = dài(nội) }
+        _đ_gd_thêm(đ, đầu + i, lát_chuỗi(nội, a, b))
+        đặt i = i + 1
+    }
+    # bảng mô tả MỚI cũng vào cùng giao dịch ⇒ tên tệp và nội dung tệp cùng sống hoặc cùng chết
+    đặt mt2 = bản()
+    lặp k trong mt { đặt_khoá(mt2, k, lấy_khoá(mt, k)) }
+    đặt_khoá(mt2, tên, [dài(nội), cần, đầu])     # inode: [cỡ, số khối, khối đầu]
+    đặt s = thành_json(mt2)
+    nếu dài(s) > c * lấy_khoá(đ, "số_mô_tả") { trả [tối, "vùng mô tả đầy — không thêm tệp được nữa"] }
+    đặt j = 0
+    mãi {
+        nếu j >= lấy_khoá(đ, "số_mô_tả") { dừng }
+        đặt a = j * c
+        đặt b = a + c
+        nếu b > dài(s) { đặt b = dài(s) }
+        đặt phần = ""
+        nếu a < dài(s) { đặt phần = lát_chuỗi(s, a, b) }
+        _đ_gd_thêm(đ, Đ_MÔ_TẢ + j, phần)
+        đặt j = j + 1
+    }
+
+    đặt kq = _đ_gd_cam_kết(đ, dừng_tại)
+    nếu dừng_tại == 0 {
+        đặt_khoá(đ, "mô_tả", mt2)
+        nếu có_khoá(mt, tên) { } khác { đặt_khoá(đ, "tự_do", đầu + cần) }
+        trả [sáng, "đã ghi " + tên + " (" + dài(nội) + " byte → " + cần + " khối)"]
+    }
+    trả [tối, kq]                                 # bị cắt điện giữa chừng
+}
+
+hàm đĩa_đọc_tệp(đ, tên) {
+    "→ [sáng, nội] · [tối, lý do]. Khối hỏng thì BÁO — không trả rác ra như ext4."
+    đặt mt = lấy_khoá(đ, "mô_tả")
+    nếu có_khoá(mt, tên) { } khác { trả [tối, "không có tệp '" + tên + "' trên đĩa"] }
+    đặt io = lấy_khoá(mt, tên)
+    đặt s = ""
+    đặt i = 0
+    mãi {
+        nếu i >= io[1] { dừng }
+        đặt r = đĩa_đọc_khối(đ, io[2] + i)
+        nếu r[0] == sáng { } khác { trả [tối, "đọc '" + tên + "' hỏng: " + r[1]] }
+        đặt s = s + r[1]
+        đặt i = i + 1
+    }
+    nếu dài(s) == io[0] { trả [sáng, s] }
+    trả [tối, "'" + tên + "' dài " + dài(s) + " byte mà bảng mô tả nói " + io[0] + " — lệch"]
+}
+
+hàm đĩa_liệt(đ) { trả khoá(lấy_khoá(đ, "mô_tả")) }
+
+hàm đĩa_soi(đ) {
+    "Số liệu thật của đĩa: dùng bao nhiêu khối, phí bao nhiêu byte vì khối cuối không đầy."
+    đặt mt = lấy_khoá(đ, "mô_tả")
+    đặt c = lấy_khoá(đ, "cỡ_khối")
+    đặt dùng = 0
+    đặt thật = 0
+    lặp k trong mt {
+        đặt io = lấy_khoá(mt, k)
+        đặt dùng = dùng + io[1]
+        đặt thật = thật + io[0]
+    }
+    trả [dài(khoá(mt)), dùng, dùng * c, thật, dùng * c - thật]
+}
+
+# ---------------- để KIỂM: làm hỏng một khối ----------------
+hàm đĩa_hỏng_khối(đ, i) {
+    "Lật nội dung một khối mà KHÔNG sửa tổng kiểm — y như đĩa mục thầm lặng ngoài đời."
+    đặt kh = lấy_khoá(đ, "khối")
+    đặt ds = kh
+    đặt cũ = ds[i]
+    đặt ds[i] = [" rác thay chỗ", cũ[1]]
+    trả sáng
+}

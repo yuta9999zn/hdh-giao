@@ -1,0 +1,33 @@
+# ============================================================
+# hdh_chặn.giao — minh-hoạ IPC CHẶN + ĐÁNH-THỨC (blocking receive + wakeup)
+# Chu-trình deterministic: thợ chờ_tin (hộp rỗng) → CHẶN → gửi việc → ĐÁNH-THỨC → thợ lấy việc.
+# ============================================================
+nhập "lib_lịch.giao"
+
+đặt l = tạo_lịch()
+
+# --- BƯỚC 1: thợ gọi chờ_tin khi hộp RỖNG → bị CHẶN ---
+rọi "=== HĐH-CHẶN: chu-trình chặn → đánh-thức ==="
+đặt r0 = chờ_tin(l, "thợ", 3)         # hộp rỗng → chặn, trả ẩn
+nếu loại(r0) == "ẩn" { rọi "thợ: CHẶN chờ việc" }
+rọi đang_chặn(l, "thợ")               # sáng — thợ ĐANG chặn
+rọi có_việc(l)                        # tối — KHÔNG có task sẵn-sàng (thợ đã nhường CPU)
+
+# --- BƯỚC 2: gửi việc tới thợ → ĐÁNH-THỨC ---
+rọi "--- gửi việc-1 cho thợ (đánh-thức) ---"
+gửi(l, "thợ", "việc-1")
+rọi đang_chặn(l, "thợ")               # tối — cờ chặn đã gỡ
+rọi có_việc(l)                        # sáng — thợ đã vào hàng sẵn-sàng
+rọi chọn_kế(l)                        # thợ — được lập-lịch chạy lại
+
+# --- BƯỚC 3: thợ chờ_tin lần nữa → CÓ tin, lấy được việc-1 ---
+rọi "--- thợ chạy lại: chờ_tin lấy việc ---"
+đặt r1 = chờ_tin(l, "thợ", 3)         # có tin → trả việc-1 (KHÔNG chặn)
+rọi r1                                # việc-1
+rọi đang_chặn(l, "thợ")               # tối — không chặn nữa
+
+# --- BƯỚC 4: chờ_tin lại khi hộp lại RỖNG → CHẶN tiếp (lặp được) ---
+rọi "--- hộp lại rỗng: chờ_tin lại → CHẶN ---"
+đặt r2 = chờ_tin(l, "thợ", 7)         # rỗng → chặn lại (ưu-tiên mới 7)
+nếu loại(r2) == "ẩn" { rọi "thợ: CHẶN chờ việc" }
+rọi đang_chặn(l, "thợ")               # sáng

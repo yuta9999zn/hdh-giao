@@ -1,0 +1,14 @@
+# RÀO BA-TRỊ 'ẩn' XUỐNG SILICON — ô máy mang TRẠNG THÁI (ẩn ↔ sáng) chạy GATE-LEVEL.
+# ----------------------------------------------------------------------------------------
+# GVM không phải máy nhị phân thường: mỗi ô NGĂN XẾP mang trạng-thái ba-trị
+# (ẩn=00 · sáng=01 · tối=10). 'ẩn' (DE — chưa-biết) LAN TRUYỀN: chạm ẩn → ẩn,
+# KHÔNG bịa 0. Đây là bản chất CDFL của GIAO, nay xuống tới cổng logic.
+
+rọi ẩn                  # ẩn   (literal — đẩy ô ẩn)
+hàm trống(x){ }          # hàm rơi-khỏi-thân → trả ẩn
+rọi trống(9)            # ẩn   (giá trị trả về là ẩn, qua TRẢ_VỀ_N giữ trạng-thái)
+rọi trống(1) + 7        # ẩn   (LAN TRUYỀN: ẩn + 7 = ẩn, không thành 7)
+rọi 5.0 / 0.0           # ẩn   (FCHIA chia 0 → ẩn, không bịa ∞/0)
+
+rọi 3 + 4               # 7     (SÁNG — số đã-biết vẫn tính đúng song song với ẩn)
+rọi 2.5 + 1.5           # 4     (SÁNG — số thực đã-biết)

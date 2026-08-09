@@ -1,0 +1,81 @@
+# kiem_chong_do.giao — nghiệm thu CHỐNG DÒ MẬT KHẨU (C4-④) + KHOÁ SAU N LẦN SAI (C5)
+# Chạy với --cho-giờ (chậm dần cần đồng hồ). Điểm mấu chốt:
+#   ① từ lần sai thứ 3, mỗi lần sai bắt CHỜ GẤP ĐÔI — trong quãng chờ GÕ ĐÚNG CŨNG KHÔNG XÉT
+#     (không xét thì không lộ gì: kẻ dò không biết phép thử của nó trúng hay trượt);
+#   ② hết quãng chờ + gõ đúng → vào được và SỔ ĐƯỢC XOÁ (chỉ phạt chuỗi sai LIÊN TIẾP);
+#   ③ sai liên tiếp 10 lần → tài khoản bị KHOÁ THẬT (bóng = "*") — trừ `gốc`: khoá gốc là
+#     tự chặt chân (kẻ dò gõ bừa 10 lần là chủ máy mất cửa vào — pam_faillock cũng chừa root).
+# Trong kiểm, "quãng chờ đã hết" được giả bằng cách vặn mốc trong DÒ_SỔ về quá khứ —
+# không ngủ thật giây nào nên kiểm chạy nhanh và tất định.
+nhập "lib_người_dùng.giao"
+
+đặt M = khởi_máy()
+thêm_người(M, 0, "gốc")  thêm_người(M, 1000, "an")  thêm_người(M, 1001, "mồi")
+đặt khởi = sinh_tt(M, "khởi", 0, 0, "/")
+gọi(M, khởi, GH_TẠO_THƯ, ["/hệ", 755])
+gọi(M, khởi, GH_TẠO_THƯ, ["/nhà", 755])
+gọi(M, khởi, GH_TẠO, ["/hệ/người_dùng", 644, "gốc:0:/\nan:1000:/nhà/an\nmồi:1001:/nhà/mồi"])
+gọi(M, khởi, GH_TẠO, ["/hệ/mật_khẩu", 600, ""])
+đặt_mk(M, khởi, "gốc", "gốc", 7)
+đặt_mk(M, khởi, "an", "an", 7)
+đặt_mk(M, khởi, "mồi", "mk-mồi", 7)
+
+hàm _hết_chờ(tên) {                      # giả "quãng chờ đã trôi qua": vặn mốc về quá khứ
+    đặt r = lấy_khoá(DÒ_SỔ, tên)
+    nếu loại(r) == "ẩn" { trả tối }
+    đặt_khoá(DÒ_SỔ, tên, [r[0], 0])
+    trả sáng
+}
+
+rọi "-- hai lần sai đầu: chỉ đếm, CHƯA bắt chờ (người gõ nhầm thật không bị hành) --"
+rọi đăng_nhập(M, khởi, "mồi", "đoán-1")
+rọi "chờ sau 1 lần sai: " + dò_phải_chờ("mồi")
+rọi đăng_nhập(M, khởi, "mồi", "đoán-2")
+rọi "chờ sau 2 lần sai: " + dò_phải_chờ("mồi")
+
+rọi "-- lần sai thứ BA: bắt đầu CHẬM DẦN --"
+rọi đăng_nhập(M, khởi, "mồi", "đoán-3")
+đặt c1 = dò_phải_chờ("mồi")
+nếu c1 > 0 { rọi "★ sau 3 lần sai phải chờ (" + c1 + " giây)" } khác { rọi "RỚT: không hề chậm" }
+
+rọi "-- trong quãng chờ, GÕ ĐÚNG cũng KHÔNG xét --"
+rọi đăng_nhập(M, khởi, "mồi", "mk-mồi")
+
+rọi "-- hết quãng chờ + gõ đúng → VÀO ĐƯỢC, sổ dò bị xoá --"
+_hết_chờ("mồi")
+đặt V = đăng_nhập(M, khởi, "mồi", "mk-mồi")
+rọi "đăng nhập lại được: tiến-trình " + V
+rọi "sổ dò còn ghi mồi không: " + có_khoá(DÒ_SỔ, "mồi")
+
+rọi "-- sai LIÊN TIẾP 10 lần → tài khoản bị KHOÁ THẬT (C5, bóng = *) --"
+lặp 10 {
+    đăng_nhập(M, khởi, "mồi", "đoán-bừa")
+    _hết_chờ("mồi")
+}
+rọi đăng_nhập(M, khởi, "mồi", "mk-mồi")
+đặt bóng_nội = gọi(M, khởi, GH_ĐỌC, ["/hệ/mật_khẩu"])
+nếu loại(vị_trí(bóng_nội, "mồi:*")) != "ẩn" {
+    rọi "★ tài khoản mồi ĐÃ KHOÁ (bóng = *) — gõ đúng mật khẩu cũng không vào nổi"
+} khác { rọi "RỚT: sổ bóng không khoá mồi" }
+
+rọi "-- `gốc` KHÔNG bị tự khoá — chỉ chậm dần như mọi người --"
+lặp 12 {
+    đăng_nhập(M, khởi, "gốc", "đoán-bừa")
+    _hết_chờ("gốc")
+}
+đặt V2 = đăng_nhập(M, khởi, "gốc", "gốc")
+nếu loại(V2) == "số" {
+    rọi "★ gốc sau 12 lần sai vẫn vào được (không bị khoá): tiến-trình " + V2
+} khác { rọi "RỚT: gốc bị khoá mất rồi" }
+
+rọi "-- quãng chờ có TRẦN 60 giây (không phình vô hạn) --"
+lặp 8 {
+    đăng_nhập(M, khởi, "an", "đoán-bừa")
+    _hết_chờ("an")
+}
+đăng_nhập(M, khởi, "an", "đoán-bừa")            # lần sai thứ 9 → 2^7 = 128 → kẹp còn 60
+đặt c2 = dò_phải_chờ("an")
+nếu c2 >= 55 {
+    nếu c2 <= 60 { rọi "★ trần chờ giữ đúng (đo được " + c2 + " giây ≤ 60)" }
+    khác { rọi "RỚT: chờ " + c2 + " vượt trần" }
+} khác { rọi "RỚT: chờ " + c2 + " thấp bất thường" }

@@ -1,0 +1,96 @@
+# kiem_dinh_dang.giao — nghiệm thu SỔ ĐỊNH DẠNG CHẠY ĐƯỢC (B2, hình dạng binfmt_misc)
+#
+# Chạy HAI LẦN: không có --cho-máy (định dạng `mã_máy` bị TỪ CHỐI, phải nói rõ vì sao) và
+# có --cho-máy (chạy được thật). Cùng một tệp kiểm, hai kết quả — như cách kiểm `lib_ngày_host`.
+#
+# Điều phải chứng minh KHÔNG phải "chạy được bytecode", mà là BA CHỖ `binfmt_misc` YẾU đã vá:
+#   ① phá sổ KHÔNG làm câm máy (Linux: đăng ký sai → mọi tệp khớp magic ấy hết chạy)
+#   ② nói RÕ VÌ SAO (Linux: chỉ "Exec format error")
+#   ③ định dạng TỰ KHAI năng lực, thiếu thì từ chối tử tế (Linux: đăng ký là trao trọn quyền)
+nhập "lib_vỏ.giao"
+
+đặt M = khởi_máy()
+thêm_người(M, 0, "gốc")  thêm_người(M, 1000, "an")
+đặt khởi = sinh_tt(M, "khởi", 0, 0, "/")
+gọi(M, khởi, GH_TẠO_THƯ, ["/hệ", 755])
+gọi(M, khởi, GH_TẠO_THƯ, ["/nhà", 755])
+gọi(M, khởi, GH_TẠO, ["/hệ/người_dùng", 644, "gốc:0:/\nan:1000:/nhà/an"])
+cài_lệnh(M, khởi)
+gọi(M, khởi, GH_TẠO_THƯ, ["/nhà/an", 755])
+gọi(M, khởi, GH_TẠO_THƯ, ["/nhà/an/lệnh", 755])
+gọi(M, khởi, GH_ĐỔI_CHỦ, ["/nhà/an", 1000])  duyệt(M)
+gọi(M, khởi, GH_ĐỔI_CHỦ, ["/nhà/an/lệnh", 1000])  duyệt(M)
+đặt V = gọi(M, khởi, GH_SINH, ["vỏ", 5])
+đặt_khoá(lấy_khoá(lấy_khoá(M, "cred"), V), "uid", 1000)
+đặt_khoá(lấy_khoá(lấy_khoá(M, "cred"), V), "thư", "/nhà/an")
+
+rọi "══ SỔ ĐĂNG KÝ: có thật trên đĩa, đọc được ══"
+đặt sổ = _dd_đọc_sổ(M, V)
+rọi "số dòng trong sổ: " + dài(sổ)
+rọi "dòng cuối là ngả lui: " + (sổ[dài(sổ) - 1][1] == "*")
+
+rọi "══ ① PHÁ SỔ KHÔNG LÀM CÂM MÁY ══"
+# Đây là chỗ binfmt_misc hở nhất: ghi bậy vào /proc là hỏng đường chạy cả máy.
+# a) sổ SAI cú pháp thì bộ kiểm H6 chặn ngay từ lúc GHI, tệp cũ còn nguyên
+rọi gọi(M, khởi, GH_GHI, [DD_TỆP, "hỏng hết|chỉ có hai cột"])
+rọi lỗi_cuối(M)
+rọi "sổ cũ còn nguyên: " + (dài(_dd_đọc_sổ(M, V)) == dài(sổ))
+# b) trùng magic — dòng sau không bao giờ tới lượt, Linux im lặng cho qua
+rọi gọi(M, khởi, GH_GHI, [DD_TỆP, "a|#tt |tiến_trình|-\nb|#tt |kịch_bản|-\nc|*|kịch_bản|-"])
+rọi lỗi_cuối(M)
+# c) ngả lui đặt GIỮA sổ thì nuốt hết dòng sau
+rọi gọi(M, khởi, GH_GHI, [DD_TỆP, "a|*|kịch_bản|-\nb|#tt |tiến_trình|-"])
+rọi lỗi_cuối(M)
+# d) THIẾU ngả lui: tệp lạ sẽ không chạy nổi mà chẳng biết vì sao ⇒ bắt phải có
+rọi gọi(M, khởi, GH_GHI, [DD_TỆP, "a|#tt |tiến_trình|-"])
+rọi lỗi_cuối(M)
+# e) trình không có thật
+rọi gọi(M, khởi, GH_GHI, [DD_TỆP, "a|#x|trình_ma|-\nb|*|kịch_bản|-"])
+rọi lỗi_cuối(M)
+# f) ★ và ngay cả khi sổ BIẾN MẤT HẲN, máy vẫn chạy lệnh được — ngả lui nằm TRONG MÃ
+gọi(M, khởi, GH_XOÁ, [DD_TỆP])  duyệt(M)
+rọi "sổ đã bị xoá, đọc /hệ/định_dạng: " + loại(gọi(M, khởi, GH_ĐỌC, [DD_TỆP]))
+rọi "vẫn có ngả lui: " + dài(_dd_đọc_sổ(M, V))
+rọi chạy_dòng_im(M, V, "nói máy vẫn nói được")[1]
+gọi(M, khởi, GH_TẠO, [DD_TỆP, 644, dd_dòng_sổ()])      # dựng lại sổ tử tế
+
+rọi "══ ② + ③ MÃ MÁY: /lệnh mang CHÍNH BYTECODE ══"
+gọi(M, V, GH_TẠO, ["/nhà/an/ct.giao", 644, "rọi 7 * 6"])
+đặt kq = chạy_dòng_im(M, V, "dịch /nhà/an/ct.giao /nhà/an/lệnh/nhân42")
+rọi kq[1]
+
+nếu có_máy() == sáng {
+    rọi "-- CÓ năng lực `máy` --"
+    đặt nội = gọi(M, V, GH_ĐỌC, ["/nhà/an/lệnh/nhân42"])
+    rọi "tệp lệnh mở đầu bằng: " + lát_chuỗi(nội, 0, 12)
+    rọi "tệp KHÔNG còn chứa mã nguồn: " + (loại(vị_trí(nội, "rọi 7 * 6")) == "ẩn")
+    rọi "nhận dạng: " + dạng_của(M, V, nội)[0]
+    rọi chạy_dòng_im(M, V, "nhân42")[1]
+    rọi "vì sao: " + vì_sao_dạng(M, V, "/nhà/an/lệnh/nhân42")
+} khác {
+    rọi "-- CHƯA cấp năng lực `máy` --"
+    # ③ định dạng tự khai năng lực: chưa cấp thì `dịch` phải nói rõ, không nổ
+    rọi "dịch bị chặn có nói lý do: " + (loại(vị_trí(kq[1], "năng lực `máy`")) != "ẩn")
+    # dựng tay một tệp mã máy để thử cửa CHẠY (không cần dịch được)
+    gọi(M, V, GH_TẠO, ["/nhà/an/lệnh/giả_mã", 755, "#!mã-máy 32\n257 3584 0\n"])
+    rọi "nhận dạng vẫn đúng: " + dạng_của(M, V, gọi(M, V, GH_ĐỌC, ["/nhà/an/lệnh/giả_mã"]))[0]
+    rọi chạy_dòng_im(M, V, "giả_mã")[1]
+    rọi "vì sao: " + vì_sao_dạng(M, V, "/nhà/an/lệnh/giả_mã")
+}
+
+rọi "══ ② NÓI RÕ VÌ SAO — thứ 'Exec format error' không nói ══"
+rọi "kịch bản thường: " + vì_sao_dạng(M, V, "/lệnh/soi_hệ")
+rọi "lệnh nội trú: " + vì_sao_dạng(M, V, "/lệnh/liệt")
+
+rọi "══ THÂN MÃ HỎNG thì từ chối SẠCH, không đoán bừa ══"
+gọi(M, V, GH_TẠO, ["/nhà/an/lệnh/mã_hỏng", 755, "#!mã-máy 32\nđây không phải số\n"])
+rọi chạy_dòng_im(M, V, "mã_hỏng")[1]
+rọi "tệp_sang_mã của thân hỏng: " + loại(tệp_sang_mã("#!mã-máy 32\nxyz\n"))
+rọi "tệp_sang_mã thiếu độ rộng bit: " + loại(tệp_sang_mã("#!mã-máy\n1 2 3\n"))
+rọi "tệp_sang_mã độ rộng bit lạ: " + loại(tệp_sang_mã("#!mã-máy 7\n1 2 3\n"))
+
+rọi "══ QUYỀN vẫn chặn y như cũ (sổ định dạng KHÔNG phải cửa sau) ══"
+# Quyền được xét TRƯỚC khi tra sổ định dạng, nên tệp thiếu bit x bị chặn y hệt nhau ở cả hai
+# chế độ — thêm định dạng mới KHÔNG mở thêm cửa nào.
+gọi(M, V, GH_TẠO, ["/nhà/an/lệnh/không_x", 644, "#!mã-máy 32\n257 3584 0\n"])
+rọi chạy_dòng_im(M, V, "không_x")[1]
