@@ -180,8 +180,160 @@ input{font:inherit}
 .chân-chọn{background:var(--lục-mờ);color:var(--chữ)}
 .menu-giãn{flex:1}
 
+/* ══════════ BÀN CHÍNH ══════════
+   Bố cục lấy từ bản thiết kế: cột trái là thẻ trợ lý, cột giữa là thanh lệnh + dãy thẻ
+   không-gian (chừa khoảng trống bên dưới cho cửa sổ nổi lên), cột phải là dãy thẻ dọc,
+   ba thẻ lớn nằm vắt ngang đáy. */
+.nhà{position:absolute;inset:var(--thanh-cao) 0 100px var(--cạnh-rộng);z-index:0;
+  padding:16px 18px;display:grid;gap:14px;overflow:hidden;
+  grid-template-columns:236px minmax(0,1fr) 306px;
+  grid-template-rows:auto auto minmax(40px,1fr) auto;
+  grid-template-areas:
+    "trợ lệnh rail"
+    "trợ kgian rail"
+    "trợ trống rail"
+    "dưới dưới rail"}
+.n-trợ-lý{grid-area:trợ}
+.n-lệnh{grid-area:lệnh}
+.n-kgian{grid-area:kgian}
+.n-dưới{grid-area:dưới;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.n-rail{grid-area:rail;display:flex;flex-direction:column;gap:12px;overflow:auto;padding-right:2px}
+
+/* Khối dùng chung. KHÔNG đặt tên là `.thẻ` — lớp đó đã có sẵn ở phần nội dung ứng dụng cho
+   nhãn nhỏ (`display:inline-block`), trùng tên là mọi khối ở đây thành inline-block. */
+.khối{display:flex;flex-direction:column;min-height:0;padding:13px 15px;border-radius:14px;
+  background:var(--kính);border:1px solid var(--kính-viền);box-shadow:0 10px 30px rgba(0,0,0,.32);
+  backdrop-filter:blur(20px) saturate(1.2)}
+.khối-đầu{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
+.khối-tiêu{font-size:14px;font-weight:600}
+.khối-tiêu.lớn{font-size:21px}
+.khối-phụ{font-size:11.5px;color:var(--chữ-mờ);margin-top:2px}
+.khối-phải{font-size:11.5px;color:var(--chữ-mờ);white-space:nowrap;display:flex;align-items:center;gap:6px}
+.khối-thân{flex:1;min-height:0;overflow:auto}
+.khối-chân{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;
+  padding-top:9px;border-top:1px solid rgba(120,214,182,.10);font-size:11.5px;color:var(--chữ-mờ)}
+.khối-chân b{color:var(--chữ);font-size:16px;font-weight:600;margin-right:5px}
+/* cột phải: mỗi khối cao theo nội dung, cả cột cuộn — không để khối bị bẹp */
+.n-rail > .khối{flex:none}
+/* đồng hồ được dời vào cột phải trong dựngNhà(): bỏ định vị tuyệt đối đi */
+.đồng-hồ.đh-rail{position:static;width:100%;max-width:168px;height:auto;aspect-ratio:1;
+  margin:0 auto;flex:none}
+.chấm-sống{width:7px;height:7px;border-radius:50%;background:var(--lục);box-shadow:0 0 8px var(--lục)}
+
+/* ── thanh lệnh ── */
+.n-lệnh{display:flex;align-items:center;gap:12px;height:54px;padding:0 8px 0 10px;border-radius:27px;
+  background:var(--kính);border:1px solid var(--kính-viền);box-shadow:0 10px 30px rgba(0,0,0,.32);
+  backdrop-filter:blur(20px) saturate(1.2)}
+.n-lệnh:focus-within{border-color:rgba(84,226,155,.45)}
+.n-orb{width:36px;height:36px;flex:none;border-radius:50%;
+  background:radial-gradient(circle at 50% 45%, #C9FBE6 0%, var(--ngọc) 26%, #12796A 62%, #06333A 100%);
+  box-shadow:0 0 18px rgba(84,226,155,.5)}
+.n-ô{flex:1;min-width:0;background:none;border:0;outline:none;color:var(--chữ);font-size:14px}
+.n-ô::placeholder{color:var(--chữ-mờ)}
+.n-phím{flex:none;padding:3px 9px;border-radius:7px;font:600 11px/1 "Segoe UI",system-ui;
+  color:var(--chữ-mờ);background:rgba(255,255,255,.06);border:1px solid var(--kính-viền)}
+.n-gửi{width:38px;height:38px;flex:none;border-radius:50%;font-size:17px;color:#04211A;
+  background:linear-gradient(145deg,var(--lục),var(--lục-đậm))}
+.n-gửi:hover{filter:brightness(1.12)}
+
+/* ── thẻ trợ lý ── */
+.tl-quầng{width:120px;height:120px;margin:12px auto 14px;border-radius:50%;flex:none;
+  background:radial-gradient(circle at 50% 44%, #DFFFF2 0%, #9BF3CE 12%, var(--ngọc) 30%, #106E63 58%, transparent 74%);
+  box-shadow:0 0 44px rgba(84,226,155,.34)}
+.tl-lời{margin:0 0 14px;font-size:12px;line-height:1.6;color:var(--chữ-mờ);text-align:center}
+.tl-gợi{display:flex;flex-direction:column;gap:7px;margin-bottom:12px}
+.tl-nút{padding:9px 12px;border-radius:10px;text-align:left;font-size:12.5px;color:var(--chữ);
+  background:rgba(255,255,255,.05);border:1px solid var(--kính-viền)}
+.tl-nút:hover{background:var(--lục-mờ);border-color:rgba(84,226,155,.34)}
+.tl-mở{margin-top:auto;width:100%}
+
+/* ── dãy thẻ không gian ── */
+.kg-đầu{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
+.kg-tiêu{font-size:14px;font-weight:600}
+.kg-nút{padding:5px 12px;border-radius:20px;font-size:12px;color:var(--chữ-mờ);
+  background:rgba(255,255,255,.05);border:1px solid var(--kính-viền)}
+.kg-nút:hover{color:var(--chữ);background:rgba(255,255,255,.10)}
+.kg-lưới{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.kg-thẻ{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:12px 13px;
+  border-radius:14px;text-align:left;border:1px solid var(--kính-viền);
+  box-shadow:0 8px 22px rgba(0,0,0,.30)}
+.kg-thẻ:hover{filter:brightness(1.16)}
+.kg-biểu{margin-bottom:16px;width:32px;height:32px;border-radius:10px;display:grid;place-items:center;
+  font-size:16px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.14)}
+.kg-tên{font-size:13.5px;font-weight:600;color:var(--chữ)}
+.kg-phụ,.kg-đếm{font-size:11px;color:var(--chữ-mờ)}
+/* bốn sắc nền — cùng vai với bốn ảnh nền thẻ trong bản thiết kế, dựng bằng gradient */
+.kg-0{background:linear-gradient(150deg,#114131,#062a22 62%,#02211c)}
+.kg-1{background:linear-gradient(150deg,#0b2f56,#06243f 62%,#051f38)}
+.kg-2{background:linear-gradient(150deg,#123f45,#0a2b33 62%,#04202a)}
+.kg-3{background:linear-gradient(150deg,#2b2350,#17193a 62%,#101428)}
+
+/* ── sức khoẻ hệ ── */
+.sk-trên{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.sk-câu{font-size:15px;font-weight:600;color:var(--lục)}
+.sk-câu.nhỏ{font-size:14px;color:var(--chữ)}
+.sk-câu.cảnh{color:var(--vàng)}
+.sk-ô{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.ô-số{padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.04);
+  border:1px solid var(--kính-viền)}
+.ô-nhãn{font-size:10.5px;color:var(--chữ-mờ);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ô-giá{font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}
+.ô-giá.nhỏ{font-size:15px}
+.vòng{width:84px;height:84px;flex:none}
+.v-nền{fill:none;stroke:rgba(255,255,255,.09);stroke-width:7}
+.v-nét{fill:none;stroke:var(--lục);stroke-width:7;stroke-linecap:round}
+.v-số{fill:var(--chữ);font-size:18px;font-weight:600;text-anchor:middle}
+.v-nhãn{fill:var(--chữ-mờ);font-size:9px;text-anchor:middle}
+
+/* ── hoạt động ── */
+.hd-số{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px}
+/* Chiều cao PHẢI xác định, không được để `min-height` không thôi: các cột con đặt
+   height theo %, mà % chỉ phân giải được khi cha có height thật — nếu không cột cao 0. */
+.hd-cột{height:64px;display:flex;align-items:flex-end;gap:3px}
+.hd-cột i{flex:1;border-radius:2px 2px 0 0;
+  background:linear-gradient(180deg,var(--lục),rgba(46,182,125,.35))}
+.hd-trục{display:flex;justify-content:space-between;margin-top:6px;font-size:10.5px;color:var(--chữ-mờ)}
+
+/* ── cổng bất-khả-hồi ── */
+.cd-yên{display:flex;align-items:center;gap:14px}
+.cd-vòng{width:76px;height:76px;flex:none;border-radius:50%;
+  background:radial-gradient(circle at 50% 45%, #C9FBE6 0%, var(--ngọc) 22%, #0f5f5c 52%, transparent 72%);
+  box-shadow:0 0 28px rgba(84,226,155,.28)}
+.cd-nhãn{font-size:11px;color:var(--vàng);letter-spacing:.06em;text-transform:uppercase}
+.cd-mô{margin:6px 0 8px;padding:10px;border-radius:9px;color:var(--vàng);
+  font:12px/1.5 "Cascadia Mono","Consolas",monospace;background:rgba(0,0,0,.30);
+  word-break:break-word}
+
+/* ── đồ thị tiến trình ── */
+.dt{width:100%;height:auto}
+.dt-nan line{stroke:rgba(120,214,182,.28);stroke-width:1}
+.dt-nan text{fill:var(--chữ-mờ);font-size:9.5px}
+.dt-nút{fill:var(--lục)}
+.dt-tâm{fill:rgba(84,226,155,.16);stroke:var(--lục);stroke-width:1.4}
+.dt-chữ{fill:var(--chữ);font-size:11px;font-weight:600;text-anchor:middle}
+
+/* ── nhật ký gần đây ── */
+.nk-hàng{display:flex;gap:11px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.nk-hàng:last-child{border-bottom:0}
+.nk-nhịp{flex:none;width:56px;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}
+.nk-nhịp span{display:block;font-size:10.5px;font-weight:400;color:var(--chữ-mờ)}
+.nk-việc{flex:1;min-width:0;font-size:11.5px;color:var(--chữ-mờ);line-height:1.45;
+  overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+
+/* ── bộ nhớ + thiết bị ── */
+.bn{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.tb-lưới{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.tb-ô{padding:10px 6px;border-radius:11px;text-align:center;background:rgba(255,255,255,.04);
+  border:1px solid var(--kính-viền)}
+.tb-biểu{font-size:17px;color:var(--ngọc)}
+.tb-tên{margin-top:4px;font-size:10.5px;color:var(--chữ-mờ);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+
 /* ══════════ CỬA SỔ ══════════ */
-.vùng{position:absolute;inset:var(--thanh-cao) 0 100px var(--cạnh-rộng)}
+/* Cửa sổ nổi TRÊN bàn chính, nhưng khoảng trống giữa các cửa sổ phải cho chuột đi xuyên
+   xuống thẻ bên dưới — nếu không, cả bàn chính thành hình dán không bấm được. */
+.vùng{position:absolute;inset:var(--thanh-cao) 0 100px var(--cạnh-rộng);pointer-events:none}
+.cửa{pointer-events:auto}
 .cửa{position:absolute;display:flex;flex-direction:column;min-width:340px;min-height:200px;
   border-radius:var(--bo);overflow:hidden;background:var(--kính);
   border:1px solid var(--kính-viền);box-shadow:var(--bóng);backdrop-filter:blur(22px) saturate(1.2)}

@@ -36,8 +36,7 @@ async function vào() {
   $(".khoá-ảnh").textContent = $(".menu-ảnh").textContent =
     $(".cạnh-ảnh").textContent = tên[0].toUpperCase();
   chào(tên);
-  dựngCạnh(); dựngDock(); dựngMenu(); nhịpTrạng();
-  mở("dòng_lệnh");
+  dựngCạnh(); dựngDock(); dựngMenu(); dựngNhà(); nhịpTrạng();
 }
 
 /* Lời chào giữa thanh trên. Giờ dùng ở đây là giờ của MÁY CHỦ KHUNG HÌNH (trình duyệt), chỉ

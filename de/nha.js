@@ -33,12 +33,12 @@ function đọcNhậtKý(vb) {
 const đếmRác = (vb) => /trống/.test(String(vb || "")) ? 0 : Math.max(0, dòngCủa(vb).length - 1);
 
 /* ── khung ────────────────────────────────────────────────────────────────── */
-const thẻ = (id, tiêu, phụ, thân, lớp = "") =>
-  `<section class="thẻ ${lớp}" id="${id}">
-     <header class="thẻ-đầu"><div><div class="thẻ-tiêu">${tiêu}</div>
-       ${phụ ? `<div class="thẻ-phụ">${phụ}</div>` : ""}</div>
-       <div class="thẻ-phải" id="${id}-phải"></div></header>
-     <div class="thẻ-thân" id="${id}-thân">${thân}</div>
+const khối = (id, tiêu, phụ, thân, lớp = "") =>
+  `<section class="khối ${lớp}" id="${id}">
+     <header class="khối-đầu"><div><div class="khối-tiêu">${tiêu}</div>
+       ${phụ ? `<div class="khối-phụ">${phụ}</div>` : ""}</div>
+       <div class="khối-phải" id="${id}-phải"></div></header>
+     <div class="khối-thân" id="${id}-thân">${thân}</div>
    </section>`;
 
 const đang = `<div class="gợi">đang đọc…</div>`;
@@ -56,11 +56,11 @@ function dựngNhà() {
     </div>
 
     <!-- ── thẻ trợ lý ── -->
-    <section class="thẻ n-trợ-lý">
-      <header class="thẻ-đầu"><div>
-        <div class="thẻ-tiêu lớn">GIAO</div>
-        <div class="thẻ-phụ">Trợ lý hệ điều hành</div></div>
-        <div class="thẻ-phải"><span class="chấm-sống"></span> <span id="n-tl-trạng">đang chạy</span></div>
+    <section class="khối n-trợ-lý">
+      <header class="khối-đầu"><div>
+        <div class="khối-tiêu lớn">GIAO</div>
+        <div class="khối-phụ">Trợ lý hệ điều hành</div></div>
+        <div class="khối-phải"><span class="chấm-sống"></span> <span id="n-tl-trạng">đang chạy</span></div>
       </header>
       <div class="tl-quầng" aria-hidden="true"></div>
       <p class="tl-lời">Nói việc bạn muốn làm bằng lời thường. Trợ lý nêu độ cộng hưởng γ
@@ -78,18 +78,24 @@ function dựngNhà() {
 
     <!-- ── ba thẻ dưới ── -->
     <div class="n-dưới">
-      ${thẻ("n-sk", "Sức khoẻ hệ", "số của nhân, không phải của máy chủ", đang, "n-sk")}
-      ${thẻ("n-hd", "Hoạt động", "lời gọi-hệ theo nhịp nhân", đang, "n-hd")}
-      ${thẻ("n-cd", "Cổng bất-khả-hồi", "CDFL giữ việc không hoàn tác được", đang, "n-cd")}
+      ${khối("n-sk", "Sức khoẻ hệ", "số của nhân, không phải của máy chủ", đang, "n-sk")}
+      ${khối("n-hd", "Hoạt động", "lời gọi-hệ theo nhịp nhân", đang, "n-hd")}
+      ${khối("n-cd", "Cổng bất-khả-hồi", "CDFL giữ việc không hoàn tác được", đang, "n-cd")}
     </div>
 
     <!-- ── cột phải ── -->
     <div class="n-rail">
-      ${thẻ("n-dt", "Đồ thị tiến trình", "", đang)}
-      ${thẻ("n-nk", "Nhật ký gần đây", "", đang)}
-      ${thẻ("n-bn", "Bộ nhớ nhân", "", đang)}
-      ${thẻ("n-tb", "Thiết bị", "", đang)}
+      ${khối("n-dt", "Đồ thị tiến trình", "", đang)}
+      ${khối("n-nk", "Nhật ký gần đây", "", đang)}
+      ${khối("n-bn", "Bộ nhớ nhân", "", đang)}
+      ${khối("n-tb", "Thiết bị", "", đang)}
     </div>`;
+
+  /* Đồng hồ vốn nổi tự do ở góc phải trên — chỗ đó nay là cột phải, để nguyên là nó đè lên
+     hai khối đầu. Dời hẳn vào cuối cột thay vì bỏ đi: nó vẫn là đồng hồ NHỊP của máy, và
+     quayĐồngHồ() trong de.js vẫn tìm thấy các kim qua id nên không phải sửa gì thêm. */
+  const đh = $(".đồng-hồ");
+  if (đh) { đh.classList.add("đh-rail"); n.querySelector(".n-rail").appendChild(đh); }
 
   /* thanh lệnh → chạy trong cửa sổ Dòng lệnh thật, không dựng vỏ riêng cho bàn chính */
   const chạy = async () => {
@@ -235,7 +241,7 @@ async function vẽNhà() {
       <circle cx="130" cy="92" r="21" class="dt-tâm"/>
       <text x="130" y="97" class="dt-chữ">nhân</text>
     </svg>
-    <div class="thẻ-chân"><b>${N}</b> tiến trình sống<span>nhịp ${thoát(String(t.nhịp ?? 0))}</span></div>`;
+    <div class="khối-chân"><b>${N}</b> tiến trình sống<span>nhịp ${thoát(String(t.nhịp ?? 0))}</span></div>`;
 
   /* ── Nhật ký gần đây ── */
   const gần = mục.slice(-5).reverse();
