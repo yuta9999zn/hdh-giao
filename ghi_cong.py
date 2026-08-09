@@ -38,8 +38,21 @@ import time
 
 GOC = os.path.dirname(os.path.abspath(__file__))
 SO = os.path.join(GOC, "so_cong.jsonl")
-MAU_TONG = re.compile(r"TOÀN BỘ:\s*(\d+)\s*/\s*(\d+)")
-MAU_TONG_2 = re.compile(r"(\d+)\s*/\s*(\d+)\s*(?:ca|hạng mục)\s*(?:đạt|pass)", re.I)
+# Mỗi bộ kiểm in một kiểu khác nhau — thử lần lượt, KHÔNG đoán một kiểu rồi thôi.
+# (Lỗi đã mắc: mẫu đầu chỉ bắt "TOÀN BỘ: 72/72", trong khi kiem_thu.py in "KẾT QUẢ: 74/74 đạt"
+#  nên bộ kiểm nhanh sẽ ghi dat=None mà không ai biết.)
+MAU = [re.compile(r"TOÀN BỘ:\s*(\d+)\s*/\s*(\d+)"),
+       re.compile(r"KẾT QUẢ:\s*(\d+)\s*/\s*(\d+)"),
+       re.compile(r"(\d+)\s*/\s*(\d+)\s*(?:ca|hạng mục)?\s*(?:đạt|pass)", re.I)]
+
+
+def doc_so(ra):
+    """Đọc 'đạt/tổng' từ đầu ra. Lấy lần khớp CUỐI CÙNG — dòng tổng kết luôn ở cuối."""
+    for m in MAU:
+        k = m.findall(ra)
+        if k:
+            return int(k[-1][0]), int(k[-1][1])
+    return None, None
 
 
 def _git(*a):
@@ -68,15 +81,31 @@ def cham(nhanh=False):
                        env=dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1"))
     ra = (r.stdout or "") + (r.stderr or "")
     giay = round(time.time() - t0, 1)
-    m = MAU_TONG.search(ra) or MAU_TONG_2.search(ra)
-    dat, tong = (int(m.group(1)), int(m.group(2))) if m else (None, None)
+    dat, tong = doc_so(ra)
     rot = [ln.strip()[2:].strip() for ln in ra.splitlines() if ln.strip().startswith("✗")]
     return {"kich_ban": kich_ban, "ma_thoat": r.returncode, "dat": dat, "tong": tong,
             "ti_le": (dat / tong) if (dat is not None and tong) else None,
             "giay": giay, "so_muc_rot": len(rot), "muc_rot": rot[:20]}
 
 
+KHOA = os.path.join(GOC, ".git", "ghi_cong.khoa")
+
+
 def ghi(nhanh=False):
+    # CHỐNG CHẠY CHỒNG: bộ kiểm đầy đủ mất ~434s; commit dày sẽ làm nhiều lượt đè lên nhau.
+    if os.path.exists(KHOA) and time.time() - os.path.getmtime(KHOA) < 3600:
+        print("đang có lượt chấm khác chạy — bỏ qua lượt này"); return
+    io.open(KHOA, "w").write(str(os.getpid()))
+    try:
+        _ghi(nhanh)
+    finally:
+        try:
+            os.remove(KHOA)
+        except OSError:
+            pass
+
+
+def _ghi(nhanh=False):
     h = _git("rev-parse", "HEAD")
     if not h:
         print("chưa có commit nào — bỏ qua"); return

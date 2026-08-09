@@ -1,27 +1,27 @@
 WARNING: gvm_cosim.v:312: $readmemh(program_cosim.hex): Not enough words in the file for the requested range [0:4095].
    [silicon->nhan] chu ky 1494: xin goi-he so=0 nargs=1
-   [nhan→silicon] chu ky 5413: nhan da phuc vu (kind=1)
+   [nhan→silicon] chu ky 7153: nhan da phuc vu (kind=1)
    [CPU-silicon] giao-01
-   [silicon->nhan] chu ky 6971: xin goi-he so=2 nargs=3
-   [nhan→silicon] chu ky 8030: nhan da phuc vu (kind=0)
+   [silicon->nhan] chu ky 8711: xin goi-he so=2 nargs=3
+   [nhan→silicon] chu ky 9610: nhan da phuc vu (kind=0)
    [CPU-silicon] 1
-   [silicon->nhan] chu ky 8058: xin goi-he so=0 nargs=1
-   [nhan→silicon] chu ky 10117: nhan da phuc vu (kind=1)
+   [silicon->nhan] chu ky 9638: xin goi-he so=0 nargs=1
+   [nhan→silicon] chu ky 11237: nhan da phuc vu (kind=1)
    [CPU-silicon] dòng này do CỔNG LOGIC viết
-   [silicon->nhan] chu ky 10842: xin goi-he so=3 nargs=2
-   [nhan→silicon] chu ky 12501: nhan da phuc vu (kind=0)
+   [silicon->nhan] chu ky 11962: xin goi-he so=3 nargs=2
+   [nhan→silicon] chu ky 14121: nhan da phuc vu (kind=0)
    [CPU-silicon] 1
-   [silicon->nhan] chu ky 12529: xin goi-he so=0 nargs=1
-   [nhan→silicon] chu ky 17728: nhan da phuc vu (kind=1)
+   [silicon->nhan] chu ky 14149: xin goi-he so=0 nargs=1
+   [nhan→silicon] chu ky 15148: nhan da phuc vu (kind=1)
    [CPU-silicon] dòng này do CỔNG LOGIC viết + thêm nữa
-   [silicon->nhan] chu ky 18542: xin goi-he so=0 nargs=1
-   [nhan→silicon] chu ky 20141: nhan da phuc vu (kind=0)
+   [silicon->nhan] chu ky 15962: xin goi-he so=0 nargs=1
+   [nhan→silicon] chu ky 17421: nhan da phuc vu (kind=0)
    [CPU-silicon] 0
-   [silicon->nhan] chu ky 20612: xin goi-he so=6 nargs=1
-   [nhan→silicon] chu ky 20911: nhan da phuc vu (kind=0)
+   [silicon->nhan] chu ky 17892: xin goi-he so=6 nargs=1
+   [nhan→silicon] chu ky 18771: nhan da phuc vu (kind=0)
    [CPU-silicon] 0
-   [silicon->nhan] chu ky 20934: xin goi-he so=12 nargs=0
-   [nhan→silicon] chu ky 22453: nhan da phuc vu (kind=1)
+   [silicon->nhan] chu ky 18794: xin goi-he so=12 nargs=0
+   [nhan→silicon] chu ky 20293: nhan da phuc vu (kind=1)
    [CPU-silicon] 1000 an
-   CPU DUNG sau 22495 chu ky · 8 lan xin nhan
-cosim_tb.v:129: $finish called at 224955000 (1ps)
+   CPU DUNG sau 20335 chu ky · 8 lan xin nhan
+cosim_tb.v:129: $finish called at 203355000 (1ps)
