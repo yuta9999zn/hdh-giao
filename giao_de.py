@@ -187,6 +187,16 @@ class Tay(BaseHTTPRequestHandler):
             except OSError:
                 return self._gửi(404, "không có " + tên, "text/plain; charset=utf-8")
             return self._gửi(200, nội, kiểu)
+        # Ảnh nền của bàn làm việc. Chỉ nhận đúng "/anh/<tên>.jpg" một mức, không có dấu
+        # chấm-chấm và không có gạch chéo — nếu không thì đây thành lỗ đọc trộm cả ổ đĩa.
+        if đường.startswith("/anh/"):
+            tên = đường[5:]
+            if tên.endswith(".jpg") and "/" not in tên and "\\" not in tên and ".." not in tên:
+                try:
+                    with open(os.path.join(HERE, "de", "anh", tên), "rb") as f: nội = f.read()
+                except OSError:
+                    return self._gửi(404, "không có ảnh " + tên, "text/plain; charset=utf-8")
+                return self._gửi(200, nội, "image/jpeg")
         self._gửi(404, "404", "text/plain; charset=utf-8")
 
     def do_POST(self):

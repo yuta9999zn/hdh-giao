@@ -1,49 +1,66 @@
-/* de.css — bàn làm việc HĐH-GIAO. Tự chứa: không phông ngoài, không ảnh ngoài, không CDN.
+/* de.css — bàn làm việc HĐH-GIAO. Không phông ngoài, không CDN, không gọi ra mạng.
+
+   Ảnh nền nằm trong `de/anh/` và do chính máy chủ này phục vụ ở /anh/*.jpg — vẫn chạy
+   offline y như trước, chỉ khác là nay có ảnh thật thay vì gradient giả. Bảy ảnh gốc
+   nặng 10.4 MB đã thu về đúng cỡ dùng, còn 184 KB.
 
    Bảng màu và hình khối lấy từ bản thiết kế "Kaori Intelligent OS"
    (D:\thiết kế\giao diện hệ điều hành\giao diện chính.png) — mọi mã màu dưới đây được ĐO
-   từ pixel ảnh đó, không ước lượng. Hình nền cực-quang dựng bằng gradient thuần CSS chứ
-   không nhúng ảnh, để tệp này giữ đúng lời hứa "không ảnh ngoài" ở dòng đầu. */
+   từ pixel ảnh đó, không ước lượng. */
 :root{
   /* nền: gần đen ngả lục lam, quầng cực quang thấp bên trái */
   --nền0:#01090E; --nền1:#01141C; --nền2:#04202B; --nền3:#0B3443;
   /* nhấn: lục ngọc — đo ở công tắc, vòng sức khoẻ, quầng trợ lý */
   --lục:#54E29B; --lục-đậm:#2EB67D; --ngọc:#68D1B7; --lục-mờ:rgba(84,226,155,.16);
-  --kính:rgba(7,34,42,.70); --kính-đặc:rgba(5,26,33,.88); --kính-viền:rgba(120,214,182,.13);
+  --kính:rgba(7,34,42,.70); --kính-đặc:rgba(5,26,33,.88); --kính-viền:rgba(120,214,182,.11);
   --chữ:#EAF3EF; --chữ-mờ:#8FA3A0; --nhấn:var(--lục);
   --xanh:#54E29B; --vàng:#FBBF24; --đỏ:#F87171;
-  --bo:12px; --bóng:0 18px 50px rgba(0,0,0,.55);
+  --bo:14px;
+  /* Mặt kính trong bản thiết kế KHÔNG phải màu phẳng: mỗi thẻ là một gradient dọc bốn
+     chặng (đo được, vd #09232C → #09242C → #062128 → #042026) phủ lên nền ảnh, mép trên
+     có vệt sáng mảnh, và bóng đổ loe rất rộng. Ba biến dưới giữ đúng ba thứ đó. */
+  --mặt:linear-gradient(180deg, rgba(11,42,52,.80) 0%, rgba(8,37,46,.76) 34%,
+                                 rgba(5,31,39,.74) 67%, rgba(4,26,33,.78) 100%);
+  --gờ:inset 0 1px 0 rgba(255,255,255,.055), inset 0 0 0 1px rgba(255,255,255,.018);
+  --bóng:0 28px 64px -22px rgba(0,0,0,.72), 0 8px 22px -12px rgba(0,0,0,.55);
+  --mượt:background-color .18s ease, border-color .18s ease, box-shadow .18s ease,
+         transform .16s ease, filter .18s ease;
   --cạnh-rộng:224px; --thanh-cao:58px;
 }
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
+/* Nền màn hình là ẢNH THẬT (cực quang trên hồ) chứ không phải gradient dựng lại: chính
+   dải sáng loang và hạt của ảnh làm mặt kính bên trên có cái để làm nhoè, nếu không thì
+   backdrop-filter không có gì để nhoè và mọi thẻ trông như dán phẳng lên. */
 body{
   font:14px/1.5 "Segoe UI","Inter",system-ui,-apple-system,"Noto Sans",sans-serif;
   color:var(--chữ); overflow:hidden;
-  background:
-    radial-gradient(52% 40% at 15% 55%, rgba(46,182,125,.19) 0%, transparent 70%),
-    radial-gradient(44% 36% at 80% 38%, rgba(40,150,168,.13) 0%, transparent 72%),
-    radial-gradient(70% 30% at 50% 0%,  rgba(20,92,112,.11) 0%, transparent 70%),
-    linear-gradient(162deg, var(--nền1) 0%, var(--nền2) 46%, #011A24 100%);
+  background:#01090E url("/anh/nen.jpg") center/cover no-repeat fixed;
 }
-/* vệt cực quang + tối bốn góc — cùng vai trò với dải sáng cong của bản thiết kế */
+/* phủ thêm quầng lục + tối bốn góc cho ảnh hoà vào bảng màu của HĐH */
 body::after{
   content:""; position:fixed; inset:0; pointer-events:none;
   background:
-    radial-gradient(closest-side at 22% 88%, rgba(104,209,183,.14), transparent 72%),
-    radial-gradient(closest-side at 88% 12%, rgba(84,226,155,.07), transparent 70%),
-    radial-gradient(120% 100% at 50% 48%, transparent 52%, rgba(0,0,0,.58) 100%);
+    radial-gradient(56% 42% at 15% 56%, rgba(46,182,125,.20) 0%, transparent 70%),
+    radial-gradient(46% 38% at 82% 34%, rgba(40,150,168,.13) 0%, transparent 72%),
+    radial-gradient(closest-side at 22% 88%, rgba(104,209,183,.11), transparent 74%),
+    radial-gradient(125% 105% at 50% 46%, transparent 48%, rgba(0,4,8,.62) 100%);
 }
 .ẩn{display:none !important}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 input{font:inherit}
 
 /* ══════════ MÀN ĐĂNG NHẬP ══════════ */
+/* Màn đăng nhập lấy ảnh toà nhà + cực quang của bản thiết kế làm nền, tối bớt để hộp
+   đăng nhập vẫn nổi lên. */
 .khoá{position:fixed;inset:0;display:grid;place-items:center;z-index:9000;
-  backdrop-filter:blur(3px);background:rgba(1,14,20,.42)}
-.khoá-hộp{width:330px;padding:30px 26px;text-align:center;border-radius:20px;
-  background:var(--kính);border:1px solid var(--kính-viền);box-shadow:var(--bóng);
-  backdrop-filter:blur(24px) saturate(1.3)}
+  background:#01090E url("/anh/khoa.jpg") center/cover no-repeat}
+.khoá::before{content:"";position:absolute;inset:0;
+  background:radial-gradient(58% 52% at 50% 50%, rgba(1,12,18,.42), rgba(1,9,14,.80) 100%);
+  backdrop-filter:blur(2px)}
+.khoá-hộp{position:relative;width:340px;padding:32px 28px;text-align:center;border-radius:22px;
+  background:var(--mặt);border:1px solid var(--kính-viền);box-shadow:var(--gờ), var(--bóng);
+  backdrop-filter:blur(28px) saturate(1.3)}
 .khoá-ảnh{width:74px;height:74px;margin:0 auto 14px;border-radius:50%;display:grid;place-items:center;
   font-size:30px;font-weight:600;color:#04211A;
   background:radial-gradient(circle at 34% 30%, #9BF3CE, var(--lục) 42%, var(--lục-đậm) 100%);
@@ -73,8 +90,8 @@ input{font:inherit}
 .cạnh-nav{flex:1;overflow:auto;display:flex;flex-direction:column;gap:2px}
 .cạnh-nhóm{display:flex;flex-direction:column;gap:2px;margin-top:6px;padding-top:6px;
   border-top:1px solid rgba(120,214,182,.10)}
-.mục{display:flex;align-items:center;gap:11px;width:100%;padding:9px 11px;border-radius:11px;
-  text-align:left;color:var(--chữ-mờ);border:1px solid transparent}
+.mục{display:flex;align-items:center;gap:11px;width:100%;padding:9px 11px;border-radius:12px;
+  text-align:left;color:var(--chữ-mờ);border:1px solid transparent;transition:var(--mượt)}
 .mục:hover{background:rgba(255,255,255,.05);color:var(--chữ)}
 .mục.chọn{color:var(--chữ);
   background:linear-gradient(180deg, rgba(84,226,155,.16), rgba(84,226,155,.06));
@@ -139,8 +156,8 @@ input{font:inherit}
 .menu{position:absolute;top:calc(var(--thanh-cao) + 8px);left:calc(var(--cạnh-rộng) + 14px);
   width:660px;height:520px;z-index:600;
   display:flex;flex-direction:column;border-radius:18px;overflow:hidden;
-  background:var(--kính-đặc);border:1px solid var(--kính-viền);box-shadow:var(--bóng);
-  backdrop-filter:blur(26px) saturate(1.3)}
+  background:var(--mặt);border:1px solid var(--kính-viền);box-shadow:var(--gờ), var(--bóng);
+  backdrop-filter:blur(30px) saturate(1.3)}
 .menu-đầu{display:flex;align-items:center;gap:11px;padding:12px 14px;
   border-bottom:1px solid rgba(120,214,182,.09)}
 .menu-ảnh{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:14px;
@@ -201,9 +218,10 @@ input{font:inherit}
 
 /* Khối dùng chung. KHÔNG đặt tên là `.thẻ` — lớp đó đã có sẵn ở phần nội dung ứng dụng cho
    nhãn nhỏ (`display:inline-block`), trùng tên là mọi khối ở đây thành inline-block. */
-.khối{display:flex;flex-direction:column;min-height:0;padding:13px 15px;border-radius:14px;
-  background:var(--kính);border:1px solid var(--kính-viền);box-shadow:0 10px 30px rgba(0,0,0,.32);
-  backdrop-filter:blur(20px) saturate(1.2)}
+.khối{display:flex;flex-direction:column;min-height:0;padding:14px 16px;border-radius:18px;
+  background:var(--mặt);border:1px solid var(--kính-viền);
+  box-shadow:var(--gờ), var(--bóng);
+  backdrop-filter:blur(26px) saturate(1.25)}
 .khối-đầu{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
 .khối-tiêu{font-size:14px;font-weight:600}
 .khối-tiêu.lớn{font-size:21px}
@@ -221,13 +239,19 @@ input{font:inherit}
 .chấm-sống{width:7px;height:7px;border-radius:50%;background:var(--lục);box-shadow:0 0 8px var(--lục)}
 
 /* ── thanh lệnh ── */
-.n-lệnh{display:flex;align-items:center;gap:12px;height:54px;padding:0 8px 0 10px;border-radius:27px;
-  background:var(--kính);border:1px solid var(--kính-viền);box-shadow:0 10px 30px rgba(0,0,0,.32);
-  backdrop-filter:blur(20px) saturate(1.2)}
-.n-lệnh:focus-within{border-color:rgba(84,226,155,.45)}
-.n-orb{width:36px;height:36px;flex:none;border-radius:50%;
+.n-lệnh{display:flex;align-items:center;gap:12px;height:56px;padding:0 8px 0 10px;border-radius:28px;
+  background:var(--mặt);border:1px solid var(--kính-viền);
+  box-shadow:var(--gờ), var(--bóng);transition:var(--mượt);
+  backdrop-filter:blur(26px) saturate(1.25)}
+.n-lệnh:focus-within{border-color:rgba(84,226,155,.38);
+  box-shadow:var(--gờ), var(--bóng), 0 0 0 4px rgba(84,226,155,.09)}
+/* quầng orb là ẢNH quầng sáng của bản thiết kế, phủ kiểu screen nên nền đen của ảnh
+   tự tiêu đi — không cần kênh alpha, cũng không cần vẽ lại bằng gradient */
+.n-orb{width:38px;height:38px;flex:none;border-radius:50%;position:relative;overflow:hidden;
   background:radial-gradient(circle at 50% 45%, #C9FBE6 0%, var(--ngọc) 26%, #12796A 62%, #06333A 100%);
-  box-shadow:0 0 18px rgba(84,226,155,.5)}
+  box-shadow:0 0 22px rgba(84,226,155,.45)}
+.n-orb::after{content:"";position:absolute;inset:-14%;
+  background:url("/anh/quang.jpg") center/cover no-repeat;mix-blend-mode:screen;opacity:.9}
 .n-ô{flex:1;min-width:0;background:none;border:0;outline:none;color:var(--chữ);font-size:14px}
 .n-ô::placeholder{color:var(--chữ-mờ)}
 .n-phím{flex:none;padding:3px 9px;border-radius:7px;font:600 11px/1 "Segoe UI",system-ui;
@@ -237,13 +261,16 @@ input{font:inherit}
 .n-gửi:hover{filter:brightness(1.12)}
 
 /* ── thẻ trợ lý ── */
-.tl-quầng{width:120px;height:120px;margin:12px auto 14px;border-radius:50%;flex:none;
+.tl-quầng{width:138px;height:138px;margin:14px auto 16px;border-radius:50%;flex:none;position:relative;
   background:radial-gradient(circle at 50% 44%, #DFFFF2 0%, #9BF3CE 12%, var(--ngọc) 30%, #106E63 58%, transparent 74%);
-  box-shadow:0 0 44px rgba(84,226,155,.34)}
+  box-shadow:0 0 52px rgba(84,226,155,.30)}
+.tl-quầng::after{content:"";position:absolute;inset:-26%;
+  background:url("/anh/quang.jpg") center/cover no-repeat;mix-blend-mode:screen;opacity:.95}
 .tl-lời{margin:0 0 14px;font-size:12px;line-height:1.6;color:var(--chữ-mờ);text-align:center}
 .tl-gợi{display:flex;flex-direction:column;gap:7px;margin-bottom:12px}
-.tl-nút{padding:9px 12px;border-radius:10px;text-align:left;font-size:12.5px;color:var(--chữ);
-  background:rgba(255,255,255,.05);border:1px solid var(--kính-viền)}
+.tl-nút{padding:10px 13px;border-radius:12px;text-align:left;font-size:12.5px;color:var(--chữ);
+  background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+  border:1px solid var(--kính-viền);transition:var(--mượt)}
 .tl-nút:hover{background:var(--lục-mờ);border-color:rgba(84,226,155,.34)}
 .tl-mở{margin-top:auto;width:100%}
 
@@ -254,19 +281,25 @@ input{font:inherit}
   background:rgba(255,255,255,.05);border:1px solid var(--kính-viền)}
 .kg-nút:hover{color:var(--chữ);background:rgba(255,255,255,.10)}
 .kg-lưới{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
-.kg-thẻ{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:12px 13px;
-  border-radius:14px;text-align:left;border:1px solid var(--kính-viền);
-  box-shadow:0 8px 22px rgba(0,0,0,.30)}
-.kg-thẻ:hover{filter:brightness(1.16)}
-.kg-biểu{margin-bottom:16px;width:32px;height:32px;border-radius:10px;display:grid;place-items:center;
-  font-size:16px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.14)}
+/* Bốn thẻ không-gian dùng ĐÚNG bốn ảnh nền của bản thiết kế. Chữ nằm trên ảnh nên phải
+   có lớp tối vuốt từ đáy lên, nếu không tên thẻ chìm mất vào chỗ ảnh sáng. */
+.kg-thẻ{position:relative;overflow:hidden;isolation:isolate;
+  display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:13px 14px;
+  border-radius:16px;text-align:left;border:1px solid var(--kính-viền);
+  background:#06222b center/cover no-repeat;
+  box-shadow:var(--gờ), 0 16px 34px -14px rgba(0,0,0,.62);transition:var(--mượt)}
+.kg-thẻ::before{content:"";position:absolute;inset:0;z-index:-1;
+  background:linear-gradient(180deg, rgba(2,14,20,.10) 0%, rgba(2,14,20,.52) 52%, rgba(2,12,18,.86) 100%)}
+.kg-thẻ:hover{transform:translateY(-2px);box-shadow:var(--gờ), 0 22px 44px -14px rgba(0,0,0,.7)}
+.kg-biểu{margin-bottom:18px;width:34px;height:34px;border-radius:11px;display:grid;place-items:center;
+  font-size:16px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.18);
+  backdrop-filter:blur(6px)}
 .kg-tên{font-size:13.5px;font-weight:600;color:var(--chữ)}
-.kg-phụ,.kg-đếm{font-size:11px;color:var(--chữ-mờ)}
-/* bốn sắc nền — cùng vai với bốn ảnh nền thẻ trong bản thiết kế, dựng bằng gradient */
-.kg-0{background:linear-gradient(150deg,#114131,#062a22 62%,#02211c)}
-.kg-1{background:linear-gradient(150deg,#0b2f56,#06243f 62%,#051f38)}
-.kg-2{background:linear-gradient(150deg,#123f45,#0a2b33 62%,#04202a)}
-.kg-3{background:linear-gradient(150deg,#2b2350,#17193a 62%,#101428)}
+.kg-phụ,.kg-đếm{font-size:11px;color:rgba(234,243,239,.66)}
+.kg-0{background-image:url("/anh/kg-he-thong.jpg")}
+.kg-1{background-image:url("/anh/kg-tep.jpg")}
+.kg-2{background-image:url("/anh/kg-mang.jpg")}
+.kg-3{background-image:url("/anh/kg-an-toan.jpg")}
 
 /* ── sức khoẻ hệ ── */
 .sk-trên{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
@@ -274,8 +307,9 @@ input{font:inherit}
 .sk-câu.nhỏ{font-size:14px;color:var(--chữ)}
 .sk-câu.cảnh{color:var(--vàng)}
 .sk-ô{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
-.ô-số{padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.04);
-  border:1px solid var(--kính-viền)}
+.ô-số{padding:9px 11px;border-radius:12px;border:1px solid var(--kính-viền);
+  background:linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,.015));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.045)}
 .ô-nhãn{font-size:10.5px;color:var(--chữ-mờ);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ô-giá{font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}
 .ô-giá.nhỏ{font-size:15px}
@@ -290,15 +324,18 @@ input{font:inherit}
 /* Chiều cao PHẢI xác định, không được để `min-height` không thôi: các cột con đặt
    height theo %, mà % chỉ phân giải được khi cha có height thật — nếu không cột cao 0. */
 .hd-cột{height:64px;display:flex;align-items:flex-end;gap:3px}
-.hd-cột i{flex:1;border-radius:2px 2px 0 0;
-  background:linear-gradient(180deg,var(--lục),rgba(46,182,125,.35))}
+.hd-cột i{flex:1;border-radius:4px 4px 2px 2px;
+  background:linear-gradient(180deg,var(--lục),rgba(46,182,125,.28));
+  box-shadow:0 0 10px rgba(84,226,155,.18)}
 .hd-trục{display:flex;justify-content:space-between;margin-top:6px;font-size:10.5px;color:var(--chữ-mờ)}
 
 /* ── cổng bất-khả-hồi ── */
 .cd-yên{display:flex;align-items:center;gap:14px}
-.cd-vòng{width:76px;height:76px;flex:none;border-radius:50%;
+.cd-vòng{width:84px;height:84px;flex:none;border-radius:50%;position:relative;
   background:radial-gradient(circle at 50% 45%, #C9FBE6 0%, var(--ngọc) 22%, #0f5f5c 52%, transparent 72%);
-  box-shadow:0 0 28px rgba(84,226,155,.28)}
+  box-shadow:0 0 34px rgba(84,226,155,.26)}
+.cd-vòng::after{content:"";position:absolute;inset:-30%;
+  background:url("/anh/quang.jpg") center/cover no-repeat;mix-blend-mode:screen;opacity:.95}
 .cd-nhãn{font-size:11px;color:var(--vàng);letter-spacing:.06em;text-transform:uppercase}
 .cd-mô{margin:6px 0 8px;padding:10px;border-radius:9px;color:var(--vàng);
   font:12px/1.5 "Cascadia Mono","Consolas",monospace;background:rgba(0,0,0,.30);
@@ -335,8 +372,9 @@ input{font:inherit}
 .vùng{position:absolute;inset:var(--thanh-cao) 0 100px var(--cạnh-rộng);pointer-events:none}
 .cửa{pointer-events:auto}
 .cửa{position:absolute;display:flex;flex-direction:column;min-width:340px;min-height:200px;
-  border-radius:var(--bo);overflow:hidden;background:var(--kính);
-  border:1px solid var(--kính-viền);box-shadow:var(--bóng);backdrop-filter:blur(22px) saturate(1.2)}
+  border-radius:16px;overflow:hidden;background:var(--mặt);
+  border:1px solid var(--kính-viền);box-shadow:var(--gờ), var(--bóng);
+  backdrop-filter:blur(26px) saturate(1.25)}
 .cửa.mờ{opacity:.93}
 .cửa-đầu{display:flex;align-items:center;gap:9px;padding:9px 12px;cursor:grab;user-select:none;
   background:rgba(12,37,42,.72);border-bottom:1px solid rgba(120,214,182,.10)}
@@ -416,9 +454,9 @@ code{font-family:"Cascadia Mono","Consolas",monospace;font-size:.92em;
 /* Dock canh giữa PHẦN CÒN LẠI sau cột cạnh, không canh giữa cả màn hình. */
 .dock{position:absolute;left:calc(var(--cạnh-rộng) + (100% - var(--cạnh-rộng)) / 2);bottom:16px;
   transform:translateX(-50%);z-index:400;
-  display:flex;align-items:center;gap:8px;padding:9px 13px;border-radius:22px;
-  background:rgba(6,30,40,.62);border:1px solid var(--kính-viền);
-  box-shadow:var(--bóng);backdrop-filter:blur(24px) saturate(1.3)}
+  display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:24px;
+  background:var(--mặt);border:1px solid var(--kính-viền);
+  box-shadow:var(--gờ), var(--bóng);backdrop-filter:blur(26px) saturate(1.3)}
 .dock-ô{position:relative;width:46px;height:46px;border-radius:13px;display:grid;place-items:center;
   font-size:21px;transition:transform .13s ease;
   background:
@@ -426,7 +464,7 @@ code{font-family:"Cascadia Mono","Consolas",monospace;font-size:.92em;
     linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02)),
     linear-gradient(var(--tint,transparent), var(--tint,transparent));
   border:1px solid var(--kính-viền);box-shadow:0 5px 14px rgba(0,0,0,.34)}
-.dock-ô:hover{transform:translateY(-8px) scale(1.09);background:rgba(255,255,255,.12)}
+.dock-ô:hover{transform:translateY(-9px) scale(1.10);filter:brightness(1.25)}
 .dock-ô .sáng{position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);
   width:5px;height:5px;border-radius:50%;background:var(--lục);
   box-shadow:0 0 8px var(--lục);opacity:.95}
