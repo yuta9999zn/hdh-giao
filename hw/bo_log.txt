@@ -1,3 +1,3 @@
 WARNING: gvm_bo_rom.v:312: $readmemh(program_bo.hex): Not enough words in the file for the requested range [0:4095].
-   BO DUNG sau 113444 chu ky · 1126 byte len · 1042 byte xuong
-bo_tb.v:58: $finish called at 1134445000 (1ps)
+   BO DUNG sau 113002 chu ky · 1126 byte len · 1042 byte xuong
+bo_tb.v:58: $finish called at 1130025000 (1ps)
