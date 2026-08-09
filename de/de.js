@@ -32,9 +32,23 @@ async function vào() {
   $("#bàn").classList.remove("ẩn");
   $("#khay-người").textContent = tên;
   $("#menu-tên").textContent = tên;
-  $(".khoá-ảnh").textContent = $(".menu-ảnh").textContent = tên[0].toUpperCase();
-  dựngDock(); dựngMenu(); nhịpTrạng();
+  $("#cạnh-người").textContent = tên;
+  $(".khoá-ảnh").textContent = $(".menu-ảnh").textContent =
+    $(".cạnh-ảnh").textContent = tên[0].toUpperCase();
+  chào(tên);
+  dựngCạnh(); dựngDock(); dựngMenu(); nhịpTrạng();
   mở("dòng_lệnh");
+}
+
+/* Lời chào giữa thanh trên. Giờ dùng ở đây là giờ của MÁY CHỦ KHUNG HÌNH (trình duyệt), chỉ
+   để chào cho dễ chịu. Nhịp của nhân GIAO nằm riêng ở ◷ bên trái — đừng lẫn hai thứ. */
+function chào(tên) {
+  const g = new Date().getHours();
+  const buổi = g < 11 ? "Chào buổi sáng" : g < 14 ? "Chào buổi trưa"
+             : g < 18 ? "Chào buổi chiều" : "Chào buổi tối";
+  $("#chào-lời").textContent = `${buổi}, ${tên}`;
+  $("#chào-ngày").textContent = new Date().toLocaleDateString("vi-VN",
+    { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 }
 $("#nút-vào").onclick = vào;
 $("#ô-tên").onkeydown = (e) => { if (e.key === "Enter") $("#ô-mk").focus(); };
@@ -96,6 +110,24 @@ const ỨNG_DỤNG = {
 const DOCK = ["dòng_lệnh", "tệp", "soạn_thảo", "tiến_trình", "trợ_lý", "người", "mạng",
               "nhật_ký", "soi_hệ", "thùng_rác", "bộ_nhớ", "kho"];
 const NHÓM = ["Yêu thích", "Tất cả ứng dụng", "Hệ thống", "Tệp", "Mạng", "An toàn", "Trợ lý"];
+/* Biểu tượng + dòng phụ của từng nhóm. Một bảng dùng chung cho cả cột cạnh lẫn cột trong
+   menu — trước đây biểu tượng nằm trong một mảng theo vị trí, thêm nhóm là lệch hết. */
+const MÔ_NHÓM = {
+  "Yêu thích":        ["★", "Mở nhanh"],
+  "Tất cả ứng dụng":  ["▦", "Toàn bộ kho"],
+  "Hệ thống":         ["⚙", "Nhân & tiến trình"],
+  "Tệp":              ["🗂", "Kho lưu trữ"],
+  "Mạng":             ["🌐", "Thiết bị /tb/mạng"],
+  "An toàn":          ["🛡", "Quyền & nhật ký"],
+  "Trợ lý":           ["✦", "Nói bằng lời"]
+};
+
+/* Ô ứng dụng trong bản thiết kế là kính một sắc, không phải mảng màu đặc. Giữ màu riêng của
+   từng app nhưng hạ xuống mức ánh hắt: đủ để phân biệt, không phá cái nhìn chung. */
+const mờ = (hex, a) => {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+};
 
 /* Bảng chọn chuột phải — dùng chung cho mọi ứng dụng. mục = [[nhãn, việc], …] */
 function bảngChọn(x, y, mục) {
@@ -130,7 +162,9 @@ function dựngDock() {
   $("#dock").innerHTML = "";
   for (const k of DOCK) {
     const a = ỨNG_DỤNG[k], b = document.createElement("button");
-    b.className = "dock-ô"; b.title = a.tên; b.style.background = a.màu;
+    // dock nhạt hơn lưới menu: ở dock cần dãy biểu tượng đọc như MỘT khối, còn trong menu
+    // thì màu giúp tìm đúng app nhanh hơn
+    b.className = "dock-ô"; b.title = a.tên; b.style.setProperty("--tint", mờ(a.màu, .16));
     b.innerHTML = a.biểu + `<span class="sáng ẩn"></span>`;
     b.onclick = () => mở(k);
     b.dataset.app = k;
@@ -156,12 +190,42 @@ function dựngMenu() {
   NHÓM.forEach((n, i) => {
     const b = document.createElement("button");
     b.className = "nhóm" + (i === 0 ? " chọn" : "");
-    b.innerHTML = `<span>${["★", "▦", "⚙", "🗂", "🌐", "🛡", "✦"][i]}</span><span>${n}</span>` +
+    b.dataset.nhóm = n;
+    b.innerHTML = `<span>${MÔ_NHÓM[n][0]}</span><span>${n}</span>` +
                   (["Hệ thống", "An toàn", "Trợ lý"].includes(n) ? `<span class="chấm"></span>` : "");
     b.onclick = () => { cột.querySelectorAll(".nhóm").forEach(x => x.classList.remove("chọn")); b.classList.add("chọn"); vẽLưới(n); };
     cột.appendChild(b);
   });
   vẽLưới("Yêu thích");
+}
+
+/* ══════════ CỘT CẠNH ══════════
+   Mỗi nhóm ứng dụng là một mục trong cột trái; bấm vào là mở menu đã lọc sẵn nhóm đó.
+   "Tất cả ứng dụng" bỏ qua ở đây vì mục #nút-menu tĩnh phía trên đã giữ vai đó. */
+function dựngCạnh() {
+  const hộp = $("#cạnh-nhóm"); hộp.innerHTML = "";
+  for (const n of NHÓM) {
+    if (n === "Tất cả ứng dụng") continue;
+    const [biểu, phụ] = MÔ_NHÓM[n];
+    const b = document.createElement("button");
+    b.className = "mục";
+    b.innerHTML = `<span class="mục-biểu">${biểu}</span>` +
+      `<span class="mục-chữ"><span class="mục-tên">${n}</span>` +
+      `<span class="mục-phụ">${phụ}</span></span><span class="mục-mũi">›</span>`;
+    b.onclick = (e) => { e.stopPropagation(); chọnCạnh(b); mởMenu(n); };
+    hộp.appendChild(b);
+  }
+}
+function chọnCạnh(b) {
+  document.querySelectorAll(".cạnh .mục").forEach(x => x.classList.remove("chọn"));
+  if (b) b.classList.add("chọn");
+}
+function mởMenu(nhóm) {
+  $("#menu").classList.remove("ẩn");
+  $("#menu-tìm").value = "";
+  $("#menu-nhóm").querySelectorAll(".nhóm")
+    .forEach(x => x.classList.toggle("chọn", x.dataset.nhóm === nhóm));
+  vẽLưới(nhóm);
 }
 
 function vẽLưới(nhóm, lọc = "") {
@@ -173,7 +237,7 @@ function vẽLưới(nhóm, lọc = "") {
     if (lọc && !a.tên.toLowerCase().includes(lọc.toLowerCase())) continue;
     const b = document.createElement("button");
     b.className = "ô-app";
-    b.innerHTML = `<span class="biểu" style="background:${a.màu}">${a.biểu}</span>${a.tên}`;
+    b.innerHTML = `<span class="biểu" style="--tint:${mờ(a.màu, .32)}">${a.biểu}</span>${a.tên}`;
     b.onclick = () => { mở(k); ẩnMenu(); };
     lưới.appendChild(b);
   }
@@ -183,11 +247,14 @@ $("#menu-tìm").oninput = (e) => vẽLưới("Tất cả ứng dụng", e.target
 function ẩnMenu() { $("#menu").classList.add("ẩn"); }
 $("#nút-menu").onclick = (e) => {
   e.stopPropagation();
-  $("#menu").classList.toggle("ẩn");
-  if (!$("#menu").classList.contains("ẩn")) $("#menu-tìm").focus();
+  if ($("#menu").classList.contains("ẩn")) {
+    chọnCạnh($("#nút-menu")); mởMenu("Tất cả ứng dụng"); $("#menu-tìm").focus();
+  } else ẩnMenu();
 };
+/* `closest` chứ không phải `e.target !== …`: các mục trong cột cạnh có phần tử con, bấm
+   trúng con thì e.target là con — so bằng sẽ đóng menu ngay khi vừa mở. */
 document.addEventListener("click", (e) => {
-  if (!$("#menu").contains(e.target) && e.target !== $("#nút-menu")) ẩnMenu();
+  if (!e.target.closest("#menu") && !e.target.closest(".cạnh")) ẩnMenu();
 });
 $("#menu").querySelectorAll("[data-mở]").forEach(b => b.onclick = () => { mở(b.dataset.mở); ẩnMenu(); });
 

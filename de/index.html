@@ -25,14 +25,60 @@
 <!-- ══════════ BÀN LÀM VIỆC ══════════ -->
 <div id="bàn" class="bàn ẩn">
 
+  <!-- cột cạnh: điều hướng chính -->
+  <aside class="cạnh">
+    <div class="cạnh-đầu">
+      <svg class="cạnh-dấu" viewBox="0 0 40 40" aria-hidden="true">
+        <defs><linearGradient id="dấu-lục" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#9BF3CE"/><stop offset="1" stop-color="#2EB67D"/>
+        </linearGradient></defs>
+        <!-- Vòng bốn cánh: chu vi 2πr = 84.8, chia đúng 4 nhịp 13.2 + 8.
+             Đầu nét bo tròn ăn thêm mỗi bên nửa bề dày (5.5/2), nên khe phải khai 8 mới
+             hở ra 2.5 — khai 4.2 thì đầu nét bịt kín, vòng trông như hình tròn trơn. -->
+        <circle cx="20" cy="20" r="13.5" fill="none" stroke="url(#dấu-lục)" stroke-width="5.5"
+                stroke-linecap="round" stroke-dasharray="13.2 8" transform="rotate(-24 20 20)"/>
+      </svg>
+      <div class="cạnh-chữ">
+        <div class="cạnh-tên">GIAO</div>
+        <div class="cạnh-phụ">Hệ điều hành</div>
+      </div>
+    </div>
+
+    <!-- Mục đầu để TĨNH: de.js bám #nút-menu ngay lúc nạp trang, trước cả khi đăng nhập —
+         dựng nó bằng JS thì lúc bind sẽ là null và cả tệp chết. -->
+    <nav class="cạnh-nav">
+      <button id="nút-menu" class="mục chọn" title="Mở menu ứng dụng">
+        <span class="mục-biểu">◈</span>
+        <span class="mục-chữ">
+          <span class="mục-tên">Ứng dụng</span>
+          <span class="mục-phụ">Toàn bộ kho</span>
+        </span>
+        <span class="mục-mũi">›</span>
+      </button>
+      <div id="cạnh-nhóm" class="cạnh-nhóm"></div>
+    </nav>
+
+    <div class="cạnh-chân">
+      <div class="cạnh-ảnh">A</div>
+      <div class="cạnh-chữ">
+        <div id="cạnh-người" class="cạnh-người">an</div>
+        <div class="cạnh-vai">Phiên đang mở</div>
+      </div>
+    </div>
+  </aside>
+
   <!-- thanh trên -->
   <div class="thanh">
-    <button id="nút-menu" class="thanh-nút thanh-logo" title="Ứng dụng">◈</button>
-    <button id="nút-xếp" class="thanh-nút" title="Xếp gọn mọi cửa sổ thành lưới (hết chồng nhau)">⊞</button>
+    <span class="khay-sống" title="nhân GIAO đang chạy"></span>
+    <span id="khay-nhịp" class="khay-mục" title="đồng hồ nhịp của nhân (GIAO không mượn đồng hồ máy chủ)">◷ 0</span>
+    <span id="khay-tt" class="khay-mục" title="số tiến trình đang sống">▤ 0</span>
     <div class="thanh-giữa"></div>
+    <div class="thanh-chào">
+      <div id="chào-lời" class="chào-lời">Chào bạn</div>
+      <div id="chào-ngày" class="chào-ngày"></div>
+    </div>
     <div class="khay">
-      <span id="khay-nhịp" class="khay-mục" title="đồng hồ nhịp của nhân (GIAO không mượn đồng hồ máy chủ)">◷ 0</span>
-      <span id="khay-tt" class="khay-mục" title="số tiến trình đang sống">▤ 0</span>
+      <button id="nút-xếp" class="thanh-nút" title="Xếp gọn mọi cửa sổ thành lưới (hết chồng nhau)">⊞</button>
       <span id="khay-người" class="khay-mục">an</span>
       <span id="khay-giờ" class="khay-giờ"></span>
       <button id="nút-ra" class="thanh-nút" title="Đăng xuất">⏻</button>
