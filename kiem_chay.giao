@@ -1,0 +1,7 @@
+# kiem_chay.giao — nghiệm thu: GIAO gọi được lệnh host (dùng echo vô hại).
+# python giao.py kiem_chay.giao --cho-chạy "echo"
+nhập "lib_io.giao"
+rọi "== thử chạy_lệnh host tu GIAO =="
+đặt kq = chạy_lệnh("echo", ["GIAO", "goi", "duoc", "lenh", "host"])
+nếu loại(kq) == "ẩn" { rọi "TỐI: chưa cấp --cho-chạy \"echo\" hoặc lỗi" }
+khác { rọi "SÁNG: " + kq }

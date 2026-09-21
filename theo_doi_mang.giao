@@ -1,0 +1,32 @@
+# theo_doi_mang.giao — TRÊN GIAO: xem 2 máy tính kia đang vào tên miền gì.
+# Cần: soi_mang `chen` đang/đã chạy để sinh soi_mang/so_soi.jsonl.
+# Chạy: python giao.py theo_doi_mang.giao --cho-đọc .
+nhập "lib_soi_vao.giao"
+
+đặt tệp = "soi_mang/so_soi.jsonl"
+rọi "== GIAO theo dõi: họ đang vào gì (" + tệp + ") =="
+
+đặt ds = nạp_lượt(tệp)
+nếu loại(ds) == "ẩn" {
+    rọi "CHƯA có dữ liệu. Bật bắt gói trước (dưới Kali):"
+    rọi "   bash soi_mang/chen_kali.sh 192.168.1.46 300"
+    rọi "rồi chạy lại lệnh này để xem."
+}
+khác {
+    rọi "Tổng số lượt bắt được: " + dài(ds)
+    rọi ""
+
+    # Hai máy tính cần theo dõi
+    lặp ip trong ["192.168.1.46", "192.168.1.32"] {
+        đặt của_nó = lượt_của(ds, ip)
+        rọi "--- Máy " + ip + " : " + dài(của_nó) + " lượt ---"
+        đặt miền = tên_miền_riêng(của_nó)
+        nếu dài(miền) == 0 {
+            rọi "   (chưa thấy tên miền — máy im hoặc chưa bắt kịp)"
+        }
+        khác {
+            lặp t trong miền { rọi "   • " + t }
+        }
+        rọi ""
+    }
+}

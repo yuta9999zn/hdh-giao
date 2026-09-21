@@ -21,3 +21,24 @@ hw/**/*.vvp
 
 # ───────────────────────────────────────────────────────── sổ cổng: GIỮ, đây là dữ liệu quý
 !so_cong.jsonl
+
+# ───────────────────────────────────────────────────────── khoá riêng (DEMO, sinh tự động)
+# Khoá riêng là khoá đồ chơi, sinh lại khi chạy lần đầu — KHÔNG commit (xem CONTRIBUTING §5)
+khoa_rieng.txt
+khoa_may.txt
+kho_xa/khoa_rieng.txt
+
+# ───────────────────────────────────────────────────────── subproject Rust (soi_mang) — không commit cache/bản dựng
+**/.cargo_home/
+**/target/
+soi_mang/**/*.rlib
+
+# ───────────────────────────────────────────────────────── nhật ký phiên & sao lưu
+.kiai/
+*.bak
+
+# ───────────────────────────────────────────────────────── dữ liệu BẮT ĐƯỢC từ mạng (MAC/tên miền của thiết bị khác) — KHÔNG công khai
+soi_mang/*.jsonl
+soi_mang/*.log
+soi_mang_usb/*.jsonl
+soi_mang_usb/*.log

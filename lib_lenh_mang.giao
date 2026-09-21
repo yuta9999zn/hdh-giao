@@ -1,0 +1,45 @@
+# lib_lenh_mang.giao — RUỘT cho lệnh vỏ `soi-mạng` / `xem-vào` (HDH-GIAO).
+# Đọc kết quả soi_mang (host file, nhân được cấp năng lực đọc_tệp HẸP) → chuỗi để vỏ in.
+# Nạp trong lib_vỏ.giao.
+nhập "lib_json.giao"      # phân_tích_json
+
+hàm _đọc_jsonl(tệp) {                        # host file JSONL → list bản; hỏng/chưa-cấp → ẩn
+    đặt nội = ẩn
+    thử { đặt nội = đọc_tệp(tệp) } bắt (e) { trả ẩn }
+    nếu loại(nội) == "ẩn" { trả ẩn }
+    đặt ds = []
+    lặp d trong tách(nội, "\n") {
+        nếu dài(d) == 0 { }
+        khác {
+            đặt m = phân_tích_json(d)
+            nếu loại(m) == "bản" { đặt ds = ghép(ds, [m]) }
+        }
+    }
+    trả ds
+}
+
+hàm bảng_thiết_bị(tệp) {                     # → chuỗi: ai đang nối wifi
+    đặt ds = _đọc_jsonl(tệp)
+    nếu loại(ds) == "ẩn" { trả "soi-mạng: chưa có dữ liệu. Chạy quét trước (dưới Kali): quet eth0" }
+    đặt dòng = ["  TT  IP                MAC                 HÃNG"]
+    lặp m trong ds {
+        đặt dấu = "?"
+        nếu lấy_khoá(m, "trang_thai") == "sang" { đặt dấu = "+" }
+        nếu lấy_khoá(m, "trang_thai") == "toi" { đặt dấu = "-" }
+        đặt dòng = ghép(dòng, ["  " + dấu + "   " + lấy_khoá(m, "ip") + "\t" + lấy_khoá(m, "mac") + "\t" + lấy_khoá(m, "hang")])
+    }
+    đặt dòng = ghép(dòng, ["  → " + dài(ds) + " máy đang SÁNG trên wifi."])
+    trả nối(dòng, "\n")
+}
+
+hàm bảng_vào(tệp) {                          # → chuỗi: họ đang vào tên miền gì
+    đặt ds = _đọc_jsonl(tệp)
+    nếu loại(ds) == "ẩn" { trả "xem-vào: chưa có dữ liệu — gõ `theo-dõi <ip>` để bật bắt gói trước." }
+    nếu dài(ds) == 0 { trả "xem-vào: chưa bắt được tên miền nào (máy đang im, hoặc chờ thêm)." }
+    đặt dòng = []
+    lặp m trong ds {
+        đặt dòng = ghép(dòng, ["  [" + lấy_khoá(m, "qua") + "] " + lấy_khoá(m, "ip") + " → " + lấy_khoá(m, "ten_mien")])
+    }
+    đặt dòng = ghép(dòng, ["  → " + dài(ds) + " lượt truy cập bắt được."])
+    trả nối(dòng, "\n")
+}

@@ -1,0 +1,26 @@
+# bat_theo_doi.giao — TRÊN GIAO: hệ điều hành TỰ bật bắt gói để theo dõi 1 máy.
+# giao.py chạy trên Windows → phải bắc qua `wsl` để vào Kali (nơi có raw socket).
+# Chạy (cấp năng lực chạy host — LỆNH allowlist phải KHỚP y hệt):
+#   python giao.py bat_theo_doi.giao --cho-chạy "wsl -d kali-linux -- bash /mnt/d/HeDieuHanh/GIAO/soi_mang/start_soi.sh"
+nhập "lib_io.giao"        # chạy_lệnh
+
+đặt mục_tiêu = "192.168.1.46"     # ⟵ ĐỔI IP máy cần theo dõi ở ĐÂY
+đặt giây = "600"                  # theo dõi tối đa (giây)
+
+rọi "== GIAO bật theo dõi " + mục_tiêu + " (tối đa " + giây + "s) =="
+đặt kịch = "/mnt/d/HeDieuHanh/GIAO/soi_mang/start_soi.sh"
+đặt kq = chạy_lệnh("wsl", ["-d", "kali-linux", "--", "bash", kịch, mục_tiêu, giây])
+
+nếu loại(kq) == "ẩn" {
+    rọi "KHÔNG chạy được. Kiểm tra đã cấp năng lực:"
+    rọi "  --cho-chạy \"wsl -d kali-linux -- bash " + kịch + "\""
+    rọi "và soi_mang đã build (bash soi_mang/build_kali.sh)."
+}
+khác {
+    rọi kq
+    rọi ""
+    rọi "→ Bắt gói đang chạy NỀN. Xem họ vào gì bằng:"
+    rọi "   python giao.py theo_doi_mang.giao --cho-đọc ."
+    rọi "→ Dừng theo dõi (và trả mạng) bằng:"
+    rọi "   python giao.py tat_theo_doi.giao --cho-chạy \"wsl -d kali-linux -- bash /mnt/d/HeDieuHanh/GIAO/soi_mang/tat_soi.sh\""
+}

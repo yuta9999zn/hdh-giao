@@ -2,7 +2,7 @@
   "mcpServers": {
     "giao": {
       "command": "python",
-      "args": ["D:/HeDieuHanh/GIAO/giao_mcp.py"],
+      "args": ["E:/HeDieuHanh/GIAO/giao_mcp.py"],
       "env": {
         "PYTHONIOENCODING": "utf-8",
         "PYTHONUTF8": "1"

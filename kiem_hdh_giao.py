@@ -111,7 +111,7 @@ ca("vỏ có vòng đời thật (đang xử lý = 'chạy')", "vỏ  \tchạy" 
 # ---------------- 7. /lệnh là thư mục lệnh thật ----------------
 print("\n[7] ★ /lệnh — lệnh cũng chỉ là TỆP (tra $PATH · bit x · kịch bản · bệ phóng tiến trình)")
 mã, o = chạy(["giao.py", "hdh_giao.giao"])
-ca("mỗi lệnh vỏ là một tệp trong /lệnh", "liệt /lệnh | đếm" in o and "\n62\n" in o)
+ca("mỗi lệnh vỏ là một tệp trong /lệnh", "liệt /lệnh | đếm" in o and "\n69\n" in o)
 ca("tệp lệnh KỊCH BẢN đọc được như văn bản", "# soi_hệ — xem nhanh tình trạng máy" in o)
 ca("kịch bản chạy được (nhiều dòng)", "── máy ──" in o and "giao-01" in o)
 ca("kịch bản nhận đối số $1", "lỗi đĩa" in o and "đĩa: /tạm đầy 91%" in o)

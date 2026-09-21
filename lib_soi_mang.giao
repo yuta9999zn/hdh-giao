@@ -1,0 +1,68 @@
+# ============================================================
+# lib_soi_mang.giao — CẦU NỐI: đưa kết quả soi_mang (Rust) vào GIAO như tài nguyên ba-trị.
+# ------------------------------------------------------------
+# soi_mang (Rust, chạy dưới Kali) ghi `so_thiet_bi.jsonl` — mỗi dòng 1 máy trên wifi.
+# Lib này ĐỌC file đó, phân tích JSON, và trả DANH SÁCH máy, mỗi máy là một `bản` với
+# khoá "trạng" = ba-trị (sáng=online / tối=bị chặn / ẩn=chưa rõ).
+# GIỮ CỐT LÕI: đọc thất bại / chưa cấp quyền → 'ẩn' (không crash). Nạp: nhập "lib_soi_mang.giao".
+# ============================================================
+nhập "lib_io.giao"        # đọc_dòng
+nhập "lib_json.giao"      # phân_tích_json
+
+hàm _ba_trị(tt) {                       # chuỗi trạng thái → ba-trị GIAO
+    nếu tt == "sang" { trả sáng }
+    nếu tt == "toi" { trả tối }
+    trả ẩn
+}
+
+hàm nạp_thiết_bị(tệp) {                 # → list bản (mỗi máy); chưa cấp/thiếu tệp → ẩn
+    đặt dòng = đọc_dòng(tệp)
+    nếu loại(dòng) == "ẩn" { trả ẩn }
+    đặt ds = []
+    lặp d trong dòng {
+        nếu dài(d) == 0 { }              # bỏ dòng rỗng (cuối tệp)
+        khác {
+            đặt m = phân_tích_json(d)
+            nếu loại(m) == "bản" {
+                đặt_khoá(m, "trạng", _ba_trị(lấy_khoá(m, "trang_thai")))
+                đặt ds = ghép(ds, [m])
+            }
+        }
+    }
+    trả ds
+}
+
+hàm đếm_sáng(ds) {                      # bao nhiêu máy đang online
+    đặt n = 0
+    lặp m trong ds { nếu lấy_khoá(m, "trạng") == sáng { đặt n = n + 1 } }
+    trả n
+}
+
+hàm máy_giấu(ds) {                      # list máy dùng MAC ngẫu nhiên (giấu danh tính)
+    đặt r = []
+    lặp m trong ds { nếu lấy_khoá(m, "mac_ngau_nhien") == sáng { đặt r = ghép(r, [m]) } }
+    trả r
+}
+
+hàm là_lạ(m, danh_biet) {               # MAC ngoài danh_biet (list chuỗi) → sáng (lạ), ngược lại tối
+    đặt mac = lấy_khoá(m, "mac")
+    lặp b trong danh_biet { nếu b == mac { trả tối } }
+    trả sáng
+}
+
+hàm máy_lạ(ds, danh_biet) {             # list máy KHÔNG có trong danh_biet
+    đặt r = []
+    lặp m trong ds { nếu là_lạ(m, danh_biet) == sáng { đặt r = ghép(r, [m]) } }
+    trả r
+}
+
+hàm in_bảng(ds) {                       # in gọn ra màn hình, dấu ba-trị + hãng
+    rọi "  TT  IP                MAC                 HÃNG"
+    lặp m trong ds {
+        đặt tt = lấy_khoá(m, "trạng")
+        đặt dấu = "?"
+        nếu tt == sáng { đặt dấu = "+" }
+        nếu tt == tối { đặt dấu = "-" }
+        rọi "  " + dấu + "   " + lấy_khoá(m, "ip") + "\t" + lấy_khoá(m, "mac") + "\t" + lấy_khoá(m, "hang")
+    }
+}

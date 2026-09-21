@@ -966,6 +966,13 @@ class Runtime:
         def b_nhiptim(a):                                 # backend tim vừa dùng (soi minh bạch)
             need(a,0,"nhịp_tim")
             import tim_llm; return [tim_llm.backend["sinh"], tim_llm.backend["nhúng"]]
+        def b_bo_dau(a):                                  # bỏ dấu tiếng Việt: "chạy_thật"→"chay_that" (để gõ lệnh KHÔNG DẤU)
+            need(a,1,"bỏ_dấu")
+            if not isinstance(a[0],str): self.err(f"bỏ_dấu cần chuỗi, gặp {self._loai(a[0])}")
+            import unicodedata
+            s = unicodedata.normalize('NFD', a[0])
+            s = "".join(c for c in s if unicodedata.category(c) != "Mn")
+            return s.replace("đ","d").replace("Đ","D")
         reg={"dài":b_dai,"dai":b_dai, "đầu":b_dau,"dau":b_dau, "đuôi":b_duoi,"duoi":b_duoi,
              "thêm":b_them,"them":b_them, "ghép":b_ghep,"ghep":b_ghep,
              "gom":b_gom, "đảo":b_dao,"dao":b_dao, "nối":b_noi,"noi":b_noi, "tách":b_tach,"tach":b_tach,
@@ -986,7 +993,8 @@ class Runtime:
              "γ_kỹ_năng":b_gamma_kn,"gamma_ky_nang":b_gamma_kn,
              "cộng_hưởng_thô":b_ch_tho,"cong_huong_tho":b_ch_tho,
              "cam_kết":b_cam_ket,"cam_ket":b_cam_ket,
-             "tim":b_tim, "nhúng":b_nhung,"nhung":b_nhung, "nhịp_tim":b_nhiptim,"nhip_tim":b_nhiptim}
+             "tim":b_tim, "nhúng":b_nhung,"nhung":b_nhung, "nhịp_tim":b_nhiptim,"nhip_tim":b_nhiptim,
+             "bỏ_dấu":b_bo_dau,"bo_dau":b_bo_dau}
         self.glob.update(reg)
 
     # ============================================================
@@ -1044,7 +1052,7 @@ class Runtime:
                 # (subprocess.run dạng LIST, không injection metachar) + có timeout. ⚠ Độ-hạt:
                 # cấp "git" ⇒ cho MỌI `git ...` (vd `git push --force`). Host NÊN cấp chuỗi ĐẦY-ĐỦ
                 # (vd "git status") để hẹp nhất; chỉ cấp tên-lệnh-trần khi thật sự muốn mở rộng.
-                if not any(full==c or full.startswith(c+" ") for c in cho):
+                if "*" not in cho and not any(full==c or full.startswith(c+" ") for c in cho):
                     self.err(f"chạy '{full}' KHÔNG trong danh sách cho phép")
                 try:
                     r = subprocess.run([a[0]] + [self._s(x) for x in đối],

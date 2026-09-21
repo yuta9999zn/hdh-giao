@@ -93,7 +93,7 @@ tiếng Việt. Trạng thái `tâm`/`vật` BỀN qua các lần gọi trong m�
 
 Cấu hình Claude Code — `.mcp.json` (đã có sẵn ở gốc dự án):
 ```json
-{ "mcpServers": { "giao": { "command": "python", "args": ["D:/HeDieuHanh/GIAO/giao_mcp.py"],
+{ "mcpServers": { "giao": { "command": "python", "args": ["E:/HeDieuHanh/GIAO/giao_mcp.py"],
                             "env": {"PYTHONIOENCODING":"utf-8","PYTHONUTF8":"1"} } } }
 ```
 Mở thư mục dự án trong Claude Code → server `giao` tự nạp; agent có ngay 7 tool CDFL.
@@ -117,7 +117,7 @@ chương trình GIAO KHÔNG tự nới được, ngoài phạm vi → lỗi sạ
 Khi cấp, MCP có thêm tool **`giao_doc_tep`**, **`giao_chay`** (chưa cấp ⇒ tự từ chối sạch).
 `.mcp.json` ví dụ cho GIAO đọc & chạy test trong dự án này:
 ```json
-{ "mcpServers": { "giao": { "command": "python", "args": ["D:/HeDieuHanh/GIAO/giao_mcp.py"],
+{ "mcpServers": { "giao": { "command": "python", "args": ["E:/HeDieuHanh/GIAO/giao_mcp.py"],
     "env": { "PYTHONIOENCODING":"utf-8", "PYTHONUTF8":"1",
              "GIAO_CHO_DOC":".", "GIAO_CHO_CHAY":"python --version|git status" } } } }
 ```

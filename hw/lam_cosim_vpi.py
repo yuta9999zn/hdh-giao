@@ -86,7 +86,7 @@ if not os.path.exists(gcc): print("⚠ chưa có gcc (cần dựng VPI) — dừ
 IV_GỐC = os.path.dirname(os.path.dirname(iv))
 
 # `vvp` nạp module VPI bằng dlopen ANSI ⇒ đường dẫn dự án PHẢI KHÔNG DẤU. Từ 2026-07-29 dự án
-# nằm ở D:\HeDieuHanh\GIAO nên dựng thẳng cạnh mã nguồn được, không phải chép đi đâu nữa.
+# nằm ở E:\HeDieuHanh\GIAO nên dựng thẳng cạnh mã nguồn được, không phải chép đi đâu nữa.
 DỰNG = os.environ.get("GIAO_VPI_DUNG", HW)
 os.makedirs(DỰNG, exist_ok=True)
 

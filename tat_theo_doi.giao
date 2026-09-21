@@ -1,0 +1,9 @@
+# tat_theo_doi.giao — TRÊN GIAO: hệ tự TẮT bắt gói (và vá ARP trả mạng).
+# Chạy:
+#   python giao.py tat_theo_doi.giao --cho-chạy "wsl -d kali-linux -- bash /mnt/d/HeDieuHanh/GIAO/soi_mang/tat_soi.sh"
+nhập "lib_io.giao"
+
+rọi "== GIAO dừng theo dõi =="
+đặt kq = chạy_lệnh("wsl", ["-d", "kali-linux", "--", "bash", "/mnt/d/HeDieuHanh/GIAO/soi_mang/tat_soi.sh"])
+nếu loại(kq) == "ẩn" { rọi "KHÔNG chạy được — thiếu năng lực --cho-chạy?" }
+khác { rọi kq }

@@ -29,7 +29,7 @@ def _thoát_chuỗi(s):
     return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 class Máy:
-    def __init__(self, gốc=False, ảnh=None):
+    def __init__(self, gốc=False, ảnh=None, kali=False):
         self.rt = Runtime()
         self.rt.base_dir = HERE
         # Một PHIÊN LÀM VIỆC dài (nhiều lệnh, tra $PATH, dò hệ-tệp, trợ lý soạn lệnh) vượt xa trần
@@ -38,6 +38,39 @@ class Máy:
         self.rt.MAX_STEPS = 200_000_000
         nạp_chuẩn(self.rt)
         self.rt.cấp_quyền("máy")      # HĐH được phép nạp bytecode lên GVM + cướp CPU (tiến trình MÁY)
+        # ★ soi-mạng: cấp năng lực HẸP để lệnh `soi-mạng`/`xem-vào`/`theo-dõi` trong vỏ đọc kết quả
+        #   soi wifi (so_*.jsonl) và bật/tắt bắt gói qua wsl → Kali. Phạm vi khoá chặt: CHỈ thư mục
+        #   soi_mang, CHỈ hai lệnh wsl cụ thể. (object-capability — không nới rộng.)
+        self.rt.cấp_quyền("đọc_tệp", gốc=[os.path.join(HERE, "soi_mang")])
+        _lệnh_chạy = [
+            "wsl -d kali-linux -- bash /mnt/d/HeDieuHanh/GIAO/soi_mang/start_soi.sh",
+            "wsl -d kali-linux -- bash /mnt/d/HeDieuHanh/GIAO/soi_mang/tat_soi.sh",
+            "wsl -d kali-linux -- bash /mnt/d/HeDieuHanh/GIAO/soi_mang/start_ngat.sh",
+        ]
+        if kali:
+            # ★ Chế độ --kali: cho lệnh vỏ `chạy_thật` / trợ lý gọi được các lệnh hệ nền cơ bản
+            #   (bằng TÊN-LỆNH-TRẦN ⇒ mọi đối số). Cổng `phê_duyệt` cho việc BẤT-KHẢ-HỒI vẫn nguyên.
+            _lệnh_chạy += [
+                # điều tra hệ / tệp
+                "whoami","id","uname","hostname","pwd","ls","cat","head","tail","grep","find","which",
+                "ps","df","du","free","uptime","date","echo","env","wc","sort","cut","awk","sed",
+                # mạng cơ bản
+                "ip","ifconfig","ss","netstat","ping","traceroute","tracepath","arp","route",
+                "dig","nslookup","host","whois","curl","wget",
+                # gói / dịch vụ / phát triển
+                "apt","dpkg","systemctl","service","python3","pip3","git","ssh","scp",
+            ]
+            # ★ Bộ tool bảo mật/tấn công của Kali (bạn chủ ý bật). Thêm/bớt tuỳ ý:
+            _lệnh_chạy += [
+                "nmap","masscan","arp-scan","netdiscover","tcpdump","tshark","dumpcap",
+                "aircrack-ng","airmon-ng","airodump-ng","aireplay-ng","wifite","reaver","bettercap",
+                "sqlmap","nikto","gobuster","dirb","feroxbuster","wpscan","whatweb","wafw00f","ffuf",
+                "hydra","john","hashcat","medusa","crunch","cewl",
+                "msfconsole","msfvenom","searchsploit","setoolkit",
+                "enum4linux","smbclient","smbmap","rpcclient","nbtscan","crackmapexec","responder",
+                "nc","ncat","netcat","socat","proxychains","iwconfig","iw","mtr",
+            ]
+        self.rt.cấp_quyền("chạy", lệnh=_lệnh_chạy)
         nền = os.path.join(HERE, "hdh_nền.giao")
         with open(nền, encoding="utf-8") as f:
             self.rt.exec_block(Parser(tokenize(f.read())).parse())
@@ -251,6 +284,7 @@ def _cờ_giá_trị(tên):
 
 def main():
     gốc = "--gốc" in sys.argv or "--goc" in sys.argv
+    kali = "--kali" in sys.argv or "--toàn-quyền" in sys.argv or "--toan-quyen" in sys.argv
     tệp_nạp = _cờ_giá_trị("--nạp") or _cờ_giá_trị("--nap")
     tệp_lưu = _cờ_giá_trị("--lưu") or _cờ_giá_trị("--luu")
     kịch = None
@@ -270,7 +304,7 @@ def main():
             print(f"[đĩa] không đọc được {tệp_nạp}: {e}"); sys.exit(1)
 
     try:
-        máy = Máy(gốc=gốc, ảnh=ảnh)
+        máy = Máy(gốc=gốc, ảnh=ảnh, kali=kali)
     except (GiaoError, GiaoSyntax, GiaoLimit) as e:
         print(f"[không khởi động được] {getattr(e, 'msg', e)}"); sys.exit(1)
 

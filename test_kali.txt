@@ -1,0 +1,3 @@
+chạy_thật whoami
+giúp
+thoát

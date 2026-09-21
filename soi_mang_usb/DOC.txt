@@ -1,0 +1,35 @@
+========================================================
+  soi_mang — goi bo tui, chay tren Kali Live (bare-metal)
+========================================================
+
+VI SAO GOI NAY:
+  WSL khong MITM duoc (may ao). Kali Live boot tu USB chay THANG tren phan cung
+  -> chan/soi traffic may khac hoat dong THAT.
+
+CACH DUNG (mo Terminal trong Kali Live, cd vao thu muc nay):
+
+  sudo bash chay.sh quet          # ai dang noi wifi (IP / MAC / hang)
+  sudo bash chay.sh xem 192.168.1.106   # may do dang vao ten mien gi (MITM)
+  sudo bash chay.sh da  192.168.1.106   # cho may do dung 5 phut roi CAT, lap mai
+  sudo bash chay.sh dung          # dung het + tra mang
+
+  - Tu do card wifi (thuong wlan0). Khong can sua gi.
+  - "xem": in ten mien [dns]/[sni] + ghi so_soi.jsonl. Ctrl-C de dung.
+  - Chi thay TEN MIEN (youtube.com...), KHONG thay noi dung (HTTPS ma hoa).
+  - "da" cat Internet bang ARP (may van thay wifi nhung mat mang). Ctrl-C -> tu va ARP.
+
+XAC DINH MAY CHOI GAME:
+  1) 'quet' -> loc may tinh (Intel/Realtek/Apple/MAC-ngau-nhien), bo IoT/camera/modem.
+  2) 'xem <ip>' tung may -> thay garena/riotgames/steampowered/battle.net = may game.
+  3) 'da <ip>' de da no.
+
+NEU BINARY KHONG CHAY (may khac kien truc):
+  chay.sh tu build lai bang cargo (can mang). Hoac tu chay:
+    export CARGO_HOME=$PWD/.cargo_home && cargo build --release && cp target/release/soi_mang ./soi_mang
+
+FILE TRONG GOI:
+  soi_mang     - chuong trinh (da build san cho x86_64)
+  oui.txt      - tra ten hang theo MAC
+  chay.sh      - script chay 1 lenh
+  src/, Cargo.toml - ma nguon (de build lai khi can)
+========================================================

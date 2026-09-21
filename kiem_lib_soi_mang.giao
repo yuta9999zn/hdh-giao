@@ -1,0 +1,28 @@
+# kiem_lib_soi_mang.giao — nghiệm thu cầu nối: GIAO đọc được kết quả soi_mang thật.
+# Chạy: python giao.py kiem_lib_soi_mang.giao --cho-đọc .
+nhập "lib_soi_mang.giao"
+
+đặt tệp = "soi_mang/so_thiet_bi.jsonl"
+rọi "== GIAO đọc " + tệp + " (do soi_mang Rust ghi) =="
+
+đặt ds = nạp_thiết_bị(tệp)
+nếu loại(ds) == "ẩn" {
+    rọi "CHƯA đọc được — thiếu tệp hoặc chưa cấp --cho-đọc ."
+}
+khác {
+    rọi "Số máy đọc được: " + dài(ds)
+    rọi "Đang SÁNG (online): " + đếm_sáng(ds)
+    rọi ""
+    in_bảng(ds)
+
+    rọi ""
+    đặt giấu = máy_giấu(ds)
+    rọi "-- Máy GIẤU DANH TÍNH (MAC ngẫu nhiên): " + dài(giấu) + " máy --"
+    lặp m trong giấu { rọi "   " + lấy_khoá(m, "ip") + "  " + lấy_khoá(m, "mac") }
+
+    rọi ""
+    rọi "-- Thử whitelist: chỉ coi router .1 là BIẾT → các máy còn lại là LẠ --"
+    đặt biết = ["34:b5:a3:f8:2a:a2"]
+    đặt lạ = máy_lạ(ds, biết)
+    rọi "Máy LẠ (ngoài danh sách biết): " + dài(lạ)
+}

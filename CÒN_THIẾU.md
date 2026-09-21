@@ -31,7 +31,7 @@
 > tệp cũ có dấu giữ nguyên; định danh trong mã vẫn tiếng Việt có dấu.
 >
 > **Quy ước bất di bất dịch của dự án:** mọi thứ cài vào **ổ D**, không đụng ổ C (C chỉ còn ~15 GB).
-> **Dự án nằm ở `D:\HeDieuHanh\GIAO` — đường dẫn KHÔNG DẤU. Giữ nguyên như vậy:** cả `vvp`,
+> **Dự án nằm ở `E:\HeDieuHanh\GIAO` — đường dẫn KHÔNG DẤU. Giữ nguyên như vậy:** cả `vvp`,
 > `nextpnr` lẫn `iverilog` đều mở tệp bằng API ANSI, đường dẫn có dấu là hỏng ngay.
 > Công cụ đã cài: `D:\iverilog` · `D:\mingw64` · `D:\oss-cad`. Kết quả tổng hợp ra `hw/ra/`.
 
@@ -324,7 +324,7 @@
 ## D. PHẦN CỨNG / SILICON
 
 ### D1. CẮM BO THẬT *(việc duy nhất cần MUA ĐỒ)*
-- **Trạng thái:** bitstream **đã dựng xong** — `D:\giao_bitstream\gvm.bit`, ECP5-85F, 7.067 LUT (8%),
+- **Trạng thái:** bitstream **đã dựng xong** — `E:\HeDieuHanh\GIAO\hwa\gvm.bit`, ECP5-85F, 7.067 LUT (8%),
   30 BRAM (14%), Fmax 39,66 MHz (chạy 25 MHz).
 - **Chặn bởi:** máy **không có bo FPGA nào** (`openFPGALoader --scan-usb` ra bảng rỗng).
 - **Khi có bo:**
@@ -367,7 +367,7 @@
 ## F. VẶT NHƯNG HAY CẮN
 
 - ~~**Đường dẫn tiếng Việt** phá `vvp` / `nextpnr` / `iverilog`~~ — **ĐÃ CHỮA TẬN GỐC 2026-07-29**:
-  dự án chuyển từ `D:\Hệ điều hành\GIAO` sang **`D:\HeDieuHanh\GIAO`**, mọi chỗ lách đã gỡ bỏ.
+  dự án chuyển từ `D:\Hệ điều hành\GIAO` sang **`E:\HeDieuHanh\GIAO`**, mọi chỗ lách đã gỡ bỏ.
   **Đừng đặt dự án vào thư mục có dấu nữa** — ổ D đã tắt tên 8.3 nên không lách bằng đường dẫn ngắn
   được, và cách chữa duy nhất khi ấy là chép tệp đi nơi khác.
 - **`yosys` không nuốt định danh tiếng Việt** trong RTL (chú thích thì được) ⇒ `hw/*.v` phải đặt tên

@@ -150,7 +150,7 @@ D:\Ollama\ollama.exe pull bge-m3             # nhúng đa ngữ — γ tiếng V
 D:\Ollama\ollama.exe pull llama3.2:1b        # sinh câu (tuỳ chọn)
 ```
 *Cài xong, `nhịp_tim()` tự đổi sang `ollama:bge-m3` và `ngưỡng_γ()` tự nâng lên 0.5 — không phải
-sửa một dòng GIAO nào. Bản thân HĐH-GIAO **không ghi gì ra ngoài `D:\HeDieuHanh\GIAO\`**: hệ-tệp
+sửa một dòng GIAO nào. Bản thân HĐH-GIAO **không ghi gì ra ngoài `E:\HeDieuHanh\GIAO\`**: hệ-tệp
 của nó nằm trong bộ nhớ, không đụng đĩa thật.)*
 
 ## 5.4 `sinh` chạy CHƯƠNG TRÌNH THẬT (đa nhiệm dưới bộ lập lịch)
@@ -732,7 +732,7 @@ Mô phỏng trở lại **tất định**.
 > **Bẫy đã gặp (Windows):** `vvp` nạp module VPI bằng `dlopen` đường-dẫn-**ANSI**, nên thư mục có
 > dấu tiếng Việt làm nó báo *"The specified module could not be found"* — mà ổ D lại tắt tên 8.3 nên
 > không lách bằng đường dẫn ngắn được. **Đã chữa tận gốc (v0.10.1):** dự án chuyển sang
-> `D:\HeDieuHanh\GIAO`, và mọi chỗ lách đã gỡ — `.vpi` nay dựng thẳng cạnh mã nguồn.
+> `E:\HeDieuHanh\GIAO`, và mọi chỗ lách đã gỡ — `.vpi` nay dựng thẳng cạnh mã nguồn.
 > Cần thêm trình biên dịch C: `winget install BrechtSanders.WinLibs.POSIX.MSVCRT --location D:\mingw64`.
 
 ## 5.18 Ra **BITSTREAM FPGA** — GVM thành mạch thật trên chip
@@ -805,7 +805,7 @@ DP16KD             30 /    208   14%      ← BRAM (ram · rom · stack · rstk)
 MULT18X18D          9 /    156    5%
 tần số tối đa: 39,66 MHz   (thiết kế chạy ở 25 MHz — dư 59%)
 
-D:\giao_bitstream\gvm.bit   1.997.265 byte
+E:\HeDieuHanh\GIAO\hwa\gvm.bit   1.997.265 byte
 ```
 
 Cả cái máy — GVM dựng từ NAND, γ-scheduler, opcode gọi-hệ, cầu UART, và **bytecode chương trình nằm

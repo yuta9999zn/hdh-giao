@@ -14,6 +14,7 @@ nhập "lib_gọi_hệ.giao"
 nhập "lib_bền.giao"      # chụp_máy — cho lệnh `chụp`
 nhập "lib_kho.giao"      # kho phần mềm — cho lệnh `gói`
 nhập "lib_dinh_dang.giao" # ★ B2: sổ định dạng chạy được — cho `dịch` / `định_dạng`
+nhập "lib_lenh_mang.giao" # ★ soi-mạng: đọc kết quả soi wifi (host, năng lực hẹp)
 
 # ---------------- tách dòng lệnh (giữ "chuỗi trong ngoặc kép") ----------------
 hàm _tách_lệnh(dòng) {
@@ -78,6 +79,13 @@ hàm _chuẩn_tên(t) {
     nếu t == "sched" { trả "lịch" }
     nếu t == "cc"    { trả "dịch" }       nếu t == "file"  { trả "định_dạng" }
     nếu t == "mv"    { trả "chuyển" }     nếu t == "cp"    { trả "chép" }
+    nếu t == "kali"  { trả "chạy_thật" }  nếu t == "sh"    { trả "chạy_thật" }   # ★ chạy tool Kali thật
+    nếu t == "chay_that" { trả "chạy_thật" }  nếu t == "run2" { trả "chạy_thật" }
+    # ★ Gõ lệnh tiếng Việt KHÔNG DẤU cũng được: khớp sau khi bỏ dấu cả hai bên (vd `chay_that`→`chạy_thật`).
+    đặt _kd = bỏ_dấu(t)
+    lặp _tên trong tên_lệnh_nội_trú() {
+        nếu bỏ_dấu(_tên) == _kd { trả _tên }
+    }
     trả t
 }
 
@@ -180,7 +188,9 @@ hàm tên_lệnh_nội_trú() {
          "chờ", "nhờ", "giúp", "chạy", "nhịp", "việc", "kể", "thoát", "ống", "đóng", "chụp", "chọn", "lịch",
          "người", "nhóm", "đổi_nhóm", "bỏ", "hoàn_tác", "thùng", "dọn_rác", "vì_sao",
          "xin_thoát", "bộ_nhớ", "dọn_dẹp", "kiểm_cấu_hình", "gói", "chuyển", "chép",
-         "dịch", "định_dạng", "đĩa"]
+         "dịch", "định_dạng", "đĩa",
+         "soi-mạng", "xem-vào", "theo-dõi", "tắt-dõi", "đá", "thôi-đá",   # ★ soi/đá wifi ngay trong vỏ
+         "chạy_thật"]   # ★ gọi lệnh THẬT của hệ nền (Kali): nmap, ip, cat… — cần bật HĐH bằng `--kali`
     # (`rác` KHÔNG dùng được: đã là tên một kịch bản mẫu có sẵn ở /lệnh/rác — nó sẽ đè lên.)
 }
 
@@ -668,6 +678,13 @@ hàm _nội_trú(máy, tid, đối, vào) {
         đặt con = gọi(máy, tid, GH_SINH, [tên_ct, 5, _đối_hoá(đối, 2)])
         trả _kết(0, "đã sinh tt" + con + " · " + tên_ct + " — chạy nền (gõ `nhịp` để cấp thêm lượt CPU)")
     }
+    nếu lệnh == "chạy_thật" {                                  # ★ gọi lệnh THẬT của hệ nền (Kali): nmap, ip, cat…
+        đặt cmd = _từ_thứ(đối, 1)
+        nếu loại(cmd) == "ẩn" { trả _kết(1, "chạy_thật: cần `chạy_thật <lệnh> [đối…]` (vd: chạy_thật ip a · chạy_thật nmap -sn 192.168.1.0/24)") }
+        đặt r = chạy(cmd, _đối_hoá(đối, 2))
+        nếu loại(r) == "ẩn" { trả _kết(1, "chạy_thật: KHÔNG chạy được — chưa bật HĐH bằng `--kali` (chưa cấp năng lực `chạy`), hoặc lệnh không trong danh sách / lỗi / quá giờ.") }
+        trả _kết(0, r)
+    }
     nếu lệnh == "nhịp" {                                       # nhịp [n] — quay bánh xe lập lịch
         đặt n = 8
         nếu loại(_từ_thứ(đối, 1)) == "chuỗi" { đặt n = số_hoá(đối[1]) }
@@ -723,6 +740,36 @@ hàm _nội_trú(máy, tid, đối, vào) {
         nếu m == "γ" { bật_lịch_γ(máy, sáng)  trả _kết(0, "đã bật LỊCH γ — nhân đo rồi quyết") }
         bật_lịch_γ(máy, tối)
         trả _kết(0, "đã về lịch ưu-tiên cổ điển")
+    }
+    nếu lệnh == "soi-mạng" {                                   # ★ ai đang nối wifi (đọc host)
+        trả _kết(0, bảng_thiết_bị("soi_mang/so_thiet_bi.jsonl"))
+    }
+    nếu lệnh == "xem-vào" {                                    # ★ họ đang vào tên miền gì
+        trả _kết(0, bảng_vào("soi_mang/so_soi.jsonl"))
+    }
+    nếu lệnh == "theo-dõi" {                                   # ★ bật bắt gói 1 máy (qua wsl → Kali)
+        đặt ip = _từ_thứ(đối, 1)
+        nếu loại(ip) == "ẩn" { trả _kết(1, "theo-dõi: cần `theo-dõi <ip>` (vd theo-dõi 192.168.1.46)") }
+        đặt r = chạy("wsl", ["-d", "kali-linux", "--", "bash", "/mnt/d/HeDieuHanh/GIAO/soi_mang/start_soi.sh", ip, "600"])
+        nếu loại(r) == "ẩn" { trả _kết(1, "theo-dõi: KHÔNG chạy được (thiếu năng lực chạy, hoặc soi_mang chưa build)") }
+        trả _kết(0, r + "→ Gõ `xem-vào` để xem họ vào gì · `tắt-dõi` để dừng.")
+    }
+    nếu lệnh == "tắt-dõi" {                                    # ★ dừng bắt gói + vá ARP trả mạng
+        đặt r = chạy("wsl", ["-d", "kali-linux", "--", "bash", "/mnt/d/HeDieuHanh/GIAO/soi_mang/tat_soi.sh"])
+        nếu loại(r) == "ẩn" { trả _kết(1, "tắt-dõi: KHÔNG chạy được (thiếu năng lực chạy)") }
+        trả _kết(0, r)
+    }
+    nếu lệnh == "đá" {                                         # ★ cho máy dùng 5 phút rồi CẮT, lặp mãi
+        đặt ip = _từ_thứ(đối, 1)
+        nếu loại(ip) == "ẩn" { trả _kết(1, "đá: cần `đá <ip>` (vd đá 192.168.1.32). Mặc định: dùng 5 phút, cắt 20 giây.") }
+        đặt r = chạy("wsl", ["-d", "kali-linux", "--", "bash", "/mnt/d/HeDieuHanh/GIAO/soi_mang/start_ngat.sh", ip, "5", "20"])
+        nếu loại(r) == "ẩn" { trả _kết(1, "đá: KHÔNG chạy được (thiếu năng lực chạy, hoặc chưa build binary)") }
+        trả _kết(0, r)
+    }
+    nếu lệnh == "thôi-đá" {                                    # ★ dừng đá + trả mạng
+        đặt r = chạy("wsl", ["-d", "kali-linux", "--", "bash", "/mnt/d/HeDieuHanh/GIAO/soi_mang/tat_soi.sh"])
+        nếu loại(r) == "ẩn" { trả _kết(1, "thôi-đá: KHÔNG chạy được (thiếu năng lực chạy)") }
+        trả _kết(0, r)
     }
     nếu lệnh == "giúp" { trả _kết(0, _giúp()) }
     nếu lệnh == "thoát" { gọi(máy, tid, GH_THOÁT, [])  trả _kết(0, "tạm biệt") }

@@ -13,7 +13,7 @@
    sửa, rồi `giao_hoc` kéo σ về ρ-đã-kiểm-chứng → soi lại tới `sáng`. `giao_vung_toi` để bắt ô chưa-soi.
 3. **GIAO "hỏi" = vùng tối** (DE_X chưa-tới · DE_T tri-thức-trôi · DE_IF ảo-tưởng · DE_MF chưa-phơi).
    Phải TRẢ LỜI: illuminate bằng harness/đo lại, hoặc ghi nhận việc-cần-làm.
-4. **Cuối phiên — LƯU:** cập nhật bảng + ảnh JSON bên dưới + `D:\HeDieuHanh\GIAO\TIEN_DO.md`.
+4. **Cuối phiên — LƯU:** cập nhật bảng + ảnh JSON bên dưới + `E:\HeDieuHanh\GIAO\TIEN_DO.md`.
 
 ## Nguyên tắc CDFL cốt lõi (đã rút ra)
 - **Chỉ tin một tuyên bố kỹ thuật khi HARNESS (ρ) xác nhận.** σ lệch ρ = ảo tưởng (`tối`) phải HỌC.

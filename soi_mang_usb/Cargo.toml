@@ -1,0 +1,18 @@
+[package]
+name = "soi_mang"
+version = "0.1.0"
+edition = "2021"
+description = "Soi mang nha cua GIAO — quet thiet bi wifi & MITM phong thu (ba-tri sang/toi/an)"
+
+# Chi 1 phu thuoc: libc — de goi raw socket AF_PACKET cua Linux.
+# Khong dung pcap/crate nang de giu 'hoc nguyen ly, khong be nguyen'.
+[dependencies]
+libc = "0.2"
+
+[[bin]]
+name = "soi_mang"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = 3
+lto = true

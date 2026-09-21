@@ -1,0 +1,49 @@
+# ============================================================
+# lib_soi_vao.giao — CẦU NỐI: đưa kết quả MITM (họ vào tên miền gì) vào GIAO.
+# ------------------------------------------------------------
+# soi_mang `chen` (Rust) ghi `so_soi.jsonl` — mỗi dòng: {"ip","ten_mien","qua"} (qua=dns|sni).
+# Lib này ĐỌC file đó → danh sách lượt truy cập, và gom theo IP.
+# GIỮ CỐT LÕI: đọc thất bại / chưa cấp quyền → 'ẩn'. Nạp: nhập "lib_soi_vao.giao".
+# ============================================================
+nhập "lib_io.giao"        # đọc_dòng
+nhập "lib_json.giao"      # phân_tích_json
+
+hàm nạp_lượt(tệp) {                     # → list bản {ip, ten_mien, qua}; chưa có → ẩn
+    đặt dòng = đọc_dòng(tệp)
+    nếu loại(dòng) == "ẩn" { trả ẩn }
+    đặt ds = []
+    lặp d trong dòng {
+        nếu dài(d) == 0 { }
+        khác {
+            đặt m = phân_tích_json(d)
+            nếu loại(m) == "bản" { đặt ds = ghép(ds, [m]) }
+        }
+    }
+    trả ds
+}
+
+hàm lượt_của(ds, ip) {                  # chỉ các lượt của MỘT máy
+    đặt r = []
+    lặp m trong ds { nếu lấy_khoá(m, "ip") == ip { đặt r = ghép(r, [m]) } }
+    trả r
+}
+
+hàm _có_trong(ds, tên) {                # tên miền đã có trong danh sách chưa
+    lặp x trong ds { nếu x == tên { trả sáng } }
+    trả tối
+}
+
+hàm tên_miền_riêng(ds) {                # danh sách tên miền KHÔNG trùng lặp
+    đặt r = []
+    lặp m trong ds {
+        đặt t = lấy_khoá(m, "ten_mien")
+        nếu _có_trong(r, t) == tối { đặt r = ghép(r, [t]) }
+    }
+    trả r
+}
+
+hàm in_lượt(ds) {                       # in gọn: qua-đâu · IP · tên miền
+    lặp m trong ds {
+        rọi "  [" + lấy_khoá(m, "qua") + "] " + lấy_khoá(m, "ip") + " → " + lấy_khoá(m, "ten_mien")
+    }
+}
