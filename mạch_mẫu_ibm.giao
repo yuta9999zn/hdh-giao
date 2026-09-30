@@ -1,0 +1,5 @@
+# mạch_mẫu_ibm.giao — mạch mẫu cho moi_gioi_luong_tu.py: mạch ngẫu nhiên nông 4 qubit, độ sâu 3.
+# Môi giới cần biến `m` (mạch đã ĐO_HẾT). Mạch ngẫu nhiên nông: XEB có ý nghĩa, đủ nhỏ cho máy thật hôm nay.
+nhập "lib_lượng_tử.giao"
+đặt m = mạch_ngẫu_nhiên(4, 3, 2026)
+ĐO_HẾT(m)

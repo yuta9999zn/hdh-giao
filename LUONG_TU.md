@@ -234,23 +234,30 @@ còn **chậm hơn** (256–331 ns), vì mỗi phép tính vẫn phải đóng g
 nhanh nhờ vòng lặp native trên bộ nhớ liền khối. Thư viện chuẩn Python không có vòng lặp như vậy,
 nên đây là giới hạn của hướng "không phụ thuộc thư viện ngoài". Hướng thoát là nâng GVM/WASM (mục 8).
 
-## 6. Chạy trên máy lượng tử thật (chưa kiểm ở đây)
+## 6. Chạy trên máy lượng tử thật — môi giới `moi_gioi_luong_tu.py`
+
+GVM-64 không có mạng, và không nên có. Việc gọi IBM Quantum dồn vào **một** tiến trình môi giới chạy
+ngoài hộp cát; mọi phần tính toán vẫn là GIAO trên GVM-64:
 
 ```
-python giao.py lượng_tử_bell.giao      # chép khối "OPENQASM 2.0; …" ra tệp bell.qasm
-pip install qiskit qiskit-ibm-runtime
+python moi_gioi_luong_tu.py mạch_mẫu_ibm.giao                         # chạy khô: in QASM, "cần_người_duyệt", mã 2
+python moi_gioi_luong_tu.py mạch_mẫu_ibm.giao --giả-lập 0.02 --duyệt  # thử CẢ quy trình, không cần token
+QISKIT_IBM_TOKEN=… python moi_gioi_luong_tu.py mạch_mẫu_ibm.giao --shots 1000 --đoán-xeb vừa --duyệt
 ```
-```python
-from qiskit import qasm2
-from qiskit_ibm_runtime import QiskitRuntimeService, SamplerV2
-qc = qasm2.load("bell.qasm")
-svc = QiskitRuntimeService()                 # cần token IBM Quantum
-be = svc.least_busy(operational=True, simulator=False)
-from qiskit import transpile
-job = SamplerV2(be).run([transpile(qc, be)], shots=1000)
-print(job.result()[0].data.c.get_counts())   # so với in_đếm(lấy_mẫu(…)) của GIAO
-```
-Trên phần cứng thật sẽ có nhiễu: sẽ xuất hiện một ít `01`/`10`, còn mô phỏng thì không.
+
+1. `mạch.giao` đặt biến `m` (đã `ĐO_HẾT`). Môi giới dịch nó bằng **trình biên dịch GIAO tự thân**
+   (`tu_bien_dich.sh`) và chạy trên GVM-64 để lấy OpenQASM 2.0.
+2. **Cổng người duyệt:** gửi mạch tốn hạn mức và không rút lại được, nên không có `--duyệt` thì chỉ in
+   mạch rồi thoát. Thiếu token thì cũng dừng trước bước niêm phong.
+3. **Niêm phong** dự đoán (dấu γ, khoảng XEB) vào `niem_phong.py` sau khi người duyệt, trước khi gửi.
+4. Gửi bằng `SamplerV2` (`qiskit-ibm-runtime`), lưu số đếm ở `__pycache__/luong_tu_that/`.
+5. **Chấm trên GVM-64:** `chấm_mẫu(đếm, ψ_lý_tưởng, ε)` → XEB tuyến tính + γ, rồi chấm niêm phong.
+
+Token chỉ đọc từ biến môi trường `QISKIT_IBM_TOKEN`, không ghi ra đĩa. Chế độ `--giả-lập p` thay máy
+thật bằng Aer có nhiễu khử cực p mỗi cổng, để kiểm cả quy trình khi chưa có token. Mạch mẫu 4 qubit,
+độ sâu 3, p = 0.02: XEB = 0.674, γ = +0.513; p = 0.3: XEB = 0.001, γ = −0.997 (tối).
+`kiem_moi_gioi.py` kiểm cổng duyệt + thứ tự niêm phong (trong `kiem_toan_bo.py`).
+**Chưa chạy trên máy IBM thật** — cần token của chủ dự án.
 
 ## 7. Nên gọi dự án thế nào
 
@@ -266,4 +273,4 @@ là cổ điển, và muốn có qubit vật lý thì không thể viết thêm 
    MPS cho mạch ít vướng víu. Đây là cách **duy nhất** vượt được giới hạn 2^n khi mô phỏng chính xác.
 3. Ma trận mật độ + kênh nhiễu (depolarizing, amplitude damping) để mô phỏng giống phần cứng thật.
 4. Đọc OpenQASM **vào** GIAO (hiện mới xuất ra).
-5. Chạy thử một mạch trên IBM Quantum rồi ghi số liệu thật vào tài liệu này.
+5. Chạy `moi_gioi_luong_tu.py` trên IBM Quantum thật (cần token) rồi ghi số liệu thật vào tài liệu này.
