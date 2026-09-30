@@ -1,0 +1,946 @@
+# ============================================================
+# giaoc64.giao — TRÌNH BIÊN DỊCH GIAO → BYTECODE GVM-64, VIẾT BẰNG CHÍNH GIAO (tự thân hoá)
+# ============================================================
+# Bản chép 1-1 của giaoc64.py (bộ tách từ + bộ phân tích của giao.py, rồi bộ sinh mã). Chạy TRÊN GVM-64:
+#     sh tu_bien_dich.sh chương_trình.giao > chương_trình.g64
+# tu_bien_dich.sh gói tệp chính + mọi tệp nó `nhập` (bao đóng) + chuẩn.giao + _cdfl.giao vào stdin,
+# ngay sau giaoc64_tu.g64 (chính trình biên dịch này, đã biên dịch). Máy KHÔNG thấy thư mục nào —
+# mọi tệp đến qua stdin, nên `nhập` vẫn được giải LÚC BIÊN DỊCH như giaoc64.py.
+#
+# Gói (phần còn lại của stdin, đọc bằng vào_còn()): các mục  NUL + số_byte + " " + đường_dẫn + "\n" + ĐÚNG
+# số_byte byte (UTF-8) nội dung — đếm độ dài nên nội dung có NUL cũng không sao (lib_dia.giao có).
+# Mục đầu là tệp chính. "@chuẩn.giao" và "@_cdfl.giao" là thư viện nền. Đường dẫn tương đối, dùng "/".
+# Đầu ra (ra_byte): tệp .g64 TRÙNG TỪNG BYTE với giaoc64.py (kiem_tu_bien_dich.py đối chiếu).
+#
+# Số thực trong mã nguồn: đổi thập phân → IEEE-754 double bằng SỐ LỚN chính xác, làm tròn nửa-về-chẵn
+# (đúng như float() của Python) — không dựa vào thư viện toán của máy.
+# ============================================================
+
+# ---------------- bảng hằng ----------------
+đặt TK_KW = bản()
+lặp cặp trong [["vật","vật"],["vat","vật"],["tâm","tâm"],["tam","tâm"],["giao","giao"],
+               ["học","học"],["hoc","học"],["rọi","rọi"],["roi","rọi"],["lặp","lặp"],["lap","lặp"],
+               ["nếu","nếu"],["neu","nếu"],["ngờ","ngờ"],["ngo","ngờ"],["khác","khác"],["khac","khác"],
+               ["khi","khi"],["viên_mãn","viên_mãn"],["vien_man","viên_mãn"],
+               ["ẩn","ẩn"],["an","ẩn"],["sáng","sáng"],["sang","sáng"],["tối","tối"],["toi","tối"],["de","de"],
+               ["hàm","hàm"],["ham","hàm"],["trả","trả"],["tra","trả"],["đặt","đặt"],["dat","đặt"],
+               ["thử","thử"],["thu","thử"],["bắt","bắt"],["bat","bắt"],
+               ["mãi","mãi"],["mai","mãi"],["dừng","dừng"],["dung","dừng"],["trôi","trôi"],["troi","trôi"],
+               ["nhập","nhập"],["nhap","nhập"]] {
+    đặt_khoá(TK_KW, cặp[0], cặp[1])
+}
+đặt TK_PUNCT = ["==", ">=", "<=", "!=", "⋈", "~", "=", "+", "-", "*", "//", "/", ">", "<",
+                "(", ")", "{", "}", "[", "]", ","]
+
+đặt OPC = bản()
+lặp cặp trong [["DỪNG",0],["HẰNG_NGUYÊN",1],["SỐ_NHỎ",2],["HẰNG_THỰC",3],["HẰNG_CHUỖI",4],["ẨN",5],["TẢI",6],
+               ["GHI_CB",7],["GHI_TC",8],["BỎ",9],["NHÂN_BẢN",10],
+               ["+",11],["-",12],["*",13],["/",14],["//",15],["==",16],["!=",17],["<",18],[">",19],["<=",20],[">=",21],
+               ["ĐỐI",22],["CHỈ_MỤC",23],["GÁN_CHỈ_MỤC",24],["NHẢY",25],["RẼ_BA",26],["GỌI",27],["TRẢ_VỀ",28],
+               ["TRẢ_ẨN",29],["BAO_ĐÓNG",30],["RỌI",31],["DANH_SÁCH",32],["DUYỆT_ĐẦU",33],["DUYỆT_TIẾP",34],
+               ["ĐẾM_ĐẦU",35],["ĐẾM_TIẾP",36],["THỬ",37],["HẾT_THỬ",38],["NÉM",39],["HẰNG_LỚN",40]] {
+    đặt_khoá(OPC, cặp[0], cặp[1])
+}
+
+# Builtin: THỨ TỰ phải trùng giaoc64.py (bảng dựng sẵn ghi theo thứ tự chèn)
+đặt DỰNG_SẴN = []                  # [[tên, mã], …] theo thứ tự
+lặp cặp trong [[0,"dài dai"],[1,"đầu dau"],[2,"đuôi duoi"],[3,"thêm them"],[4,"ghép ghep"],[5,"gom"],
+               [6,"đảo dao"],[7,"nối noi"],[8,"tách tach"],[9,"là_ds la_ds"],[10,"là_số la_so"],
+               [11,"rọi_ds roi_ds"],[12,"loại loai"],[13,"nguyên nguyen"],[14,"mã ma"],[15,"ký_tự ky_tu"],
+               [16,"xor"],[17,"và_bit va_bit"],[18,"hoặc_bit hoac_bit"],[19,"đảo_bit dao_bit"],
+               [20,"dịch_trái dich_trai"],[21,"dịch_phải dich_phai"],[22,"log"],[23,"mũ mu"],[24,"căn can"],
+               [25,"bản ban"],[26,"đặt_khoá dat_khoa"],[27,"lấy_khoá lay_khoa"],[28,"có_khoá co_khoa"],
+               [29,"xoá_khoá xoa_khoa"],[30,"khoá khoa"],[31,"giá_trị gia_tri"],[32,"tạo_tri tao_tri"],
+               [33,"γ_của gamma_cua"],[34,"giờ_hệ"],
+               [35,"cộng_hưởng cong_huong"],[36,"cộng_hưởng_thô cong_huong_tho"],[37,"γ_kỹ_năng gamma_ky_nang"],
+               [38,"cam_kết cam_ket"],[39,"bỏ_dấu bo_dau"],[60,"tim"],[61,"nhúng nhung"],[62,"nhịp_tim nhip_tim"],
+               [40,"mảng_sẵn mang_san"],[41,"mảng_không mang_khong"],[42,"mảng_từ mang_tu"],[43,"m_dài"],
+               [44,"m_lấy"],[45,"m_gán"],[46,"m_sao"],[47,"m_sang_ds"],[48,"m_chọn"],[49,"m_đặt_chọn"],
+               [50,"m_tổ_hợp"],[51,"m_nhân_số"],[52,"m_biến_đổi_cặp"],[53,"m_nhân_chọn"],[54,"m_đổi_chọn"],
+               [55,"m_tổng_mô2_chọn"],[56,"m_tổng_mô2"],[57,"m_mô2_ds"],[58,"m_tích_trong"],[59,"m_rút"],
+               [63,"m_biến_đổi_bốn"],[64,"ngẫu_hệ ngau_he"],[65,"__ném"],[66,"vào_còn vao_con"],[67,"ra_byte"]] {
+    lặp tên trong tách(cặp[1], " ") {
+        # bản Python là dict: tên trùng thì GIỮ vị trí cũ, đổi mã (không xảy ra ở bảng này)
+        gom(DỰNG_SẴN, [tên, cặp[0]])
+    }
+}
+
+hàm lỗi(thông_điệp) { __ném("[GIAOC64] " + thông_điệp) }
+
+# ============================================================
+# 1. BỘ TÁCH TỪ (bám giao.py tokenize)
+# ============================================================
+hàm _cp_số(c) { trả c >= 48 }                        # (dùng kèm <= 57)
+hàm là_chữ_số(ch) {
+    đặt c = mã(ch)
+    nếu c < 48 { trả tối }
+    nếu c > 57 { trả tối }
+    trả sáng
+}
+# Chữ cái kiểu str.isalpha() của Python, cho các khối chữ gặp trong mã GIAO (Latin, tiếng Việt, Hy Lạp,
+# Kirin, Latin mở rộng, CJK, kana, Hangul). Ngoài các khối này ⇒ không phải chữ (Python có thể khác —
+# kiem_tu_bien_dich.py đối chiếu trên mọi tệp của dự án).
+hàm _trong(c, a, b) {
+    nếu c < a { trả tối }
+    nếu c > b { trả tối }
+    trả sáng
+}
+hàm là_chữ(ch) {
+    đặt c = mã(ch)
+    nếu _trong(c, 65, 90) { trả sáng }
+    nếu _trong(c, 97, 122) { trả sáng }
+    nếu c < 170 { trả tối }
+    nếu c == 170 { trả sáng }  nếu c == 181 { trả sáng }  nếu c == 186 { trả sáng }
+    nếu _trong(c, 192, 591) { nếu c == 215 { trả tối }  nếu c == 247 { trả tối }  trả sáng }
+    nếu _trong(c, 592, 705) { trả sáng }
+    nếu _trong(c, 710, 721) { trả sáng }
+    nếu _trong(c, 736, 740) { trả sáng }
+    nếu c == 748 { trả sáng }  nếu c == 750 { trả sáng }
+    nếu _trong(c, 880, 1023) {
+        nếu c == 884 { trả tối }  nếu c == 885 { trả tối }  nếu c == 888 { trả tối }  nếu c == 889 { trả tối }
+        nếu c == 894 { trả tối }  nếu c == 900 { trả tối }  nếu c == 901 { trả tối }  nếu c == 903 { trả tối }
+        nếu c == 907 { trả tối }  nếu c == 909 { trả tối }  nếu c == 930 { trả tối }  nếu c == 1014 { trả tối }
+        trả sáng
+    }
+    nếu _trong(c, 1024, 1153) { trả sáng }
+    nếu _trong(c, 1162, 1327) { trả sáng }
+    nếu _trong(c, 7680, 7935) { trả sáng }           # Latin mở rộng bổ sung — tiếng Việt
+    nếu _trong(c, 7936, 8188) {
+        nếu c == 8125 { trả tối }  nếu _trong(c, 8127, 8129) { trả tối }  nếu _trong(c, 8141, 8143) { trả tối }
+        nếu _trong(c, 8157, 8159) { trả tối }  nếu _trong(c, 8173, 8175) { trả tối }
+        trả sáng
+    }
+    nếu _trong(c, 12353, 12438) { trả sáng }
+    nếu _trong(c, 12449, 12538) { trả sáng }
+    nếu _trong(c, 19968, 40959) { trả sáng }
+    nếu _trong(c, 44032, 55203) { trả sáng }
+    trả tối
+}
+hàm đầu_tên(ch) { nếu ch == "_" { trả sáng }  trả là_chữ(ch) }
+hàm thân_tên(ch) {
+    nếu ch == "_" { trả sáng }
+    nếu là_chữ_số(ch) { trả sáng }
+    trả là_chữ(ch)
+}
+
+hàm tok(k, v, dòng, cột) { đặt t = bản()  đặt_khoá(t, "k", k)  đặt_khoá(t, "v", v)  đặt_khoá(t, "d", dòng)  đặt_khoá(t, "c", cột)  trả t }
+
+# thập phân (chuỗi chữ số + tối đa một dấu chấm) → 64 bit IEEE-754 (số nguyên không âm), làm tròn nửa-về-chẵn
+hàm _độ_dài_bit(x) {
+    đặt n = 0
+    mãi { nếu x == 0 { dừng }  đặt x = dịch_phải(x, 1)  đặt n = n + 1 }
+    trả n
+}
+hàm _mũ2(k) { trả dịch_trái(1, k) }
+hàm bit_thực(chuỗi_số) {
+    đặt tử = 0  đặt thập = 0  đặt sau_chấm = tối
+    lặp ch trong chuỗi_số {
+        nếu ch == "." { đặt sau_chấm = sáng } khác {
+            đặt tử = tử * 10 + (mã(ch) - 48)
+            nếu sau_chấm { đặt thập = thập + 1 }
+        }
+    }
+    nếu tử == 0 { trả 0 }
+    đặt mẫu = 1
+    lặp thập { đặt mẫu = mẫu * 10 }
+    # tìm k để q = ⌊tử·2^k / mẫu⌋ ∈ [2^52, 2^53)
+    đặt k = 53 - (_độ_dài_bit(tử) - _độ_dài_bit(mẫu))
+    đặt q = 0  đặt dư_ = 0  đặt chia = mẫu
+    mãi {
+        đặt tt = tử  đặt cc = mẫu
+        nếu k >= 0 { đặt tt = dịch_trái(tử, k) } khác { đặt cc = dịch_trái(mẫu, 0 - k) }
+        đặt q = tt // cc
+        nếu q >= _mũ2(53) { đặt k = k - 1 } khác {
+            nếu q < _mũ2(52) { đặt k = k + 1 } khác {
+                đặt dư_ = tt - q * cc  đặt chia = cc
+                dừng
+            }
+        }
+    }
+    # làm tròn nửa-về-chẵn
+    đặt hai_dư = dư_ * 2
+    nếu hai_dư > chia { đặt q = q + 1 } khác {
+        nếu hai_dư == chia { nếu và_bit(q, 1) == 1 { đặt q = q + 1 } }
+    }
+    nếu q == _mũ2(53) { đặt q = _mũ2(52)  đặt k = k - 1 }
+    đặt mũ = 52 - k + 1023
+    nếu mũ <= 0 { lỗi("số thực quá nhỏ (dưới chuẩn) " + chuỗi_số) }
+    nếu mũ >= 2047 { lỗi("số thực quá lớn " + chuỗi_số) }
+    trả dịch_trái(mũ, 52) + (q - _mũ2(52))
+}
+
+hàm _thoát(ch) {
+    nếu ch == "n" { trả "\n" }
+    nếu ch == "t" { trả "\t" }
+    trả ch                                             # " \ và mọi ký tự khác: giữ nguyên
+}
+
+hàm tách_từ(src) {
+    đặt toks = []  đặt n = dài(src)
+    đặt st = bản()  đặt_khoá(st, "i", 0)  đặt_khoá(st, "dòng", 1)  đặt_khoá(st, "đầu_dòng", 0)
+    mãi {
+        nếu lấy_khoá(st, "i") >= n { dừng }
+        _tách_một(src, n, st, toks)
+    }
+    đặt i = lấy_khoá(st, "i")  đặt dòng = lấy_khoá(st, "dòng")  đặt cột = i - lấy_khoá(st, "đầu_dòng") + 1
+    gom(toks, tok("NL", "\\n", dòng, cột))  gom(toks, tok("EOF", ẩn, dòng, cột))
+    trả toks
+}
+
+hàm _tách_một(src, n, st, toks) {
+    đặt i = lấy_khoá(st, "i")  đặt dòng = lấy_khoá(st, "dòng")  đặt cột = i - lấy_khoá(st, "đầu_dòng") + 1
+    đặt c = src[i]
+    nếu c == "\n" {
+        gom(toks, tok("NL", "\\n", dòng, cột))
+        đặt_khoá(st, "dòng", dòng + 1)  đặt_khoá(st, "i", i + 1)  đặt_khoá(st, "đầu_dòng", i + 1)  trả ẩn
+    }
+    nếu c == " " { đặt_khoá(st, "i", i + 1)  trả ẩn }
+    nếu c == "\t" { đặt_khoá(st, "i", i + 1)  trả ẩn }
+    nếu mã(c) == 13 { đặt_khoá(st, "i", i + 1)  trả ẩn }
+    nếu c == "#" {
+        đặt j = i
+        mãi { nếu j >= n { dừng }  nếu src[j] == "\n" { dừng }  đặt j = j + 1 }
+        đặt_khoá(st, "i", j)  trả ẩn
+    }
+    nếu c == "\"" {
+        đặt j = i + 1  đặt buf = []
+        mãi {
+            nếu j >= n { dừng }
+            đặt cj = src[j]
+            nếu cj == "\"" { dừng }
+            nếu cj == "\\" {
+                nếu j + 1 < n { gom(buf, _thoát(src[j + 1]))  đặt j = j + 2 } khác { gom(buf, cj)  đặt j = j + 1 }
+            } khác { gom(buf, cj)  đặt j = j + 1 }
+        }
+        nếu j >= n { lỗi("chuỗi không đóng (thiếu \") — dòng " + dòng + ", cột " + cột) }
+        gom(toks, tok("STR", nối(buf, ""), dòng, cột))
+        đặt_khoá(st, "i", j + 1)  trả ẩn
+    }
+    đặt bắt_đầu_số = là_chữ_số(c)
+    nếu c == "." { nếu i + 1 < n { nếu là_chữ_số(src[i + 1]) { đặt bắt_đầu_số = sáng } } }
+    nếu bắt_đầu_số {
+        đặt j = i  đặt buf = []  đặt chấm = 0
+        mãi {
+            nếu j >= n { dừng }
+            đặt cj = src[j]
+            nếu cj == "." { đặt chấm = chấm + 1 } khác { nếu là_chữ_số(cj) == tối { dừng } }
+            gom(buf, cj)  đặt j = j + 1
+        }
+        đặt num = nối(buf, "")
+        nếu chấm > 1 { lỗi("số sai (nhiều dấu chấm) '" + num + "' — dòng " + dòng) }
+        đặt t = tok("NUM", ẩn, dòng, cột)
+        nếu chấm == 1 { đặt_khoá(t, "thực", sáng)  đặt_khoá(t, "v", bit_thực(num)) } khác {
+            đặt v = 0
+            lặp ch trong buf { đặt v = v * 10 + (mã(ch) - 48) }
+            đặt_khoá(t, "thực", tối)  đặt_khoá(t, "v", v)
+        }
+        gom(toks, t)  đặt_khoá(st, "i", j)  trả ẩn
+    }
+    nếu đầu_tên(c) {
+        đặt j = i  đặt buf = []
+        mãi { nếu j >= n { dừng }  nếu thân_tên(src[j]) == tối { dừng }  gom(buf, src[j])  đặt j = j + 1 }
+        đặt từ = nối(buf, "")
+        nếu có_khoá(TK_KW, từ) { gom(toks, tok("KW", lấy_khoá(TK_KW, từ), dòng, cột)) } khác { gom(toks, tok("ID", từ, dòng, cột)) }
+        đặt_khoá(st, "i", j)  trả ẩn
+    }
+    lặp p trong TK_PUNCT {
+        đặt L = dài(p)  đặt khớp = sáng
+        nếu i + L > n { đặt khớp = tối } khác {
+            đặt q = 0
+            lặp L { nếu src[i + q] != p[q] { đặt khớp = tối }  đặt q = q + 1 }
+        }
+        nếu khớp { gom(toks, tok("OP", p, dòng, cột))  đặt_khoá(st, "i", i + L)  trả ẩn }
+    }
+    lỗi("ký tự lạ '" + c + "' — dòng " + dòng + ", cột " + cột)
+}
+
+# ============================================================
+# 2. BỘ PHÂN TÍCH (bám giao.py Parser) — nút là bản có khoá "t" (tên lớp)
+# ============================================================
+hàm nút(t) { đặt x = bản()  đặt_khoá(x, "t", t)  trả x }
+hàm nút2(t, k1, v1) { đặt x = nút(t)  đặt_khoá(x, k1, v1)  trả x }
+hàm nút3(t, k1, v1, k2, v2) { đặt x = nút2(t, k1, v1)  đặt_khoá(x, k2, v2)  trả x }
+hàm nút4(t, k1, v1, k2, v2, k3, v3) { đặt x = nút3(t, k1, v1, k2, v2)  đặt_khoá(x, k3, v3)  trả x }
+
+hàm PS(toks) { đặt p = bản()  đặt_khoá(p, "toks", toks)  đặt_khoá(p, "pos", 0)  trả p }
+hàm ps_xem(p, k) { trả lấy_khoá(p, "toks")[lấy_khoá(p, "pos") + k] }
+hàm ps_tới(p) { đặt t = ps_xem(p, 0)  đặt_khoá(p, "pos", lấy_khoá(p, "pos") + 1)  trả t }
+hàm ps_là(p, k, v) {
+    đặt t = ps_xem(p, 0)
+    nếu lấy_khoá(t, "k") != k { trả tối }
+    nếu loại(v) == "ẩn" { trả sáng }
+    trả lấy_khoá(t, "v") == v
+}
+hàm ps_ăn(p, k, v) {
+    đặt t = ps_xem(p, 0)
+    đặt đúng = sáng
+    nếu lấy_khoá(t, "k") != k { đặt đúng = tối }
+    nếu loại(v) != "ẩn" { nếu lấy_khoá(t, "v") != v { đặt đúng = tối } }
+    nếu đúng == tối {
+        đặt chờ = v  nếu loại(v) == "ẩn" { đặt chờ = "" }
+        lỗi("cú pháp: chờ " + k + " " + chờ + ", gặp " + lấy_khoá(t, "k") + " " + lấy_khoá(t, "v") + " — dòng " + lấy_khoá(t, "d") + ", cột " + lấy_khoá(t, "c"))
+    }
+    trả ps_tới(p)
+}
+hàm ps_bỏ_nl(p) { mãi { nếu ps_là(p, "NL", ẩn) == tối { dừng }  ps_tới(p) } }
+
+hàm phân_tích(toks) {
+    đặt p = PS(toks)  đặt ds = []
+    ps_bỏ_nl(p)
+    mãi { nếu ps_là(p, "EOF", ẩn) { dừng }  gom(ds, câu(p))  ps_bỏ_nl(p) }
+    trả ds
+}
+hàm khối(p) {
+    ps_ăn(p, "OP", "{")  ps_bỏ_nl(p)  đặt ds = []
+    mãi { nếu ps_là(p, "OP", "}") { dừng }  gom(ds, câu(p))  ps_bỏ_nl(p) }
+    ps_ăn(p, "OP", "}")  trả ds
+}
+hàm tham_số(p) {
+    ps_ăn(p, "OP", "(")  đặt ds = []
+    nếu ps_là(p, "OP", ")") == tối {
+        gom(ds, lấy_khoá(ps_ăn(p, "ID", ẩn), "v"))
+        mãi { nếu ps_là(p, "OP", ",") == tối { dừng }  ps_tới(p)  gom(ds, lấy_khoá(ps_ăn(p, "ID", ẩn), "v")) }
+    }
+    ps_ăn(p, "OP", ")")  trả ds
+}
+
+hàm câu(p) {
+    đặt t = ps_xem(p, 0)  đặt k = lấy_khoá(t, "k")  đặt v = lấy_khoá(t, "v")
+    nếu k == "KW" {
+        nếu v == "vật" { trả _khai(p, v) }
+        nếu v == "tâm" { trả _khai(p, v) }
+        nếu v == "đặt" {
+            ps_tới(p)  đặt tên = lấy_khoá(ps_ăn(p, "ID", ẩn), "v")
+            nếu ps_là(p, "OP", "[") {
+                đặt idxs = []
+                mãi {
+                    nếu ps_là(p, "OP", "[") == tối { dừng }
+                    ps_tới(p)  ps_bỏ_nl(p)  gom(idxs, bt(p))  ps_bỏ_nl(p)  ps_ăn(p, "OP", "]")
+                }
+                ps_ăn(p, "OP", "=")  trả nút4("DatIndex", "name", tên, "idxs", idxs, "expr", bt(p))
+            }
+            ps_ăn(p, "OP", "=")  trả nút3("Dat", "name", tên, "expr", bt(p))
+        }
+        nếu v == "hàm" {
+            ps_tới(p)  đặt tên = lấy_khoá(ps_ăn(p, "ID", ẩn), "v")  đặt ps = tham_số(p)
+            trả nút4("HamDef", "name", tên, "params", ps, "body", khối(p))
+        }
+        nếu v == "trả" { ps_tới(p)  trả nút2("Tra", "expr", bt(p)) }
+        nếu v == "nhập" { ps_tới(p)  trả nút2("Nhap", "path", lấy_khoá(ps_ăn(p, "STR", ẩn), "v")) }
+        nếu v == "học" { ps_tới(p)  trả nút2("Hoc", "name", lấy_khoá(ps_ăn(p, "ID", ẩn), "v")) }
+        nếu v == "giao" {
+            ps_tới(p)  đặt đích = lấy_khoá(ps_ăn(p, "ID", ẩn), "v")  ps_ăn(p, "OP", "=")
+            nếu ps_là(p, "KW", "tâm") {
+                ps_tới(p)  đặt ifn = lấy_khoá(ps_ăn(p, "ID", ẩn), "v")
+                đặt nối_ = tối
+                nếu ps_là(p, "OP", "⋈") { đặt nối_ = sáng }
+                nếu ps_là(p, "OP", "~") { đặt nối_ = sáng }
+                nếu nối_ { ps_tới(p) } khác { ps_ăn(p, "OP", "⋈") }
+                ps_ăn(p, "KW", "vật")  đặt mfn = lấy_khoá(ps_ăn(p, "ID", ẩn), "v")
+                trả nút4("Giao", "target", đích, "ifname", ifn, "mfname", mfn)
+            }
+            đặt nm = lấy_khoá(ps_ăn(p, "ID", ẩn), "v")
+            trả nút4("Giao", "target", đích, "ifname", nm, "mfname", nm)
+        }
+        nếu v == "rọi" { ps_tới(p)  trả nút2("Roi", "expr", bt(p)) }
+        nếu v == "lặp" {
+            ps_tới(p)
+            nếu ps_là(p, "ID", ẩn) {
+                đặt t1 = ps_xem(p, 1)
+                nếu lấy_khoá(t1, "k") == "ID" { nếu lấy_khoá(t1, "v") == "trong" {
+                    đặt tên = lấy_khoá(ps_ăn(p, "ID", ẩn), "v")  ps_tới(p)
+                    đặt it = bt(p)
+                    trả nút4("LapTrong", "var", tên, "iterable", it, "body", khối(p))
+                } }
+            }
+            đặt cnt = bt(p)  trả nút3("Lap", "count", cnt, "body", khối(p))
+        }
+        nếu v == "mãi" { ps_tới(p)  trả nút2("Mai", "body", khối(p)) }
+        nếu v == "dừng" { ps_tới(p)  trả nút("Dung") }
+        nếu v == "trôi" {
+            ps_tới(p)
+            nếu ps_là(p, "ID", ẩn) {
+                đặt tên = lấy_khoá(ps_ăn(p, "ID", ẩn), "v")  ps_ăn(p, "OP", "=")
+                trả nút3("TroiReg", "name", tên, "expr", bt(p))
+            }
+            trả nút("TroiTick")
+        }
+        nếu v == "nếu" {
+            ps_tới(p)  đặt đk = bt(p)  đặt thì = khối(p)  đặt ngờ_ = ẩn  đặt khác_ = ẩn  ps_bỏ_nl(p)
+            nếu ps_là(p, "KW", "ngờ") { ps_tới(p)  đặt ngờ_ = khối(p)  ps_bỏ_nl(p) }
+            nếu ps_là(p, "KW", "khác") { ps_tới(p)  đặt khác_ = khối(p) }
+            đặt x = nút4("Neu", "cond", đk, "then", thì, "ngo", ngờ_)  đặt_khoá(x, "khac", khác_)  trả x
+        }
+        nếu v == "khi" {
+            ps_tới(p)  ps_ăn(p, "KW", "viên_mãn")  đặt e = bt(p)
+            trả nút3("KhiVienMan", "expr", e, "body", khối(p))
+        }
+        nếu v == "thử" {
+            ps_tới(p)  đặt thử_ = khối(p)  ps_bỏ_nl(p)
+            ps_ăn(p, "KW", "bắt")  đặt tên = ẩn
+            nếu ps_là(p, "OP", "(") { ps_tới(p)  đặt tên = lấy_khoá(ps_ăn(p, "ID", ẩn), "v")  ps_ăn(p, "OP", ")") }
+            trả nút4("ThuBat", "thu", thử_, "ten", tên, "bat", khối(p))
+        }
+    }
+    trả nút2("ExprStmt", "expr", bt(p))
+}
+hàm _khai(p, trường) {
+    ps_tới(p)  đặt tên = lấy_khoá(ps_ăn(p, "ID", ẩn), "v")  ps_ăn(p, "OP", "=")
+    trả nút4("Decl", "field", trường, "name", tên, "expr", bt(p))
+}
+
+# biểu thức: so sánh < cộng < nhân < hậu tố < nguyên tử
+hàm _là_op_trong(p, ds) {
+    đặt t = ps_xem(p, 0)
+    nếu lấy_khoá(t, "k") != "OP" { trả tối }
+    trả chứa(ds, lấy_khoá(t, "v"))
+}
+hàm bt(p) {
+    đặt trái = _cộng(p)
+    mãi {
+        nếu _là_op_trong(p, ["==", "!=", ">", "<", ">=", "<="]) == tối { dừng }
+        đặt op = lấy_khoá(ps_tới(p), "v")  đặt trái = nút4("Bin", "op", op, "l", trái, "r", _cộng(p))
+    }
+    trả trái
+}
+hàm _cộng(p) {
+    đặt trái = _nhân(p)
+    mãi {
+        nếu _là_op_trong(p, ["+", "-"]) == tối { dừng }
+        đặt op = lấy_khoá(ps_tới(p), "v")  đặt trái = nút4("Bin", "op", op, "l", trái, "r", _nhân(p))
+    }
+    trả trái
+}
+hàm _nhân(p) {
+    đặt trái = _hậu_tố(p)
+    mãi {
+        nếu _là_op_trong(p, ["*", "/", "//"]) == tối { dừng }
+        đặt op = lấy_khoá(ps_tới(p), "v")  đặt trái = nút4("Bin", "op", op, "l", trái, "r", _hậu_tố(p))
+    }
+    trả trái
+}
+hàm _hậu_tố(p) {
+    đặt e = _nguyên_tử(p)
+    mãi {
+        nếu ps_là(p, "OP", "(") {
+            ps_tới(p)  ps_bỏ_nl(p)  đặt args = []
+            nếu ps_là(p, "OP", ")") == tối {
+                gom(args, bt(p))  ps_bỏ_nl(p)
+                mãi { nếu ps_là(p, "OP", ",") == tối { dừng }  ps_tới(p)  ps_bỏ_nl(p)  gom(args, bt(p))  ps_bỏ_nl(p) }
+            }
+            ps_ăn(p, "OP", ")")  đặt e = nút3("Goi", "callee", e, "args", args)
+        } khác {
+            nếu ps_là(p, "OP", "[") {
+                ps_tới(p)  ps_bỏ_nl(p)  đặt idx = bt(p)  ps_bỏ_nl(p)  ps_ăn(p, "OP", "]")
+                đặt e = nút3("Index", "coll", e, "idx", idx)
+            } khác { dừng }
+        }
+    }
+    trả e
+}
+hàm _nguyên_tử(p) {
+    đặt t = ps_xem(p, 0)  đặt k = lấy_khoá(t, "k")  đặt v = lấy_khoá(t, "v")
+    nếu k == "NUM" { ps_tới(p)  trả nút3("Num", "thực", lấy_khoá(t, "thực"), "v", v) }
+    nếu k == "STR" { ps_tới(p)  trả nút2("Str", "v", v) }
+    nếu k == "OP" {
+        nếu v == "-" { ps_tới(p)  trả nút2("Unary", "e", _hậu_tố(p)) }
+        nếu v == "(" { ps_tới(p)  ps_bỏ_nl(p)  đặt e = bt(p)  ps_bỏ_nl(p)  ps_ăn(p, "OP", ")")  trả e }
+        nếu v == "[" {
+            ps_tới(p)  ps_bỏ_nl(p)  đặt els = []
+            nếu ps_là(p, "OP", "]") == tối {
+                gom(els, bt(p))  ps_bỏ_nl(p)
+                mãi { nếu ps_là(p, "OP", ",") == tối { dừng }  ps_tới(p)  ps_bỏ_nl(p)  gom(els, bt(p))  ps_bỏ_nl(p) }
+            }
+            ps_bỏ_nl(p)  ps_ăn(p, "OP", "]")  trả nút2("ListLit", "elems", els)
+        }
+    }
+    nếu k == "KW" {
+        nếu v == "hàm" { ps_tới(p)  đặt ps = tham_số(p)  trả nút3("Lam", "params", ps, "body", khối(p)) }
+        nếu v == "ẩn" { ps_tới(p)  trả nút("AnLit") }
+        nếu v == "sáng" { ps_tới(p)  trả nút2("TruthLit", "sáng", sáng) }
+        nếu v == "tối" { ps_tới(p)  trả nút2("TruthLit", "sáng", tối) }
+        nếu v == "de" { ps_tới(p)  trả nút("DeQuery") }
+        nếu v == "tâm" { ps_tới(p)  trả nút3("FieldRef", "field", v, "name", lấy_khoá(ps_ăn(p, "ID", ẩn), "v")) }
+        nếu v == "vật" { ps_tới(p)  trả nút3("FieldRef", "field", v, "name", lấy_khoá(ps_ăn(p, "ID", ẩn), "v")) }
+    }
+    nếu k == "ID" { ps_tới(p)  trả nút2("VarRef", "name", v) }
+    lỗi("cú pháp: không hiểu biểu thức tại " + k + " " + v + " — dòng " + lấy_khoá(t, "d") + ", cột " + lấy_khoá(t, "c"))
+}
+
+# ============================================================
+# 3. BỘ SINH MÃ (bám giaoc64.py GiaoC64)
+# ============================================================
+đặt C = bản()
+hàm C_đặt(k, v) { đặt_khoá(C, k, v) }
+hàm C_lấy(k) { trả lấy_khoá(C, k) }
+hàm khởi_bộ_dịch() {
+    C_đặt("mã", [])  C_đặt("ints", [])  C_đặt("ints_i", bản())  C_đặt("floats", [])  C_đặt("floats_i", bản())
+    C_đặt("strs", [])  C_đặt("strs_i", bản())  C_đặt("hàm", [])  C_đặt("chờ", [])  C_đặt("chờ_đầu", 0)
+    C_đặt("tc", bản())  C_đặt("chuỗi_tên", [])  C_đặt("chuỗi_tên_i", bản())  C_đặt("mục", [])
+    C_đặt("pv", ẩn)  C_đặt("lc", 0)  C_đặt("vòng", [])  C_đặt("thử", 0)
+    C_đặt("đã_nhập", bản())  C_đặt("đang_nhập", [])  C_đặt("thư_mục", [""])  C_đặt("tên_người_dùng", bản())
+    lặp cặp trong DỰNG_SẴN { ô_tc(cặp[0]) }
+}
+
+hàm nhãn() { C_đặt("lc", C_lấy("lc") + 1)  trả "L" + C_lấy("lc") }
+hàm phát(op, arg) {
+    nếu arg < 0 - 8388608 { lỗi("toán hạng " + arg + " vượt 24 bit") }
+    nếu arg >= 16777216 { lỗi("toán hạng " + arg + " vượt 24 bit") }
+    gom(C_lấy("mã"), và_bit(arg, 16777215) * 256 + lấy_khoá(OPC, op))
+}
+hàm phát0(op) { phát(op, 0) }
+hàm phát_j(op, lbl) { gom(C_lấy("mã"), ["J", lấy_khoá(OPC, op), lbl]) }
+hàm phát_w(lbl) { gom(C_lấy("mã"), ["W", lbl]) }
+hàm đặt_nhãn(lbl) { gom(C_lấy("mã"), ["L", lbl]) }
+hàm ô_tc(tên) {
+    đặt tc = C_lấy("tc")
+    nếu có_khoá(tc, tên) == tối { đặt_khoá(tc, tên, dài(tc)) }
+    trả lấy_khoá(tc, tên)
+}
+hàm chuỗi_(s) {
+    đặt m = C_lấy("strs_i")
+    nếu có_khoá(m, s) == tối { đặt_khoá(m, s, dài(C_lấy("strs")))  gom(C_lấy("strs"), s) }
+    trả lấy_khoá(m, s)
+}
+hàm hằng_int(v) {
+    nếu v >= 0 - 8388608 { nếu v < 8388608 { phát("SỐ_NHỎ", v)  trả ẩn } }
+    đặt ngoài = tối
+    nếu v < 0 - 9223372036854775807 - 1 { đặt ngoài = sáng }
+    nếu v > 9223372036854775807 { đặt ngoài = sáng }
+    nếu ngoài { phát("HẰNG_LỚN", chuỗi_("" + v))  trả ẩn }
+    đặt m = C_lấy("ints_i")
+    nếu có_khoá(m, v) == tối { đặt_khoá(m, v, dài(C_lấy("ints")))  gom(C_lấy("ints"), v) }
+    phát("HẰNG_NGUYÊN", lấy_khoá(m, v))
+}
+hàm hằng_thực(bit) {                                  # khoá = 64 bit IEEE (như struct.pack("<d"))
+    đặt m = C_lấy("floats_i")
+    nếu có_khoá(m, bit) == tối { đặt_khoá(m, bit, dài(C_lấy("floats")))  gom(C_lấy("floats"), bit) }
+    phát("HẰNG_THỰC", lấy_khoá(m, bit))
+}
+hàm pv_ô_ẩn(pv, k) { đặt s = lấy_khoá(pv, "số_ô")  đặt_khoá(pv, "số_ô", s + k)  trả s }
+hàm ô_ẩn(k) {
+    đặt pv = C_lấy("pv")
+    nếu loại(pv) != "ẩn" { trả pv_ô_ẩn(pv, k) }
+    C_đặt("lc", C_lấy("lc") + 1)  đặt lc = C_lấy("lc")
+    đặt s = ô_tc("__ẩn" + lc)
+    đặt i = 1
+    lặp k - 1 { ô_tc("__ẩn" + lc + "_" + i)  đặt i = i + 1 }
+    trả hoặc_bit(s, 8388608)
+}
+
+hàm tải(tên) {
+    đặt chuỗi = []  đặt pv = C_lấy("pv")  đặt sâu = 0
+    mãi {
+        nếu loại(pv) == "ẩn" { dừng }
+        đặt tb = lấy_khoá(pv, "tên")
+        nếu có_khoá(tb, tên) { gom(chuỗi, [0, sâu, lấy_khoá(tb, tên)]) }
+        đặt pv = lấy_khoá(pv, "cha")  đặt sâu = sâu + 1
+    }
+    gom(chuỗi, [1, 0, ô_tc(tên)])
+    đặt khoá = tên
+    lặp x trong chuỗi { đặt khoá = khoá + "|" + x[0] + "," + x[1] + "," + x[2] }
+    đặt m = C_lấy("chuỗi_tên_i")
+    nếu có_khoá(m, khoá) == tối {
+        đặt_khoá(m, khoá, dài(C_lấy("chuỗi_tên")))
+        gom(C_lấy("chuỗi_tên"), [dài(C_lấy("mục")), dài(chuỗi), chuỗi_(tên)])
+        lặp x trong chuỗi { gom(C_lấy("mục"), x[0])  gom(C_lấy("mục"), x[1])  gom(C_lấy("mục"), x[2]) }
+    }
+    phát("TẢI", lấy_khoá(m, khoá))
+}
+hàm ghi(tên) {
+    đặt pv = C_lấy("pv")
+    nếu loại(pv) != "ẩn" {
+        đặt tb = lấy_khoá(pv, "tên")
+        nếu có_khoá(tb, tên) == tối { đặt_khoá(tb, tên, pv_ô_ẩn(pv, 1)) }
+        phát("GHI_CB", lấy_khoá(tb, tên))  trả ẩn
+    }
+    phát("GHI_TC", ô_tc(tên))
+}
+
+hàm _gọi(tên, đối) { trả nút3("Goi", "callee", nút2("VarRef", "name", tên), "args", đối) }
+hàm _str(s) { trả nút2("Str", "v", s) }
+
+hàm bt_dịch(n) {
+    đặt t = lấy_khoá(n, "t")
+    nếu t == "Num" {
+        nếu lấy_khoá(n, "thực") { hằng_thực(lấy_khoá(n, "v")) } khác { hằng_int(lấy_khoá(n, "v")) }
+        trả ẩn
+    }
+    nếu t == "Str" { phát("HẰNG_CHUỖI", chuỗi_(lấy_khoá(n, "v")))  trả ẩn }
+    nếu t == "AnLit" { phát0("ẨN")  trả ẩn }
+    nếu t == "TruthLit" {
+        nếu lấy_khoá(n, "sáng") == sáng { phát("HẰNG_CHUỖI", chuỗi_("sáng")) } khác { phát("HẰNG_CHUỖI", chuỗi_("tối")) }
+        trả ẩn
+    }
+    nếu t == "ListLit" {
+        đặt els = lấy_khoá(n, "elems")
+        lặp x trong els { bt_dịch(x) }
+        phát("DANH_SÁCH", dài(els))  trả ẩn
+    }
+    nếu t == "VarRef" { tải(lấy_khoá(n, "name"))  trả ẩn }
+    nếu t == "Bin" {
+        bt_dịch(lấy_khoá(n, "l"))  bt_dịch(lấy_khoá(n, "r"))
+        đặt op = lấy_khoá(n, "op")
+        nếu có_khoá(OPC, op) == tối { lỗi("phép '" + op + "' chưa hỗ trợ") }
+        phát0(op)  trả ẩn
+    }
+    nếu t == "Unary" { bt_dịch(lấy_khoá(n, "e"))  phát0("ĐỐI")  trả ẩn }
+    nếu t == "Index" { bt_dịch(lấy_khoá(n, "coll"))  bt_dịch(lấy_khoá(n, "idx"))  phát0("CHỈ_MỤC")  trả ẩn }
+    nếu t == "Goi" {
+        bt_dịch(lấy_khoá(n, "callee"))
+        đặt args = lấy_khoá(n, "args")
+        lặp a trong args { bt_dịch(a) }
+        phát("GỌI", dài(args))  trả ẩn
+    }
+    nếu t == "Lam" { phát("BAO_ĐÓNG", hàm_mới("λ", lấy_khoá(n, "params"), lấy_khoá(n, "body")))  trả ẩn }
+    nếu t == "FieldRef" { bt_dịch(_gọi("__cdfl_đọc", [_str(lấy_khoá(n, "field")), _str(lấy_khoá(n, "name"))]))  trả ẩn }
+    nếu t == "DeQuery" { bt_dịch(_gọi("__cdfl_de", []))  trả ẩn }
+    lỗi("biểu thức " + t + " chưa hỗ trợ")
+}
+
+hàm hàm_mới(tên, params, body) {
+    đặt chỉ = dài(C_lấy("hàm"))
+    đặt repr_ = "<hàm " + tên + "(" + nối(params, ", ") + ")>"
+    gom(C_lấy("hàm"), [ẩn, dài(params), 0, chuỗi_(tên), chuỗi_(repr_)])
+    gom(C_lấy("chờ"), [chỉ, tên, params, body, C_lấy("pv")])
+    trả chỉ
+}
+
+hàm gom_cục_bộ(stmts) {
+    đặt tên = []
+    _gom_đi(stmts, tên)
+    trả tên
+}
+hàm _gom_thêm(tên, n) { nếu chứa(tên, n) == tối { gom(tên, n) } }
+hàm _gom_đi(ss, tên) {
+    lặp s trong ss {
+        đặt t = lấy_khoá(s, "t")
+        nếu t == "Dat" { _gom_thêm(tên, lấy_khoá(s, "name")) }
+        nếu t == "HamDef" { _gom_thêm(tên, lấy_khoá(s, "name")) }
+        nếu t == "LapTrong" { _gom_thêm(tên, lấy_khoá(s, "var"))  _gom_đi(lấy_khoá(s, "body"), tên) }
+        nếu t == "Lap" { _gom_đi(lấy_khoá(s, "body"), tên) }
+        nếu t == "Mai" { _gom_đi(lấy_khoá(s, "body"), tên) }
+        nếu t == "Neu" {
+            _gom_đi(lấy_khoá(s, "then"), tên)
+            nếu loại(lấy_khoá(s, "ngo")) != "ẩn" { _gom_đi(lấy_khoá(s, "ngo"), tên) }
+            nếu loại(lấy_khoá(s, "khac")) != "ẩn" { _gom_đi(lấy_khoá(s, "khac"), tên) }
+        }
+        nếu t == "ThuBat" {
+            _gom_đi(lấy_khoá(s, "thu"), tên)
+            nếu loại(lấy_khoá(s, "ten")) != "ẩn" { _gom_thêm(tên, lấy_khoá(s, "ten")) }
+            _gom_đi(lấy_khoá(s, "bat"), tên)
+        }
+    }
+}
+hàm phạm_vi(cha, tham, cục_bộ) {
+    đặt pv = bản()  đặt tb = bản()
+    đặt_khoá(pv, "cha", cha)  đặt_khoá(pv, "tên", tb)
+    lặp n trong tham { đặt_khoá(tb, n, dài(tb)) }        # như dict Python: tên[n] = len(tên) (tham trùng → gán lại)
+    lặp n trong cục_bộ { nếu chứa(tham, n) == tối { nếu có_khoá(tb, n) == tối { đặt_khoá(tb, n, dài(tb)) } } }
+    đặt_khoá(pv, "số_ô", dài(tb))
+    trả pv
+}
+
+hàm khối_dịch(ss) { lặp s trong ss { câu_dịch(s) } }
+hàm câu_dịch(s) {
+    đặt t = lấy_khoá(s, "t")
+    nếu t == "Dat" { bt_dịch(lấy_khoá(s, "expr"))  ghi(lấy_khoá(s, "name"))  trả ẩn }
+    nếu t == "DatIndex" {
+        tải(lấy_khoá(s, "name"))
+        đặt idxs = lấy_khoá(s, "idxs")  đặt m = dài(idxs)  đặt i = 0
+        lặp m - 1 { bt_dịch(idxs[i])  phát0("CHỈ_MỤC")  đặt i = i + 1 }
+        bt_dịch(idxs[m - 1])  bt_dịch(lấy_khoá(s, "expr"))  phát0("GÁN_CHỈ_MỤC")  trả ẩn
+    }
+    nếu t == "ExprStmt" {
+        đặt e_ = lấy_khoá(s, "expr")
+        nếu lấy_khoá(e_, "t") == "Goi" {
+            đặt cal = lấy_khoá(e_, "callee")
+            nếu lấy_khoá(cal, "t") == "VarRef" {
+                đặt nm = lấy_khoá(cal, "name")
+                đặt là_thêm = tối
+                nếu nm == "thêm" { đặt là_thêm = sáng }  nếu nm == "them" { đặt là_thêm = sáng }
+                nếu là_thêm { nếu có_khoá(C_lấy("tên_người_dùng"), nm) == tối {
+                    phát("NÉM", chuỗi_("kết quả của 'thêm' bị VỨT — 'thêm' KHÔNG sửa danh sách tại chỗ, câu lệnh này không đổi gì cả. Chèn tại chỗ: gom(ds, x) · giữ bản mới: đặt ds = thêm(ds, x)"))
+                    trả ẩn
+                } }
+            }
+        }
+        bt_dịch(e_)  phát0("BỎ")  trả ẩn
+    }
+    nếu t == "Roi" { bt_dịch(lấy_khoá(s, "expr"))  phát0("RỌI")  trả ẩn }
+    nếu t == "Neu" {
+        đặt L_ngờ = nhãn()  đặt L_khác = nhãn()  đặt L_hết = nhãn()
+        bt_dịch(lấy_khoá(s, "cond"))
+        đặt có_ngờ = loại(lấy_khoá(s, "ngo")) != "ẩn"
+        nếu có_ngờ { phát_j("RẼ_BA", L_ngờ) } khác { phát_j("RẼ_BA", L_khác) }
+        phát_w(L_khác)
+        khối_dịch(lấy_khoá(s, "then"))  phát_j("NHẢY", L_hết)
+        nếu có_ngờ { đặt_nhãn(L_ngờ)  khối_dịch(lấy_khoá(s, "ngo"))  phát_j("NHẢY", L_hết) }
+        đặt_nhãn(L_khác)
+        nếu loại(lấy_khoá(s, "khac")) != "ẩn" { khối_dịch(lấy_khoá(s, "khac")) }
+        đặt_nhãn(L_hết)  trả ẩn
+    }
+    nếu t == "Lap" {
+        đặt ô = ô_ẩn(1)  đặt L0 = nhãn()  đặt L1 = nhãn()
+        bt_dịch(lấy_khoá(s, "count"))  phát("ĐẾM_ĐẦU", ô)
+        đặt_nhãn(L0)  phát("ĐẾM_TIẾP", ô)  phát_w(L1)
+        _vòng_thân(L1, lấy_khoá(s, "body"))
+        phát_j("NHẢY", L0)  đặt_nhãn(L1)  trả ẩn
+    }
+    nếu t == "LapTrong" {
+        đặt ô = ô_ẩn(2)  đặt L0 = nhãn()  đặt L1 = nhãn()
+        bt_dịch(lấy_khoá(s, "iterable"))  phát("DUYỆT_ĐẦU", ô)
+        đặt_nhãn(L0)  phát("DUYỆT_TIẾP", ô)  phát_w(L1)
+        ghi(lấy_khoá(s, "var"))
+        _vòng_thân(L1, lấy_khoá(s, "body"))
+        phát_j("NHẢY", L0)  đặt_nhãn(L1)  trả ẩn
+    }
+    nếu t == "Mai" {
+        đặt L0 = nhãn()  đặt L1 = nhãn()
+        đặt_nhãn(L0)
+        _vòng_thân(L1, lấy_khoá(s, "body"))
+        phát_j("NHẢY", L0)  đặt_nhãn(L1)  trả ẩn
+    }
+    nếu t == "Dung" {
+        đặt vòng = C_lấy("vòng")
+        nếu dài(vòng) == 0 { lỗi("'dừng' nằm ngoài vòng lặp") }
+        đặt v = vòng[dài(vòng) - 1]
+        lặp C_lấy("thử") - v[1] { phát0("HẾT_THỬ") }
+        phát_j("NHẢY", v[0])  trả ẩn
+    }
+    nếu t == "Tra" {
+        nếu loại(C_lấy("pv")) == "ẩn" { lỗi("'trả' nằm ngoài hàm") }
+        bt_dịch(lấy_khoá(s, "expr"))
+        lặp C_lấy("thử") { phát0("HẾT_THỬ") }
+        phát0("TRẢ_VỀ")  trả ẩn
+    }
+    nếu t == "HamDef" {
+        phát("BAO_ĐÓNG", hàm_mới(lấy_khoá(s, "name"), lấy_khoá(s, "params"), lấy_khoá(s, "body")))
+        ghi(lấy_khoá(s, "name"))  trả ẩn
+    }
+    nếu t == "ThuBat" {
+        đặt L_bắt = nhãn()  đặt L_hết = nhãn()
+        phát_j("THỬ", L_bắt)  C_đặt("thử", C_lấy("thử") + 1)
+        khối_dịch(lấy_khoá(s, "thu"))
+        C_đặt("thử", C_lấy("thử") - 1)  phát0("HẾT_THỬ")  phát_j("NHẢY", L_hết)
+        đặt_nhãn(L_bắt)
+        nếu loại(lấy_khoá(s, "ten")) != "ẩn" { ghi(lấy_khoá(s, "ten")) } khác { phát0("BỎ") }
+        khối_dịch(lấy_khoá(s, "bat"))
+        đặt_nhãn(L_hết)  trả ẩn
+    }
+    nếu t == "Nhap" { nhập_(lấy_khoá(s, "path"))  trả ẩn }
+    # ---- tầng CDFL: hạ xuống lời gọi _cdfl.giao ----
+    nếu t == "Decl" {
+        câu_dịch(nút2("ExprStmt", "expr", _gọi("__cdfl_khai", [_str(lấy_khoá(s, "field")), _str(lấy_khoá(s, "name")), lấy_khoá(s, "expr")])))
+        trả ẩn
+    }
+    nếu t == "Hoc" { câu_dịch(nút2("ExprStmt", "expr", _gọi("__cdfl_học", [_str(lấy_khoá(s, "name"))])))  trả ẩn }
+    nếu t == "Giao" {
+        câu_dịch(nút3("Dat", "name", lấy_khoá(s, "target"), "expr", _gọi("__cdfl_giao", [_str(lấy_khoá(s, "ifname")), _str(lấy_khoá(s, "mfname"))])))
+        trả ẩn
+    }
+    nếu t == "TroiReg" {
+        đặt lam = nút3("Lam", "params", [], "body", [nút2("Tra", "expr", lấy_khoá(s, "expr"))])
+        câu_dịch(nút2("ExprStmt", "expr", _gọi("__cdfl_trôi_đk", [_str(lấy_khoá(s, "name")), lam])))
+        trả ẩn
+    }
+    nếu t == "TroiTick" { câu_dịch(nút2("ExprStmt", "expr", _gọi("__cdfl_trôi", [])))  trả ẩn }
+    nếu t == "KhiVienMan" {
+        đặt x = nút4("Neu", "cond", _gọi("__cdfl_viên_mãn", [lấy_khoá(s, "expr")]), "then", lấy_khoá(s, "body"), "ngo", ẩn)
+        đặt_khoá(x, "khac", ẩn)  câu_dịch(x)  trả ẩn
+    }
+    lỗi("câu lệnh " + t + " chưa hỗ trợ")
+}
+hàm _vòng_thân(L1, body) {
+    gom(C_lấy("vòng"), [L1, C_lấy("thử")])
+    khối_dịch(body)
+    đặt v = C_lấy("vòng")  C_đặt("vòng", lát_ds(v, 0, dài(v) - 1))
+}
+hàm lát_ds(ds, a, b) { đặt r = []  đặt i = a  lặp b - a { gom(r, ds[i])  đặt i = i + 1 }  trả r }
+
+# ---------------- đường dẫn (thay os.path.realpath trong cây gói) ----------------
+hàm chuẩn_hoá_đường(p) {
+    đặt phần = []
+    lặp x trong tách(p, "/") {
+        nếu x == "" { } khác { nếu x == "." { } khác {
+            nếu x == ".." {
+                nếu dài(phần) == 0 { gom(phần, "..") } khác {
+                    nếu phần[dài(phần) - 1] == ".." { gom(phần, "..") } khác { đặt phần = lát_ds(phần, 0, dài(phần) - 1) }
+                }
+            } khác { gom(phần, x) }
+        } }
+    }
+    trả nối(phần, "/")
+}
+hàm thư_mục_của(p) {
+    đặt phần = tách(p, "/")
+    nếu dài(phần) <= 1 { trả "" }
+    trả nối(lát_ds(phần, 0, dài(phần) - 1), "/")
+}
+hàm _đuôi_giao(p) {
+    đặt n = dài(p)
+    nếu n < 5 { trả tối }
+    trả p[n - 5] + p[n - 4] + p[n - 3] + p[n - 2] + p[n - 1] == ".giao"
+}
+hàm _thay_gạch(p) {
+    đặt ra = []
+    lặp ch trong p { nếu ch == "\\" { gom(ra, "/") } khác { gom(ra, ch) } }
+    trả nối(ra, "")
+}
+
+đặt GÓI = bản()                                        # đường_dẫn → nội dung
+hàm nạp_tệp(đường) {
+    nếu có_khoá(GÓI, đường) == tối { lỗi("không có tệp '" + đường + "' trong gói (tu_bien_dich.sh chưa gói nó)") }
+    trả phân_tích(tách_từ(lấy_khoá(GÓI, đường)))
+}
+
+hàm nhập_(path) {
+    đặt p = _thay_gạch(path)
+    đặt ngoài = tối
+    nếu dài(p) > 0 { nếu p[0] == "/" { đặt ngoài = sáng } }
+    nếu dài(p) > 1 { nếu p[1] == ":" { đặt ngoài = sáng } }
+    đặt tm = C_lấy("thư_mục")
+    đặt real = chuẩn_hoá_đường(tm[dài(tm) - 1] + "/" + p)
+    nếu _đuôi_giao(real) == tối { lỗi("nhập chỉ nạp tệp .giao: '" + path + "'") }
+    nếu real == ".." { đặt ngoài = sáng }
+    nếu dài(real) >= 3 { nếu real[0] + real[1] + real[2] == "../" { đặt ngoài = sáng } }
+    nếu ngoài { lỗi("nhập '" + path + "' NGOÀI cây thư mục dự án") }
+    nếu có_khoá(C_lấy("đã_nhập"), real) { trả ẩn }
+    nếu chứa(C_lấy("đang_nhập"), real) { lỗi("nhập VÒNG (circular): '" + path + "'") }
+    đặt ast = nạp_tệp(real)
+    đặt_khoá(C_lấy("đã_nhập"), real, sáng)  gom(C_lấy("đang_nhập"), real)  gom(C_lấy("thư_mục"), thư_mục_của(real))
+    đặt pv0 = C_lấy("pv")  đặt vòng0 = C_lấy("vòng")  đặt thử0 = C_lấy("thử")
+    C_đặt("pv", ẩn)  C_đặt("vòng", [])  C_đặt("thử", 0)
+    đánh_dấu_tên(ast)  khối_dịch(ast)
+    C_đặt("pv", pv0)  C_đặt("vòng", vòng0)  C_đặt("thử", thử0)
+    đặt dn = C_lấy("đang_nhập")  C_đặt("đang_nhập", lát_ds(dn, 0, dài(dn) - 1))
+    đặt tm2 = C_lấy("thư_mục")  C_đặt("thư_mục", lát_ds(tm2, 0, dài(tm2) - 1))
+}
+hàm đánh_dấu_tên(ast) {
+    lặp s trong ast { nếu lấy_khoá(s, "t") == "HamDef" { đặt_khoá(C_lấy("tên_người_dùng"), lấy_khoá(s, "name"), sáng) } }
+}
+
+hàm biên_dịch(ast_chuẩn, ast) {
+    đánh_dấu_tên(ast_chuẩn)  đánh_dấu_tên(ast)
+    khối_dịch(ast_chuẩn)  khối_dịch(ast)
+    phát0("DỪNG")
+    mãi {
+        đặt chờ = C_lấy("chờ")
+        nếu C_lấy("chờ_đầu") >= dài(chờ) { dừng }
+        đặt mục = chờ[C_lấy("chờ_đầu")]  C_đặt("chờ_đầu", C_lấy("chờ_đầu") + 1)
+        đặt chỉ = mục[0]  đặt body = mục[3]
+        đặt L = "F" + chỉ
+        đặt h = C_lấy("hàm")[chỉ]  đặt h[0] = L
+        đặt_nhãn(L)
+        đặt pv0 = C_lấy("pv")  đặt vòng0 = C_lấy("vòng")  đặt thử0 = C_lấy("thử")
+        C_đặt("pv", phạm_vi(mục[4], mục[2], gom_cục_bộ(body)))  C_đặt("vòng", [])  C_đặt("thử", 0)
+        khối_dịch(body)
+        phát0("TRẢ_ẨN")
+        đặt h[2] = lấy_khoá(C_lấy("pv"), "số_ô")
+        C_đặt("pv", pv0)  C_đặt("vòng", vòng0)  C_đặt("thử", thử0)
+    }
+    trả lắp()
+}
+
+hàm lắp() {
+    đặt địa_chỉ = 0  đặt nh = bản()
+    lặp x trong C_lấy("mã") {
+        nếu loại(x) == "số" { đặt địa_chỉ = địa_chỉ + 1 } khác {
+            nếu x[0] == "L" { đặt_khoá(nh, x[1], địa_chỉ) } khác { đặt địa_chỉ = địa_chỉ + 1 }
+        }
+    }
+    đặt từ = []
+    lặp x trong C_lấy("mã") {
+        nếu loại(x) == "số" { gom(từ, x) } khác {
+            nếu x[0] == "J" { gom(từ, và_bit(lấy_khoá(nh, x[2]), 16777215) * 256 + x[1]) }
+            nếu x[0] == "W" { gom(từ, lấy_khoá(nh, x[1])) }
+        }
+    }
+    lặp h trong C_lấy("hàm") { đặt h[0] = lấy_khoá(nh, h[0]) }
+    trả từ
+}
+
+# ---------------- ghi nhị phân .g64 ----------------
+hàm ghi_u32(b, x) {
+    đặt v = và_bit(x, 4294967295)
+    gom(b, và_bit(v, 255))  gom(b, và_bit(dịch_phải(v, 8), 255))  gom(b, và_bit(dịch_phải(v, 16), 255))  gom(b, dịch_phải(v, 24))
+}
+hàm ghi_u64(b, v) {                                    # v ≥ 0 hoặc âm (bù hai 64 bit)
+    đặt x = v
+    nếu x < 0 { đặt x = x + 18446744073709551616 }
+    lặp 8 { gom(b, x - x // 256 * 256)  đặt x = x // 256 }
+}
+hàm nhị_phân(từ) {
+    đặt b = [71, 54, 52, 1]
+    ghi_u32(b, dài(từ))  lặp w trong từ { ghi_u32(b, w) }
+    ghi_u32(b, dài(C_lấy("ints")))  lặp v trong C_lấy("ints") { ghi_u64(b, v) }
+    ghi_u32(b, dài(C_lấy("floats")))  lặp v trong C_lấy("floats") { ghi_u64(b, v) }
+    ghi_u32(b, dài(C_lấy("strs")))
+    lặp s trong C_lấy("strs") { ghi_u32(b, dài(s))  lặp ch trong s { ghi_u32(b, mã(ch)) } }
+    ghi_u32(b, dài(C_lấy("hàm")))  lặp h trong C_lấy("hàm") { lặp x trong h { ghi_u32(b, x) } }
+    ghi_u32(b, dài(C_lấy("chuỗi_tên")))  lặp c trong C_lấy("chuỗi_tên") { lặp x trong c { ghi_u32(b, x) } }
+    ghi_u32(b, dài(C_lấy("mục")))  lặp x trong C_lấy("mục") { ghi_u32(b, x) }
+    ghi_u32(b, dài(C_lấy("tc")))
+    # dict Python: tên trùng giữ vị trí ĐẦU, mã của lần CUỐI — bảng hiện tại không có tên trùng
+    ghi_u32(b, dài(DỰNG_SẴN))
+    lặp cặp trong DỰNG_SẴN { ghi_u32(b, lấy_khoá(C_lấy("tc"), cặp[0]))  ghi_u32(b, cặp[1]) }
+    trả b
+}
+
+# ============================================================
+# 4. CHẠY: đọc gói từ stdin → biên dịch → ghi .g64 ra stdout
+# ============================================================
+đặt VÀO = vào_còn()
+nếu dài(VÀO) == 0 { lỗi("stdin trống — dùng: sh tu_bien_dich.sh tệp.giao > tệp.g64") }
+hàm _byte_utf8(ch) {
+    đặt c = mã(ch)
+    nếu c < 128 { trả 1 }
+    nếu c < 2048 { trả 2 }
+    nếu c < 65536 { trả 3 }
+    trả 4
+}
+# "dòng mới phổ quát" như open(…, encoding="utf-8") của Python: \r\n → \n, \r lẻ → \n
+# (tệp CRLF có chuỗi nhiều dòng: không đổi thì chuỗi mang thêm \r — lệch giaoc64.py)
+hàm _dòng_chuẩn(kts) {
+    đặt ra = []  đặt n = dài(kts)  đặt i = 0
+    lặp n {
+        đặt ch = kts[i]
+        nếu mã(ch) == 13 {
+            đặt bỏ = tối
+            nếu i + 1 < n { nếu kts[i + 1] == "\n" { đặt bỏ = sáng } }
+            nếu bỏ == tối { gom(ra, "\n") }
+        } khác { gom(ra, ch) }
+        đặt i = i + 1
+    }
+    trả nối(ra, "")
+}
+hàm đọc_gói(s) {
+    đặt n = dài(s)  đặt i = 0  đặt chính = ẩn
+    mãi {
+        nếu i >= n { dừng }
+        nếu mã(s[i]) != 0 { lỗi("gói hỏng tại ký tự " + i + " (chờ NUL đầu mục)") }
+        đặt i = i + 1  đặt đầu = []
+        mãi { nếu i >= n { dừng }  nếu s[i] == "\n" { dừng }  gom(đầu, s[i])  đặt i = i + 1 }
+        đặt i = i + 1
+        đặt sp = tách(nối(đầu, ""), " ")
+        đặt cần = 0
+        lặp ch trong sp[0] { đặt cần = cần * 10 + (mã(ch) - 48) }
+        đặt đường = nối(lát_ds(sp, 1, dài(sp)), " ")
+        đặt buf = []  đặt đã = 0
+        mãi {
+            nếu đã >= cần { dừng }
+            nếu i >= n { lỗi("gói hỏng: tệp '" + đường + "' ngắn hơn số byte khai báo") }
+            gom(buf, s[i])  đặt đã = đã + _byte_utf8(s[i])  đặt i = i + 1
+        }
+        đặt_khoá(GÓI, đường, _dòng_chuẩn(buf))
+        nếu loại(chính) == "ẩn" { đặt chính = đường }
+    }
+    trả chính
+}
+đặt CHÍNH = đọc_gói(VÀO)
+nếu loại(CHÍNH) == "ẩn" { lỗi("gói không có tệp chính") }
+khởi_bộ_dịch()
+C_đặt("thư_mục", [thư_mục_của(CHÍNH)])
+đặt AST = nạp_tệp(CHÍNH)
+đặt AST_CHUẨN = nạp_tệp("@chuẩn.giao") + nạp_tệp("@_cdfl.giao")
+ra_byte(nhị_phân(biên_dịch(AST_CHUẨN, AST)))

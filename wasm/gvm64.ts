@@ -1120,6 +1120,22 @@ function builtin(id: i32, b: i32, n: i32): void {
     case 65: { // __ném(thông_điệp) — CHỈ cho thư viện hạ tầng (_cdfl.giao): lỗi runtime như self.err của giao.py
       if (!need(n, 1, "__ném")) return; err(render(sk[b], sv[b], so[b])); return;
     }
+    case 66: { // vào_còn() — PHẦN CÒN LẠI của stdin sau chương trình .g64, giải UTF-8 (một lần; lần sau "")
+      // Không mở năng lực mới: stdin vốn là đường vào duy nhất của máy. Dùng cho giaoc64.giao (tự biên dịch).
+      if (!need(n, 0, "vào_còn")) return;
+      let L = inBuf.length - inPos; let s = L > 0 ? String.UTF8.decodeUnsafe(inBuf.dataStart + <usize>inPos, <usize>L, false) : "";
+      inPos = inBuf.length; RS(s); return;
+    }
+    case 67: { // ra_byte(ds) — ghi các BYTE 0..255 ra stdout nguyên văn (không qua UTF-8). Đẩy hết rọi trước đó.
+      if (!need(n, 1, "ra_byte")) return; let l = listOf(b);
+      if (l === null) { err("ra_byte cần danh sách byte"); return; }
+      let buf = new Uint8Array(l.length);
+      for (let q = 0; q < l.length; q++) {
+        if (l.k[q] != K_INT || l.v[q] < 0 || l.v[q] > 255) { err("ra_byte: phần tử " + q.toString() + " không phải byte 0..255"); return; }
+        buf[q] = <u8>l.v[q];
+      }
+      flush(); ghiFd(1, buf.dataStart, <usize>buf.length); RA(); return;
+    }
     case 60: case 61: case 62: { // tim / nhúng / nhịp_tim — cần LLM qua MẠNG
       err("'" + (id == 60 ? "tim" : (id == 61 ? "nhúng" : "nhịp_tim")) + "' cần năng lực LLM qua mạng — GVM-64 chạy trong hộp cát WASI không có mạng (chạy bằng giao.py)");
       return;

@@ -45,7 +45,7 @@ for id_, names in [
     (44, "m_lấy"), (45, "m_gán"), (46, "m_sao"), (47, "m_sang_ds"), (48, "m_chọn"), (49, "m_đặt_chọn"),
     (50, "m_tổ_hợp"), (51, "m_nhân_số"), (52, "m_biến_đổi_cặp"), (53, "m_nhân_chọn"), (54, "m_đổi_chọn"),
     (55, "m_tổng_mô2_chọn"), (56, "m_tổng_mô2"), (57, "m_mô2_ds"), (58, "m_tích_trong"), (59, "m_rút"),
-    (63, "m_biến_đổi_bốn"), (64, "ngẫu_hệ ngau_he"), (65, "__ném")]:
+    (63, "m_biến_đổi_bốn"), (64, "ngẫu_hệ ngau_he"), (65, "__ném"), (66, "vào_còn vao_con"), (67, "ra_byte")]:
     for nm in names.split(): BUILTIN[nm] = id_
 
 class LỗiBiênDịch(Exception): pass

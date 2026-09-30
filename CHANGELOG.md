@@ -5,6 +5,28 @@ Nền học thuyết: Nguyễn Trường An (DFCT / NNL-NTHT / CDFL).
 
 ---
 
+## v0.37.0 — Tự thân hoá trình biên dịch · môi giới máy lượng tử thật (2026-09-30)
+
+### `giaoc64.giao` — GIAO biên dịch GIAO, chạy trên GVM-64
+- Bộ tách từ + bộ phân tích + bộ sinh mã + bộ ghi `.g64`, viết bằng GIAO. `sh tu_bien_dich.sh x.giao >
+  x.g64` biên dịch **không cần Python**. Máy vẫn không thấy thư mục: tệp đến qua stdin, gói có đếm độ dài.
+- **219 chương trình: trùng từng byte với giaoc64.py.** **Điểm bất động 2 thế hệ** (trình biên dịch tự
+  dịch chính nó ra đúng bản mồi). `kiem_tu_bien_dich.py`; CI chạy tập đại diện + điểm bất động.
+- Builtin mới (không mở năng lực): `vào_còn()` (phần stdin còn lại), `ra_byte(ds)` (byte thô ra stdout)
+  — cả GVM-64 lẫn giao.py.
+- Lỗi tìm ra khi đối chiếu: `lib_dia.giao` có byte NUL trong chuỗi (gói tách bằng NUL bị vỡ → đổi sang
+  đếm độ dài); tệp CRLF có chuỗi nhiều dòng (Python chuẩn hoá dòng mới khi đọc → chuẩn hoá theo);
+  `grep` coi tệp có NUL là nhị phân và nuốt dòng `nhập` (→ `grep -a`).
+
+### `moi_gioi_luong_tu.py` — gọi IBM Quantum từ NGOÀI hộp cát
+- Dịch mạch bằng GIAO trên GVM-64 → OpenQASM → **cần_người_duyệt** (mặc định chạy khô, mã 2) →
+  niêm phong dự đoán → gửi (SamplerV2) → chấm XEB/γ **trên GVM-64** → chấm niêm phong.
+- Token chỉ từ `QISKIT_IBM_TOKEN`. `--giả-lập p` chạy cả quy trình trên Aer có nhiễu (không cần token).
+  Thiếu token hoặc chạy khô: không để lại niêm phong treo. `kiem_moi_gioi.py` (4/4; 6/6 khi có Aer).
+- Chưa chạy trên máy IBM thật: cần token của chủ dự án.
+
+---
+
 ## v0.36.0 — Tầng CDFL chạy trên GVM-64 · SIMD 128-bit · đa luồng: bị chặn ở vỏ (2026-09-30)
 
 ### Tầng CDFL trên GVM-64 (viết bằng GIAO, không thêm lệnh máy)

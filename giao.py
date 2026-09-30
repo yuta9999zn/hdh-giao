@@ -989,12 +989,23 @@ class Runtime:
             need(a,0,"ngẫu_hệ")                           # (os.urandom — không đoán được; dùng cho MUỐI mật khẩu,
             import secrets                                #  KHÔNG dùng LCG/đồng hồ). Không mở tệp/mạng nên không
             return secrets.randbits(31)                   #  cần cờ năng lực. Trên GVM-64: WASI random_get.
+        def b_vao_con(a):                                 # vào_còn() → phần còn lại của stdin (UTF-8). Như GVM-64:
+            need(a,0,"vào_còn")                           # stdin là đường vào sẵn có, không phải năng lực mới.
+            try: return sys.stdin.buffer.read().decode("utf-8", "replace")
+            except (AttributeError, ValueError, OSError): return ""
+        def b_ra_byte(a):                                 # ra_byte(ds) → ghi byte 0..255 NGUYÊN VĂN ra stdout
+            need(a,1,"ra_byte"); ds=a[0]
+            if not isinstance(ds,list): self.err("ra_byte cần danh sách byte")
+            for q,x in enumerate(ds):
+                if not isinstance(x,int) or isinstance(x,bool) or x<0 or x>255: self.err(f"ra_byte: phần tử {q} không phải byte 0..255")
+            sys.stdout.flush(); sys.stdout.buffer.write(bytes(ds)); sys.stdout.buffer.flush(); return AN
         def b_gamma_cua(a):                               # γ_của(tri) → γ ; không phải tri / tri ẩn → ẩn
             need(a,1,"γ_của"); v=a[0]
             return v.gamma if isinstance(v,Tri) and v.gamma is not None else AN
         reg={"dài":b_dai,"dai":b_dai, "đầu":b_dau,"dau":b_dau, "đuôi":b_duoi,"duoi":b_duoi,
              "tạo_tri":b_tao_tri,"tao_tri":b_tao_tri, "γ_của":b_gamma_cua,"gamma_cua":b_gamma_cua,
              "ngẫu_hệ":b_ngau_he,"ngau_he":b_ngau_he,
+             "vào_còn":b_vao_con,"vao_con":b_vao_con, "ra_byte":b_ra_byte,
              "thêm":b_them,"them":b_them, "ghép":b_ghep,"ghep":b_ghep,
              "gom":b_gom, "đảo":b_dao,"dao":b_dao, "nối":b_noi,"noi":b_noi, "tách":b_tach,"tach":b_tach,
              "là_ds":b_la_ds,"la_ds":b_la_ds, "là_số":b_la_so,"la_so":b_la_so,

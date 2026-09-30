@@ -415,6 +415,16 @@ if _wt:
     ok, o = chạy("kiem_gvm64", ["kiem_gvm64.py"] + _ds, "KẾT QUẢ")
     _kq = [d for d in o.splitlines() if d.startswith("KẾT QUẢ")]
     mục(f"GVM-64 ≡ trình thông dịch, từng ký tự ({_kq[0][9:40] if _kq else '?'}, vỏ wasmtime)", ok and " 0 lệch" in o, o[-400:])
+    # TỰ THÂN HOÁ: giaoc64.giao (chạy trên GVM-64) ≡ giaoc64.py từng BYTE + điểm bất động. CI chạy tập đại
+    # diện (CRLF + NUL trong chuỗi, nhiều tầng nhập, CDFL, số thực, lượng tử); toàn bộ: python kiem_tu_bien_dich.py
+    _dd = ["lib_dia.giao", "lib_vỏ.giao", "kiem_cdfl_gvm64.giao", "lượng_tử_xeb.giao", "kiem_lib_mật_khẩu.giao",
+           "examples/hilbert.giao"]
+    ok, o = chạy("tu_bien_dich", ["kiem_tu_bien_dich.py"] + _dd, "KẾT QUẢ TỰ BIÊN DỊCH")
+    mục("TỰ THÂN HOÁ: giaoc64.giao trên GVM-64 ≡ giaoc64.py từng byte + điểm bất động 2 thế hệ",
+        ok and f"{len(_dd)} trùng từng byte · 0 lệch" in o and "điểm bất động đạt" in o, o[-400:])
+    ok, o = chạy("moi_gioi", ["kiem_moi_gioi.py"], "MÔI GIỚI LƯỢNG TỬ")
+    mục("môi giới lượng tử: chạy khô → cần_người_duyệt, thiếu token → từ chối, không niêm phong treo",
+        ok and "✗" not in o, o[-300:])
 else:
     mục("GVM-64 (bỏ qua — chưa có wasmtime)", True)
 

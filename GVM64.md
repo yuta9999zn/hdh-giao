@@ -49,6 +49,26 @@ Máy không thấy thư mục nào, không có mạng, không chạy được ti
 - Năng lực cần tệp, mạng, mmio hay phần cứng (`đọc_tệp`, `tim`/`nhúng` LLM, `mmio`, `máy`,
   `phần_cứng`) **cố ý không có** trên GVM-64. Chương trình dùng chúng sẽ báo lỗi rõ ràng.
 
+## Tự thân hoá: trình biên dịch viết bằng GIAO (`giaoc64.giao`)
+
+```
+sh tu_bien_dich.sh chương_trình.giao > chương_trình.g64     # KHÔNG Python: GIAO dịch GIAO trên GVM-64
+python kiem_tu_bien_dich.py [tệp…]                           # so từng byte với giaoc64.py + điểm bất động
+```
+
+`giaoc64.giao` là bản chép 1-1 của bộ tách từ, bộ phân tích (giao.py) và bộ sinh mã (giaoc64.py), viết
+bằng GIAO, dịch sẵn ở `wasm/giaoc64_tu.g64`. Máy không thấy thư mục nào: `tu_bien_dich.sh` gói tệp chính,
+mọi tệp nó `nhập` (bao đóng), `chuẩn.giao` và `_cdfl.giao` vào stdin, mỗi mục có đếm độ dài byte (có tệp
+chứa byte NUL trong chuỗi). Hai builtin I/O mới không mở năng lực nào: `vào_còn()` đọc phần stdin còn
+lại, `ra_byte(ds)` ghi byte thô ra stdout. Số thực trong mã nguồn đổi sang IEEE-754 bằng số lớn chính
+xác, làm tròn nửa-về-chẵn như `float()` của Python. Dòng kiểu CRLF được chuẩn hoá như chế độ văn bản
+của Python.
+
+- **219 chương trình của dự án: .g64 trùng TỪNG BYTE với giaoc64.py.**
+- **Điểm bất động:** `giaoc64.giao` tự dịch chính nó ra đúng bản mồi (86 KB), và thế hệ thứ hai dịch
+  lại vẫn trùng. Từ đây `giaoc64.py` chỉ còn là bản mồi và bộ đối chiếu.
+- Chương trình nhỏ dịch trong khoảng 0.4 s; thư viện lớn (`lib_tu_xa.giao`, ~430 KB .g64) vài giây.
+
 ## Đã kiểm chứng (`kiem_gvm64.py`, trong `kiem_toan_bo.py`)
 
 Đối chiếu mọi chương trình GIAO trong dự án giữa trình thông dịch và GVM-64, **so stdout từng ký tự**,
@@ -134,7 +154,8 @@ khít.
   AssemblyScript còn phải tránh GC trong luồng phụ: mỗi luồng là một instance mới dùng chung bộ nhớ,
   chạy lại khởi tạo tĩnh); (3) chờ đề xuất shared-everything-threads. Hiện Aer mặc định (đa luồng) nhanh
   hơn GVM-64 1.6–2 lần.
-- **Trình biên dịch vẫn viết bằng Python**, nhưng chỉ chạy lúc dựng. Lúc chạy không có Python.
-  Tự thân hoá `giaoc64` bằng GIAO rồi chạy chính nó trên GVM-64 là bước sau.
+- Tokenizer của `giaoc64.giao` nhận chữ cái theo các khối Unicode liệt kê trong mã (Latin, tiếng Việt,
+  Hy Lạp, Kirin, CJK, kana, Hangul) thay cho `str.isalpha()` của Python, và chỉ nhận chữ số ASCII.
+  Tên dùng chữ ở khối khác sẽ bị cả hai từ chối khác cách. Mọi tệp trong dự án đều trùng từng byte.
 - `log`/`mũ` dùng thư viện toán của AssemblyScript, có thể lệch ở chữ số cuối so với libm của Python.
   Chưa thấy lệch trong đầu ra (in `%.4g`).
