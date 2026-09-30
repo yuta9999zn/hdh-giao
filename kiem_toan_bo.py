@@ -368,6 +368,30 @@ try:
 except Exception as e:
     mục("tối-ưu bytecode conformance", False, f"EXC {e}")
 
+print("\n[★ Lượng tử — mô phỏng + OpenQASM (lib_lượng_tử.giao)]")
+ok,o = chạy("kiem_luong_tu", ["kiem_luong_tu.py"], "KẾT QUẢ")
+mục(f"đối chiếu numpy: trạng thái · QASM đọc lại · trị riêng · entropy · ba trị ({(o.strip().splitlines() or ['?'])[-2].replace('KẾT QUẢ: ','')})", ok)
+for tệp, kỳ in [("lượng_tử_bell.giao",       ["0.7071|00⟩ + 0.7071|11⟩", "qubit 0 trước khi đo: ẩn", "OPENQASM 2.0;", "OPENQASM 3.0;"]),
+                ("lượng_tử_grover.giao",     ["Sau vòng 2: P(|101⟩) = 0.9453"]),
+                ("lượng_tử_dịch_chuyển.giao", ["độ trung thực của q2 với φ = 1"]),
+                ("lượng_tử_hilbert.giao",    ["I(I:M) = 1.386", "S von Neumann = 0"]),
+                ("lượng_tử_ghz.giao",        ["1048576 biên độ", "Qubit 7 trước khi đo: ẩn", "chỉ 2 chuỗi bit"]),
+                ("lượng_tử_xeb.giao",        ["γ (F.4)", "ε = 0    (định nghĩa gốc): γ = -1"])]:
+    ok,o = chạy(tệp, ["giao.py", tệp])
+    mục(f"{tệp}", ok and all(k in o for k in kỳ), "thiếu: "+", ".join(k for k in kỳ if k not in o))
+
+print("\n[★ GVM-64 — máy tính toán của GIAO (WASM/WASI, không Python lúc chạy)]")
+_wt = shutil.which("wasmtime") or (r"D:\wasmtime\wasmtime.exe" if os.path.exists(r"D:\wasmtime\wasmtime.exe") else None)
+if _wt:
+    _ds = ["lượng_tử_bell.giao", "lượng_tử_grover.giao", "lượng_tử_dịch_chuyển.giao", "lượng_tử_hilbert.giao",
+           "lượng_tử_xeb.giao", "kiem_lib_sha256.giao", "kiem_lib_mật_khẩu.giao", "kiem_lib_bit.giao",
+           "kiem_lib_thập_phân.giao", "kiem_lib_chuoi.giao", "kiem_lib_bản.giao", "kiem_lib_duyet.giao"]
+    ok, o = chạy("kiem_gvm64", ["kiem_gvm64.py"] + _ds, "KẾT QUẢ")
+    _kq = [d for d in o.splitlines() if d.startswith("KẾT QUẢ")]
+    mục(f"GVM-64 ≡ trình thông dịch, từng ký tự ({_kq[0][9:40] if _kq else '?'}, vỏ wasmtime)", ok and " 0 lệch" in o, o[-400:])
+else:
+    mục("GVM-64 (bỏ qua — chưa có wasmtime)", True)
+
 print("\n" + "="*64)
 print(f"TOÀN BỘ: {tổng-rớt}/{tổng} hạng mục đạt" + ("" if rớt==0 else f"  — {rớt} RỚT"))
 print("="*64)
