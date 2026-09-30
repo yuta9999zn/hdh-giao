@@ -1,0 +1,5 @@
+{
+ "vân_tay_đủ": "fc987b72afe9f753bbbaa64c05f71cf6433983e0268d77eb1dad76a8a52d13ae",
+ "thuật_toán": "SHA-256('GIAO-KHOA-v1' ‖ pk_Ed25519 ‖ pk_ML-DSA-65)",
+ "ed25519": "d25d904fb3c7f30b003ca342ca5a6ecb51d79e6ad58c27cb606d2bf48459a448"
+}

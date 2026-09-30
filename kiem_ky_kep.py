@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """KIỂM KÝ KÉP bằng VECTOR CHÍNH THỨC.
     python kiem_ky_kep.py
-  ML-DSA-65 (PQClean → WASM) — NIST ACVP (ben_ngoai/vector/acvp_mldsa65.json):
+  ML-DSA-65 (mldsa-native → WASM) — NIST ACVP (ben_ngoai/vector/acvp_mldsa65.json):
     keyGen 25 ca (ξ → pk, sk từng byte) · sigGen 15 ca (tất định, giao diện external/pure, CÓ ngữ cảnh —
     chữ ký từng byte) · sigVer 15 ca (3 hợp lệ, 12 không: đúng kết luận từng ca).
   Ed25519 (Monocypher → WASM) — RFC 8032 §7.1 (5 vector: khoá công khai + chữ ký từng byte, kiểm đúng,
@@ -53,7 +53,7 @@ from niem_phong import SổNiêmPhong, KhoáSổ, _băm
 print("\n[sổ niêm phong ký kép — kẻ ghi được tệp nhưng không có khoá]")
 tm = tempfile.mkdtemp()
 try:
-    khoá = KhoáSổ(os.path.join(tm, "khoa")); khoá_lạ = KhoáSổ(os.path.join(tm, "khoa_la"))
+    khoá = KhoáSổ(os.path.join(tm, "khoa"), ghim=None); khoá_lạ = KhoáSổ(os.path.join(tm, "khoa_la"), ghim=None)   # khoá TẠM: không so ghim dự án
     sổ_tệp = os.path.join(tm, "so.jsonl")
     sổ = SổNiêmPhong(sổ_tệp, ký=True, khoá=khoá)
     b1 = sổ.niêm_phong("llm:thử", "vá A", {"đích_sáng": True}); sổ.chấm(b1, {"đích_sáng": True})
@@ -91,6 +91,34 @@ try:
         ds[0]["việc"] = "vá A (đã sửa lén)"; trước = "0" * 64
         for m in ds: m["băm_trước"] = trước; m["băm"] = _băm(m); m["ký"] = khoá_lạ.ký(m["băm"]); trước = m["băm"]
     thử("sửa rồi KÝ LẠI bằng khoá khác", ký_lại, "KHOÁ LẠ")
+finally:
+    shutil.rmtree(tm, ignore_errors=True)
+
+# ---------------- GHIM KHOÁ: kẻ ghi được CẢ thư mục khoá ----------------
+from niem_phong import KhoáLệchGhim, ghim_khoá
+print("\n[ghim khoá — vân tay đủ 256 bit commit trong kho, độc lập với .khoa/]")
+tm = tempfile.mkdtemp()
+try:
+    kd, kd_lạ, ghim = os.path.join(tm, "khoa"), os.path.join(tm, "khoa_la"), os.path.join(tm, "khoa.ghim")
+    vt = ghim_khoá(kd, ghim); KhoáSổ(kd_lạ, ghim=None)
+    def bị_chặn(hàm, cụm):
+        try: hàm(); return False, "không bị chặn"
+        except KhoáLệchGhim as e: return cụm in str(e), str(e)
+    try: KhoáSổ(kd, ghim=ghim); ok = True
+    except KhoáLệchGhim: ok = False
+    ca(f"khoá đúng + ghim đúng ⇒ nạp được (vân tay {vt[:16]}…)", ok)
+    shutil.copy(os.path.join(kd_lạ, "cong_khai.json"), os.path.join(kd, "cong_khai.json.lạ"))
+    os.replace(os.path.join(kd, "cong_khai.json"), os.path.join(kd, "cong_khai.json.gốc"))
+    os.replace(os.path.join(kd, "cong_khai.json.lạ"), os.path.join(kd, "cong_khai.json"))
+    ok, lý = bị_chặn(lambda: KhoáSổ(kd, ghim=ghim), "KHÔNG khớp khoá bí mật")
+    ca(f"tráo RIÊNG cong_khai.json ⇒ chặn: {lý[:70]}…", ok, lý)
+    os.replace(os.path.join(kd, "cong_khai.json.gốc"), os.path.join(kd, "cong_khai.json"))
+    shutil.rmtree(kd); shutil.copytree(kd_lạ, kd)
+    ok, lý = bị_chặn(lambda: KhoáSổ(kd, ghim=ghim), "KHÁC ghim")
+    ca(f"tráo CẢ thư mục khoá (cặp khoá tự nhất quán) ⇒ chặn nhờ ghim: {lý[:60]}…", ok, lý)
+    shutil.rmtree(kd)
+    ok, lý = bị_chặn(lambda: KhoáSổ(kd, ghim=ghim), "không tự tạo khoá mới")
+    ca("mất thư mục khoá + có ghim ⇒ KHÔNG tự tạo khoá mới", ok and not os.path.exists(kd), lý)
 finally:
     shutil.rmtree(tm, ignore_errors=True)
 

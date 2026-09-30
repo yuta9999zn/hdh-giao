@@ -32,22 +32,39 @@ def _băm(mục):
 
 # ---------------- KÝ KÉP ML-DSA-65 + Ed25519 (v0.40, lộ trình GĐ2) ----------------
 # Chuỗi băm phát hiện SỬA nhưng không chứng minh AI VIẾT: ai có quyền ghi tệp đều dựng lại được cả chuỗi.
-# Nay mỗi mục mới được KÝ KÉP trên `băm` của nó (băm đã nối cả chuỗi phía trước): ML-DSA-65 (PQClean, FIPS
+# Nay mỗi mục mới được KÝ KÉP trên `băm` của nó (băm đã nối cả chuỗi phía trước): ML-DSA-65 (mldsa-native, FIPS
 # 204) và Ed25519 (Monocypher, RFC 8032), mã vendor nguyên văn → WASM (ky_kep.py). Mục chỉ HỢP LỆ khi CẢ
 # HAI chữ ký đúng. Khoá sinh từ os.urandom lần đầu dùng, nằm ở .khoa/niem_phong/ (không commit).
 KHOÁ_MẶC_ĐỊNH = os.environ.get("GIAO_KHOA_NIEM_PHONG") or os.path.join(P, ".khoa", "niem_phong")
 TIỀN_TỐ_KÝ = b"GIAO-NIEM-PHONG-v1\x00"
 
 def _thông_điệp_ký(băm): return TIỀN_TỐ_KÝ + bytes.fromhex(băm)
-def vân_tay(pk_ed, pk_ml): return hashlib.sha256(b"GIAO-KHOA-v1" + pk_ed + pk_ml).hexdigest()[:32]
+def vân_tay_đủ(pk_ed, pk_ml): return hashlib.sha256(b"GIAO-KHOA-v1" + pk_ed + pk_ml).hexdigest()
+def vân_tay(pk_ed, pk_ml): return vân_tay_đủ(pk_ed, pk_ml)[:32]
+
+# GHIM KHOÁ (v0.41): khoá công khai tin cậy KHÔNG được chỉ nằm cạnh khoá (.khoa/) — kẻ ghi được thư mục ấy
+# thay được cả khoá. Vân tay ĐỦ 256 bit được COMMIT vào kho (khoa_niem_phong.ghim): lịch sử git là nhân chứng
+# độc lập. Có ghim ⇒ khoá nạp lên phải khớp; mất thư mục khoá thì KHÔNG tự tạo khoá mới (máy mới / khôi
+# phục: chạy `python niem_phong.py --ghim-khoa` rồi commit — một thay đổi AI CŨNG THẤY trong git).
+GHIM_KHOÁ = os.environ.get("GIAO_GHIM_KHOA_NIEM_PHONG") or os.path.join(P, "khoa_niem_phong.ghim")
+class KhoáLệchGhim(RuntimeError): pass
+def đọc_ghim_khoá(tệp=None):
+    tệp = tệp or GHIM_KHOÁ
+    if not os.path.exists(tệp): return None
+    return json.load(open(tệp, encoding="utf-8"))["vân_tay_đủ"]
 
 class KhoáSổ:
     "Cặp khoá ký kép của sổ. bi_mat.json = (ξ ML-DSA, hạt Ed25519); cong_khai.json = khoá công khai + vân tay."
-    def __init__(self, thư_mục=KHOÁ_MẶC_ĐỊNH, tạo=True):
+    def __init__(self, thư_mục=KHOÁ_MẶC_ĐỊNH, tạo=True, ghim="mặc_định"):
+        "ghim: 'mặc_định' ⇒ GHIM_KHOÁ nếu tệp ấy có · None ⇒ không kiểm ghim · đường dẫn ⇒ tệp ghim ấy."
         import ky_kep as K
         self.K = K; self.thư_mục = thư_mục
+        vt_ghim = đọc_ghim_khoá(None if ghim == "mặc_định" else ghim) if ghim is not None else None
         bí, công = os.path.join(thư_mục, "bi_mat.json"), os.path.join(thư_mục, "cong_khai.json")
         if not os.path.exists(bí):
+            if vt_ghim is not None:
+                raise KhoáLệchGhim(f"có ghim khoá ({vt_ghim[:16]}…) nhưng KHÔNG có khoá ở {thư_mục} — không tự tạo khoá mới. "
+                                   "Khôi phục thư mục khoá, hoặc (máy mới) chạy: python niem_phong.py --ghim-khoa rồi commit.")
             if not tạo: raise FileNotFoundError(bí)
             os.makedirs(thư_mục, exist_ok=True)
             ξ, hạt = os.urandom(32), os.urandom(32)
@@ -58,7 +75,14 @@ class KhoáSổ:
                 json.dump({"ed25519": pk_ed.hex(), "mldsa65": pk_ml.hex(), "vân_tay": vân_tay(pk_ed, pk_ml)}, f)
         d = json.load(open(bí, encoding="utf-8")); c = json.load(open(công, encoding="utf-8"))
         self._ξ, self._hạt = bytes.fromhex(d["mldsa_xi"]), bytes.fromhex(d["ed_hat"])
-        self.công = {"ed25519": c["ed25519"], "mldsa65": c["mldsa65"], "vân_tay": c["vân_tay"]}
+        # dựng LẠI khoá công khai từ khoá bí mật: cong_khai.json bị tráo (hoặc lệch bi_mat) là lộ ngay
+        pk_ml, _ = K.mldsa_khoá(self._ξ); pk_ed = K.ed_khoá(self._hạt)
+        if (pk_ed.hex(), pk_ml.hex()) != (c["ed25519"], c["mldsa65"]):
+            raise KhoáLệchGhim(f"{công} KHÔNG khớp khoá bí mật trong {bí} (bị tráo?)")
+        self.vân_tay_đủ = vân_tay_đủ(pk_ed, pk_ml)
+        if vt_ghim is not None and self.vân_tay_đủ != vt_ghim:
+            raise KhoáLệchGhim(f"khoá ở {thư_mục} (vân tay {self.vân_tay_đủ[:16]}…) KHÁC ghim {vt_ghim[:16]}… — từ chối ký/kiểm")
+        self.công = {"ed25519": c["ed25519"], "mldsa65": c["mldsa65"], "vân_tay": vân_tay(pk_ed, pk_ml)}
     def ký(self, băm):
         ed, ml = self.K.ký_kép(self._ξ, self._hạt, _thông_điệp_ký(băm))
         return {"vân_tay": self.công["vân_tay"], "ed25519": ed.hex(), "mldsa65": ml.hex()}
@@ -161,7 +185,19 @@ class SổNiêmPhong:
             ra[ai] = {"niêm_phong": sum(1 for m in niêm.values() if m["ai"] == ai), "đã_chấm": 0}
         return ra
 
+def ghim_khoá(thư_mục=KHOÁ_MẶC_ĐỊNH, tệp=None):
+    "Ghi vân tay ĐỦ của khoá hiện tại vào tệp ghim (tạo khoá nếu chưa có). Việc của NGƯỜI — rồi commit."
+    tệp = tệp or GHIM_KHOÁ
+    k = KhoáSổ(thư_mục, ghim=None)
+    with open(tệp, "w", encoding="utf-8") as f:
+        json.dump({"vân_tay_đủ": k.vân_tay_đủ, "thuật_toán": "SHA-256('GIAO-KHOA-v1' ‖ pk_Ed25519 ‖ pk_ML-DSA-65)",
+                   "ed25519": k.công["ed25519"]}, f, ensure_ascii=False, indent=1)
+        f.write("\n")
+    return k.vân_tay_đủ
+
 if __name__ == "__main__":
+    if "--ghim-khoa" in sys.argv:
+        vt = ghim_khoá(); print(f"đã GHIM khoá sổ niêm phong: {vt}\n→ {GHIM_KHOÁ} — hãy COMMIT tệp này."); sys.exit(0)
     sổ = SổNiêmPhong(sys.argv[1] if len(sys.argv) > 1 else MẶC_ĐỊNH)
     ok, lý = sổ.kiểm_chuỗi()
     ds = sổ.đọc(); n_ký = sum(1 for m in ds if "ký" in m)

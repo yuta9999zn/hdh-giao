@@ -7,6 +7,12 @@ Gồm: bộ test ngôn ngữ · MCP · wasm conformance · mọi ví dụ thông
 import os, sys, subprocess, glob
 P = os.path.dirname(os.path.abspath(__file__))
 ENV = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
+# CI KÍN: sổ niêm phong trong các bài kiểm ký bằng KHOÁ TẠM, không đụng khoá thật (.khoa/) và không vướng ghim
+# khoá của máy này (khoa_niem_phong.ghim) — nhờ vậy CI chạy được cả trên bản clone mới.
+import tempfile as _tf
+_KHOA_TAM = _tf.mkdtemp(prefix="giao_khoa_ci_")
+ENV["GIAO_KHOA_NIEM_PHONG"] = os.path.join(_KHOA_TAM, "khoa")
+ENV["GIAO_GHIM_KHOA_NIEM_PHONG"] = os.path.join(_KHOA_TAM, "chua_ghim.ghim")
 PY = sys.executable
 
 # Ví dụ chỉ chạy ở MÁY (idiom `l==0`/cần cờ) — KHÔNG kỳ vọng chạy trên thông dịch trần:
