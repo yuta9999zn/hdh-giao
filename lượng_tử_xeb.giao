@@ -1,5 +1,5 @@
 # ============================================================
-# LƯỢNG TỬ 5 — γ (Phụ lục F.4) chấm MẪU ĐO so với mô phỏng lý tưởng  ≈  XEB của Google
+# LƯỢNG TỬ 5 — γ (Phụ lục F.4) chấm MẪU ĐO so với mô phỏng lý tưởng, cạnh XEB tuyến tính (Google)
 #   python giao.py lượng_tử_xeb.giao
 # σ = mô hình lý tưởng (mô phỏng chính xác) · ρ = "máy" sinh mẫu (ở đây: mô phỏng + nhiễu khử cực
 # toàn cục, vì chưa có phần cứng thật) · u = nền đều.  γ = [S(ρ‖u) − S(ρ‖σ)] / [S(ρ‖u) + S(ρ‖σ)].

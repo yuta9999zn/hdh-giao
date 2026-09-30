@@ -88,8 +88,10 @@ Hàm trả về `tri(xeb_tuyến_tính, γ)`. Mạch ngẫu nhiên 6 qubit với
 
 - **XEB tuyến tính** giảm tỉ lệ với độ trung thực. Đây là thước đo Google dùng, ước lượng được ở mọi
   cỡ n, và chỉ cần p(x) của các chuỗi đã gặp.
-- **γ nghiêm hơn.** Mẫu nhiễu rơi vào chuỗi mà σ cho xác suất thấp sẽ bị phạt theo log. Với phân phối
-  Porter–Thomas, tử số ≈ 0.42·λ − 0.58·(1−λ), nên γ **đổi dấu khi độ trung thực ≈ 0.56**. γ trả lời
+- **γ đặt ngưỡng đạt/rớt tại độ trung thực ≈ 0.56.** Mẫu nhiễu rơi vào chuỗi mà σ cho xác suất thấp
+  bị phạt theo log. Với phân phối Porter–Thomas, tử số ≈ 0.42·λ − 0.58·(1−λ), nên γ **đổi dấu khi độ
+  trung thực ≈ 0.56**. Không nên nói "γ nghiêm hơn XEB": XEB **ước lượng** độ trung thực (một con
+  số), còn γ là một phép **đạt/rớt** có dấu. Hai thước đo khác bản chất. γ trả lời
   một câu hỏi khác XEB: *"mô hình lý tưởng có giải thích máy này tốt hơn không biết gì không?"*
   γ < 0 nghĩa là tin mô hình lý tưởng về máy này là ảo tưởng, đúng nghĩa đốm tối của F.4.
 - **ε = 0** là định nghĩa gốc. Chỉ cần gặp một chuỗi mà σ cho xác suất 0 (ví dụ `01` trên cặp Bell

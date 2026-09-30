@@ -5,6 +5,231 @@ Nền học thuyết: Nguyễn Trường An (DFCT / NNL-NTHT / CDFL).
 
 ---
 
+## v0.35.1 — Muối mật khẩu lấy từ nguồn ngẫu nhiên của HĐH · băm lại bóng muối yếu · sửa cách diễn đạt số đo (2026-09-30)
+
+### Muối mật khẩu (tiếp nối lỗi "chỉ có 16 muối" ở v0.32.1)
+- Sửa bit cao ở v0.32.1 CHƯA ĐỦ: hạt của muối vẫn đoán được. `hdh_nền.giao` truyền hằng số trong mã
+  (20260729, 19981000); `chay_hdh_giao.py` lệnh `đổi_mk` dùng `giờ ^ pid`.
+- Builtin mới **`ngẫu_hệ()`** → số nguyên 0..2^31−1 từ nguồn ngẫu nhiên của HĐH: `secrets` ở trình
+  thông dịch, **WASI `random_get`** ở GVM-64 (hàm WASI thứ 7; không mở tệp/mạng). `muối_hệ()` dựng
+  16 chữ hex (64 bit) từ đó. `bóng_mới(mk, ẩn)` dùng muối HĐH; `bóng_mới(mk, số)` tất định, chỉ
+  dành cho kiểm thử. Mọi chỗ đặt mật khẩu thật nay truyền `ẩn`.
+- **Bóng băm bằng bản cũ:** bản `muối_mới` cũ chỉ sinh ra 16 muối, đều là xoay vòng của
+  `09efc5ab81674d23` (kiểm: 20 000 hạt ngẫu nhiên → 16 muối), nên nhận diện được từ chính chuỗi bóng
+  (`muối_yếu`, `bóng_cần_băm_lại`). `xác_thực` **băm lại** bóng yếu (hoặc định dạng g1/g2) bằng muối
+  HĐH ngay khi người dùng đăng nhập ĐÚNG, là lúc duy nhất hệ có mật khẩu gốc. `bóng_yếu(máy, tid)`
+  liệt kê người chưa đăng nhập lại, để quản trị **buộc đặt lại mật khẩu**.
+- Trong kho mã này không có sổ bóng thật nào được lưu, chỉ có máy dựng lại mỗi lần khởi động. Nếu
+  bạn đã dựng HĐH-GIAO với mật khẩu thật từ bản < v0.32.1: đăng nhập lại một lần để bóng tự băm lại,
+  hoặc đặt lại mật khẩu cho mọi tên trong `bóng_yếu`.
+- `kiem_muoi_he.giao` (trong `kiem_hdh_giao.py`, và khớp từng ký tự trên GVM-64).
+
+### Cách diễn đạt số đo (sửa cho chính xác)
+- "Nhanh hơn Aer 1 luồng": Aer **mặc định chạy đa luồng**. Mọi chỗ so sánh nay ghi rõ "Aer ép 1
+  luồng" và đặt cạnh số của Aer mặc định (20 luồng trên máy đo), nơi GVM-64 vẫn chậm hơn 3–9 lần.
+- "γ nghiêm hơn XEB" đã bỏ: XEB tuyến tính **ước lượng độ trung thực**, còn γ là một phép **đạt/rớt**
+  có dấu. Hai thước đo khác bản chất. Cách nói đúng: *γ đặt ngưỡng đạt/rớt tại độ trung thực ≈ 0.56*.
+
+---
+
+## v0.35.0 — Gộp cổng · cổng đủ-mạnh (vườn ươm z) · niêm phong dự đoán + "γ không phải cổng" (con thuyền KIAI) · sửa test chập chờn (2026-09-30)
+
+### Gộp cổng (gate fusion) — viết bằng GIAO, `lib_lượng_tử.giao`
+- `hợp_nhất_cổng`: dồn cổng 1-qubit liên tiếp thành 2×2 ("u"); cổng 2-qubit hút các 2×2 chờ vào MỘT
+  4×4 ("u4") và hút tiếp mọi cổng sau trên cùng cặp; chỉ xả khi cặp khác/ccx/đo/hết mạch. Nhớ đệm
+  theo số lệnh. Ma trận 4×4 CHÉO áp bằng `m_nhân_chọn` (bỏ pha = 1). Lệnh khối mới `m_biến_đổi_bốn`
+  (GVM-64 trải phẳng 32 hệ số vào thanh ghi · `giao_mang.py` · lõi GIAO thuần — cùng thứ tự cộng dồn).
+- Mạch gộp ≡ không gộp (lệch ~1e-32; 97 lệnh → 22). QASM xuất ra vẫn là cổng gốc.
+- **GVM-64, 26 qubit, mạch ngẫu nhiên: 97 s → 19.6 s** (Aer 1 luồng 8.5 s). 24 qubit: 22.7 → 4.5 s
+  (Aer ép 1 luồng 13.7 s; Aer MẶC ĐỊNH đa luồng, 20 luồng trên máy đo: 1.05 s). QFT gần như không đổi (40 s; toàn cổng chéo).
+- Bài học đo được: bản gộp đầu tiên CHẬM HƠN (QFT 20 qubit 0.38 → 7.1 s) vì biến cổng chéo thành
+  4×4 dày và kernel 4×4 dùng vòng lặp qua mảng tạm — sửa bằng đường chéo + kernel trải phẳng.
+
+### Cổng ĐỦ-MẠNH cho vòng tự-sửa (`vong_tu_sua.py`, học từ E:\vuon-uom-z)
+- Test đích chuyển sáng CHƯA đủ: vòng chạy lại test (ỔN ĐỊNH) và ĐỘT BIẾN chính bản vá (toán tử, hằng
+  ±1) — test phải RỚT trên ≥ 1 đột biến. Không chứng minh được ⇒ **ẨN** (mã thoát 2), bản vá bị
+  HOÀN-TÁC (trừ `--nhận-ẩn`). Ví dụ: test chỉ kiểm `> 100` không phân biệt 127/128/129 ⇒ ẩn.
+- `kiem_tu_sua_du_manh.py` 3/3 (test yếu → ẩn + hoàn tác · test mạnh → sáng).
+
+### γ KHÔNG PHẢI CỔNG + NIÊM PHONG DỰ ĐOÁN (học từ D:\KIAI\con-thuyen)
+- **Thay đổi hành vi (công khai):** `phê_duyệt` (cau_noi.giao → MCP `giao_phe_duyet`, cầu nối,
+  os_giao_linux): việc BẤT KHẢ HỒI với γ ≥ ngưỡng trước đây → `cho_phép`; nay → **`cần_người_duyệt`**
+  (γ thấp vẫn `chặn`). Việc hoàn tác được thì như cũ. Lý do: con thuyền đo được γ là thước hiệu chỉnh
+  sau sự việc — dự báo 60 mà thực tế 100 vẫn cho γ≈0.72 ("cho qua"). `kiem_mcp.py` đổi kỳ vọng theo.
+- **`niem_phong.py`:** sổ dự đoán chỉ-ghi-thêm, CHUỖI BĂM SHA-256 (sửa/xoá/đổi thứ tự bị phát hiện),
+  không chấm lại, thống kê so với ĐƯỜNG NỀN. MCP thêm `giao_niem_phong` · `giao_cham` ·
+  `giao_so_niem_phong` (19/19). Vòng tự-sửa niêm phong mọi bản vá LLM (Stage 5) trước khi áp, chấm
+  sau cổng (`kiem_tu_sua_niem_phong.py` 5/5). `kiem_niem_phong.py` 8/8.
+- **Trợ lý HĐH:** không tin nhãn `khả_hồi` tự khai, không tin γ — xét từng dòng lệnh (`_khả_hồi_thật`).
+  Kỹ năng khai "hoàn tác được" mà chứa `xoá` bị giữ lại dù γ = 100% (`kiem_tro_ly_nhan.giao`).
+
+### Test chập chờn — tìm ra và sửa HAI nguyên nhân thật
+- `kiem_toan_bo.py` nay ghi TOÀN BỘ đầu ra mỗi mục rớt vào `__pycache__/kiem_rot.log` + bảng
+  `kiem_muc.json`; `lap_kiem.py N` chạy lặp N lần và thống kê số lần rớt từng mục.
+- **(1) `giao_de.py` (bàn làm việc) trả 403/404 TRƯỚC khi đọc thân POST** → Windows gửi RST khi
+  đóng socket còn byte chưa đọc → client `WinError 10053`. Tái hiện: **51/500** yêu cầu bị huỷ; sau
+  sửa (đọc hết thân, có trần 1 MB, trước mọi trả lời): **0/2000**.
+- **(2) `SO_REUSEADDR` trên Windows** (giao.py `ổ_nghe`, chay_kho_xa.py) cho tiến-trình KHÁC bind
+  CHUNG cổng — kết nối rơi ngẫu nhiên vào máy chủ nào (và là lỗ CHIẾM CỔNG). Chứng minh bằng thí
+  nghiệm; nay Windows dùng `SO_EXCLUSIVEADDRUSE` (nơi khác giữ SO_REUSEADDR).
+- `kiem_toan_bo.py`: 84/84.
+
+---
+
+## v0.34.0 — GVM-64: GIAO chạy trên máy của chính nó (WASM/WASI, không Python lúc chạy) (2026-09-30)
+
+Xem `GVM64.md`.
+- **`wasm/gvm64.ts` → `gvm64.wasm`:** máy ô loại+64 bit, gồm số nguyên i64 và số lớn tuỳ ý, f64,
+  chuỗi theo điểm mã, danh sách, bản, closure, tri, `mảng`, và dọn rác incremental. Lệnh khối trên
+  `mảng` là vòng lặp native. Định dạng số thực trùng khít Python `%.4g`/`%+.2f` nhờ làm trên giá trị
+  nhị phân chính xác.
+- **Chỉ import 6 hàm WASI.** Vỏ chính là **wasmtime** (cài ở `D:\wasmtime`, v49.0.1). Vỏ Node chỉ là
+  dự phòng để kiểm và KHÔNG phải hộp cát: `node:wasi` đã segfault ở 3 chương trình mà wasmtime chạy êm.
+- **`giaoc64.py`:** biên dịch GIAO → `.g64`. Tên phân giải theo phạm vi từ vựng, bỏ qua ô chưa gán như
+  tra cứu động. Hỗ trợ `nhập` lúc biên dịch, prelude `chuẩn.giao` và hằng số lớn.
+- **`kiem_gvm64.py`:** đối chiếu toàn dự án, từng ký tự: **131 khớp · 0 lệch**. Các ca còn lại cần
+  năng lực host hoặc dùng tầng CDFL. Có một mục trong `kiem_toan_bo.py` (80/80).
+- **Mật khẩu:** tệp kiểm chạy xong trong 0.69 s mà không cần nới trần (trình thông dịch: 8.52 s và
+  phải `--bước 200M`).
+- **Lượng tử 26 qubit:** QFT 40 s · 1.07 GB (Aer 1 luồng: 30.5 s · 1.1 GB). Biên độ khớp Aer tới 10⁻¹⁶.
+- **Ghi chú kiểm:** `kiem_toan_bo.py` có một mục **chập chờn**. Hai lần gặp 78/79 rồi chạy lại đạt,
+  chưa xác định mục nào (không lưu đầu ra lần rớt).
+
+## v0.33.1 — sửa `muối_mới` (lib_mật_khẩu): lấy BIT CAO của LCG (2026-09-30)
+
+- **Lỗi bảo mật:** 200.000 hạt khác nhau chỉ cho **16 muối**, đều là các vòng xoay của cùng một chuỗi,
+  vì `v − v//16*16` lấy bit thấp. Nay lấy `⌊v·16/2^31⌋`: 200.000 hạt cho 200.000 muối khác nhau.
+- Bóng mật khẩu cũ vẫn kiểm được, vì muối nằm sẵn trong chuỗi bóng.
+
+---
+
+## v0.33.0 — `mảng` lưu bằng array('d') 16 byte/biên độ + phép TẠI CHỖ theo khúc: RAM giảm ~3.7× (2026-09-30)
+
+- **Vì sao:** bản cũ lưu mỗi biên độ là một đối tượng `complex` Python (32 byte + con trỏ 8 byte = 40
+  byte), và mỗi cổng tạo mảng tạm cỡ N/2 (`m_chọn` → `m_tổ_hợp` → `m_đặt_chọn`). Ở 24 qubit tổng cộng
+  là 1.5 GB, trong khi Aer chỉ cần 332 MB. Các đối tượng lại bị pymalloc rải khắp bộ nhớ, nên chậm
+  dần do trượt cache.
+- **Nay:** `Mang` = hai `array('d')` liền khối (re, im) → 16 byte/biên độ như numpy/Aer. Bốn phép TẠI
+  CHỖ theo khúc W = 2^14 phần tử (bộ nhớ tạm O(W)): `m_biến_đổi_cặp` (cánh bướm 2×2), `m_nhân_chọn`
+  (cổng chéo, sụp khi đo), `m_đổi_chọn` (X/CX/CCX/SWAP — hoán vị THUẦN, chỉ chép lát cắt, không tính
+  số), `m_tổng_mô2_chọn` (xác suất). `lib_lượng_tử.giao` dùng các phép này; các phép tạo mảng mới cũ
+  vẫn giữ (đổi sang array).
+- **Đo được** (cùng máy, cùng mạch):
+
+  | ca | trước (v0.32) | nay (v0.33) |
+  |---|---|---|
+  | QFT 20 qubit | 48.9 s · 117 MB | **23.4 s · 89 MB** |
+  | ngẫu nhiên 20 qubit | 69.7 s · 115 MB | **49.7 s · 88 MB** |
+  | QFT 24 qubit | 1463 s · 1500 MB | **514 s · 405 MB** |
+
+  (Ở 20 qubit, RAM chủ yếu là tiến trình Python + GIAO nền và bản sao lưu trạng thái để đo độ trung
+  thực; trạng thái chỉ chiếm 16 MB.)
+- Mạch ngẫu nhiên 24 qubit và cả hai mạch 26 qubit CHƯA đo được: tiến trình bị dừng vì máy chỉ còn
+  trống 2.4/15.6 GB (các chương trình khác chiếm), không phải vì GIAO (ước tính 26 qubit ≈ 1.3 GB).
+- Kiểm: `kiem_luong_tu.py` 28/28 — thêm 400 ca ngẫu nhiên cho 4 phép tại chỗ so với vét cạn, với
+  khúc thu nhỏ W = 8 (để chạy đường "cặp ở hai khúc"); lõi mảng khúc W = 4 ≡ lõi GIAO thuần.
+- **XEB 20 qubit, mô phỏng không nhiễu:** mạch ngẫu nhiên 20 lớp (1010 cổng): XEB = 2.757, kỳ vọng
+  lý tưởng N·Σp² − 1 = 2.785 → độ trung thực ước lượng **0.990**; nhiễu 30% → 0.686 (lý thuyết 0.7).
+  Mạch 5 lớp: 0.967 / 0.987 (hai seed, 5000 mẫu). Độ trung thực trạng thái GIAO ↔ Qiskit Aer =
+  1.000000000000.
+
+---
+
+## v0.32.1 — `ngẫu_mod` lấy BIT CAO của LCG (2026-09-30)
+
+- **Lỗi:** `ngẫu_mod(seed, n)` trả `dư(s, n)`, tức các bit THẤP của LCG modulo 2^31, mà bit thứ k của
+  LCG này lặp sau 2^(k+1) bước. Đo được: 32 lần `ngẫu_mod(·, 4)` liên tiếp cho đúng
+  **2, 3, 0, 1, 2, 3, 0, 1, …**, lặp y hệt, không hề ngẫu nhiên.
+- **Sửa:** `⌊s·n / 2^31⌋` (bit cao, số nguyên chính xác nhờ `//`). 100.000 lần `ngẫu_mod(·, 10)` cho
+  mỗi giá trị 9742–10282 lần (χ² ≈ 17, 9 bậc tự do).
+- **Thay đổi hành vi:** nơi duy nhất trong dự án dùng `ngẫu_mod` là `examples/boltzmann.giao`. Dãy
+  bốc ở temp = 4 đổi từ `[0,1,2,1,1,1,1,0,2,…]` sang `[1,1,1,1,2,0,2,2,1,…]`; temp = 0.3 không đổi
+  (vẫn toàn 1). Kết luận của ví dụ (nhiệt cao thì đa dạng, nhiệt thấp thì tham lam) giữ nguyên.
+- Test mới: `kiem_thu.py` [15c].
+- **CHƯA sửa (cùng loại lỗi, chờ quyết định):** `muối_mới` trong `lib_mật_khẩu.giao` lấy 4 bit thấp
+  (`v − v//16*16`), nên 200.000 hạt khác nhau chỉ cho **16 muối**, đều là xoay vòng của một chuỗi.
+  `/tb/ngẫu` trong `lib_gọi_hệ.giao` dùng `dư(s, 1000)` (ít nghiêm trọng hơn vì mỗi lần gieo hạt mới).
+
+---
+
+## v0.32.0 — `cam_kết` theo F.11-N (RE-BASELINE CÔNG KHAI) · γ/XEB cho lượng tử · QFT · đo sức với Qiskit (2026-09-29)
+
+### ★ RE-BASELINE `cam_kết` (Phụ lục F.11-N) — thay đổi hành vi, ghi công khai theo yêu cầu của luận văn
+- **Trước:** `e = S/(1+S)`, `S = Σ_i ln(std0/std_i)` — **TỔNG** trên D chiều ⇒ e phụ thuộc SỐ CHIỀU
+  (D = 30 ⇒ e ≈ 0.98 gần như mọi lúc; trục e bão hoà, mặt phẳng Tứ Tượng sụp thành một đường).
+- **Nay:** `e = s/(1+s)`, `s = (1/D)·Σ_i ln(std0/std_i)` — **TRUNG BÌNH**, bất biến theo D. Hai đầu mút
+  giữ nguyên (std = std0 ⇒ e = 0; std → 0 ⇒ e → 1). Danh sách rỗng ⇒ e = 0.
+- Sửa ở CẢ HAI nơi cài e trong dự án: builtin `cam_kết` (`giao.py: commitment_e`) và `os_ai_cdfl.py`.
+- **Ngưỡng e ≥ 0.5** (phân Tứ Tượng) GIỮ con số, nhưng NGHĨA đã đổi và nay nhất quán: e ≥ 0.5 ⇔
+  trung bình hình học của độ tán ≤ std0/ℯ ≈ 0.37·std0, **với mọi D**. (Bản tổng: ngưỡng này tuỳ D —
+  D chiều chỉ cần mỗi chiều ≤ std0·ℯ^(−1/D), tức gần như luôn vượt khi D lớn.)
+- **Số đo trước → sau** (cùng đầu vào):
+
+  | nơi | đại lượng | trước (tổng) | sau (trung bình) | Tứ Tượng |
+  |---|---|---|---|---|
+  | `examples/nao_cdfl_moi.giao` | e([0.9, 0.8]) | 0.2473 | 0.1411 | không đổi |
+  | | e([0.1, 0.05]) | 0.8412 | 0.726 | không đổi (Lão Dương / Thiếu Âm) |
+  | | dọn_cache | e = 0.8216 | e = 0.6972 | không đổi (Lão Dương) |
+  | `os_ai_cdfl.py` vòng 2…9 | e | 0.83 – 0.97 | 0.62 – 0.93 | không đổi; mọi quyết định SOI/TƯƠI giữ nguyên |
+
+  Không ô nào đổi Tứ Tượng và không quyết định nào đổi trong các ví dụ của dự án; e giờ có dải động
+  thật (khớp đo đạc F.11-N: dải động bản trung bình gấp 3.3 lần bản tổng).
+- Còn các nơi NGOÀI dự án này mà F.11-N nêu (`core.py` hệ 463 agent, `resonance.rb` CDFL harness,
+  `resonance.py` Kaori System) — CHƯA sửa ở đây.
+- Test mới: `kiem_thu.py` [15b] — cùng độ sắc cho cùng e dù D = 1 hay D = 10.
+
+### Lượng tử
+- **γ trên phân phối đo (F.4) ≈ XEB**: `γ_mẫu(đếm, ψ, ε)`, `xeb_tuyến_tính(đếm, ψ)`, `chấm_mẫu` → tri(xeb, γ).
+  Phát hiện: với σ lý tưởng kiểu Porter–Thomas, γ ĐỔI DẤU khi độ trung thực < ~0.56 (tử số F.4 =
+  E_ρ[ln Nσ] ≈ 0.42·λ − 0.58·(1−λ)) — tức γ đặt ngưỡng đạt/rớt tại độ trung thực ≈ 0.56. XEB tuyến
+  tính là ƯỚC LƯỢNG độ trung thực, không phải phép đạt/rớt; hai thước đo khác bản chất; ε = 0 gặp chuỗi "không thể" ⇒ γ = −1.
+- Nhiễu khử cực toàn cục: `lấy_mẫu_nhiễu(m, số_lần, seed, p)`. Chuỗi ngẫu nhiên lấy từ **bit cao** của
+  LCG (bản đầu dùng `dư(seed, 2^n)` = bit thấp, chu kỳ ngắn ⇒ "nhiễu đều" không đều — đã sửa trước khi
+  phát hành). Lưu ý: `ngẫu_mod` trong `chuẩn.giao` cũng lấy bit thấp — đã sửa ở v0.32.1.
+- Cổng `CP` (QASM 2.0: `cu1`, 3.0: `cp`), `mạch_qft(n)` (cùng quy ước Qiskit QFT), `mạch_ngẫu_nhiên(n, độ_sâu, seed)`.
+- Lõi mảng: cổng CHÉO chỉ nhân pha phần có hệ số ≠ 1 (CP chạm ¼ mảng); SWAP = hoán vị thuần; chọn
+  nhiều bit = chọn một bit lồng nhau (chỉ lát cắt C, bỏ đường chỉ số + vòng lặp Python).
+- `bench_luong_tu.py` + `bench_qiskit.py`: đo thời gian + RAM đỉnh, mỗi ca một tiến trình, CÙNG mạch
+  (QASM do GIAO xuất) chạy trên Qiskit Aer (1 luồng / nhiều luồng) và `quantum_info.Statevector`.
+- Demo `lượng_tử_xeb.giao`. `kiem_luong_tu.py` 27/27 (QFT = cột DFT; γ_mẫu ≡ công thức F.4 viết độc lập).
+- **Đo sức (LUONG_TU.md §5b):** 24 qubit — GIAO ~24 phút/mạch, 1.5 GB; Aer 1 luồng 14–17 s, 332 MB;
+  Aer 20 luồng 1–4 s; Qiskit numpy 150–220 s. Ở 20 qubit độ trung thực GIAO↔Aer = 1.000000000000.
+  26 qubit KHÔNG chạy xong (máy cạn RAM, tiến trình bị dừng) — trần thực tế của cách lưu hiện tại.
+
+---
+
+## v0.31.0 — KIỂU `mảng`: GIAO chạy theo cách numpy chạy (không numpy) · lượng tử tới 25 qubit (2026-09-29)
+
+- `giao_mang.py` (chỉ thư viện chuẩn): kiểu `mảng` (vector phức) + phép trên CẢ MẢNG — `m_chọn`,
+  `m_đặt_chọn` (theo mặt nạ bit; 1 bit → lát cắt C, nhiều bit → chỉ số), `m_tổ_hợp`, `m_nhân_số`,
+  `m_tổng_mô2`, `m_tích_trong`, `m_rút`… Từng phần tử KHÔNG đi qua trình thông dịch.
+- `lib_lượng_tử.giao`: hai lõi cùng ngữ nghĩa — **mảng** (mặc định) và **GIAO thuần** (chuẩn đối
+  chiếu, `dùng_lõi_mảng(tối)`); hai lõi trùng nhau tuyệt đối. Lõi thuần tối ưu gấp 2 (chỉ N/2 cặp).
+  `ma_trận_rút_gọn` tính ρ_A thẳng từ ψ (O(2^n·4^k) thay vì O(4^n)); rút mẫu bằng tìm nhị phân.
+- Đo được: lõi thuần ~13.5 µs/biên độ/cổng; lõi mảng ~0.08–0.17 µs (**~150×**). 20 qubit ≈ 0.13 s/cổng,
+  24 qubit ≈ 2.9 s/cổng, 25 qubit ≈ 7.9 s/cổng (`bench_luong_tu.py`).
+- `giao.py`: cờ `--trần-ds N` nới trần độ dài danh sách (tường minh, như `--bước`).
+- Demo `lượng_tử_ghz.giao` (GHZ 20 qubit, ~9 s). `kiem_luong_tu.py` 21/21 · `kiem_thu.py` 82/82.
+
+---
+
+## v0.30.0 — LƯỢNG TỬ: mô phỏng qubit + OpenQASM + trị riêng Hermitian (2026-09-29)
+
+**Mô phỏng trên máy cổ điển — GIAO KHÔNG trở thành máy lượng tử.** Xem `LUONG_TU.md`.
+
+- `lib_lượng_tử.giao`: số phức · ma trận phức (nhân, †, Kronecker, vết) · vector trạng thái n qubit
+  (H X Y Z S T RX RY RZ P CX CZ SWAP CCX) · đo có sụp · ma trận mật độ · vết riêng · trị riêng
+  Hermitian (Jacobi trên nhúng thực 2n×2n) · entropy von Neumann · độ vướng víu · I(A:B) lượng tử ·
+  mạch = dữ liệu → `chạy_mạch` / `lấy_mẫu` (shots) / `sang_qasm` (2.0) / `sang_qasm3` (3.0).
+- Ba trị: qubit chồng chập → `ẩn`; đo → `tri(bit, γ = xác suất)`.
+- `giao.py`: builtin `tạo_tri(giá_trị, γ)`, `γ_của(tri)`.
+- Demo: `lượng_tử_bell` · `lượng_tử_grover` (P 0.125→0.945) · `lượng_tử_dịch_chuyển` (độ trung thực 1)
+  · `lượng_tử_hilbert` (I(I:M) đầy đủ: Bell = 2·ln2, |+⟩ có S = 0 — bản chéo cũ ra ln2 là sai).
+- `kiem_luong_tu.py`: đối chiếu độc lập với numpy (16/16); vào `kiem_toan_bo.py` (77/77).
+- Giới hạn: ~10 qubit trong trần bước mặc định; chưa chạy trên phần cứng thật.
+
+---
+
 ## v0.29.0 — ★★★★★ B3: TẦNG KHỐI + NHẬT KÝ PHỦ CẢ DỮ LIỆU + GẮN ĐĨA (2026-07-31)
 
 Lại quan sát máy thật trước. Bốn lệnh trên Kali 2026.2 (ext4):

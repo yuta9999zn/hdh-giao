@@ -29,11 +29,13 @@ bản tham chiếu, nên kết quả khớp từng bit.
 
 ## An toàn: vì sao là WASI + wasmtime, không phải Node
 
-`gvm64.wasm` **chỉ import 6 hàm WASI**:
+`gvm64.wasm` **chỉ import 7 hàm WASI**:
 - `fd_read`: đọc chương trình từ stdin;
 - `fd_write`: ghi stdout/stderr;
 - `args_sizes_get`, `args_get`: đọc cờ;
 - `clock_time_get`: đồng hồ, chỉ đưa cho chương trình GIAO khi có `--cho-giờ`;
+- `random_get`: byte ngẫu nhiên của HĐH cho builtin `ngẫu_hệ()` (muối mật khẩu). Không mở tệp hay
+  mạng nên không cần cờ. Lỗi thì máy dừng bằng bẫy, không lặng lẽ trả số đoán được;
 - `proc_exit`: thoát.
 
 Máy không thấy thư mục nào, không có mạng, không chạy được tiến trình. Kiểm lại bằng
@@ -63,6 +65,11 @@ Các lỗi thật tìm và sửa được trong lúc đối chiếu:
 
 ## Số đo (máy 20 luồng, RAM 15.6 GB; Qiskit 2.5.2 / Aer 0.17.2; CÙNG mạch QASM do GIAO xuất)
 
+**Đọc bảng cho đúng:** Aer **mặc định chạy đa luồng**. Cột "Aer 1 luồng" là Aer bị ÉP về 1 luồng
+(`max_parallel_threads=1`) để so từng lõi với GVM-64 (hiện 1 luồng). So với Aer cấu hình mặc định
+thì xem cột "Aer 20 luồng": ở đó GVM-64 **chậm hơn** 3–9 lần sau gộp cổng. Khi trích số, luôn ghi
+rõ đang so với cấu hình nào.
+
 | mạch | n | GIAO thông dịch | **GVM-64** | Aer 1 luồng | Aer 20 luồng | Qiskit numpy |
 |---|---|---|---|---|---|---|
 | QFT | 20 | 23.4 s · 89 MB | **0.39 s · 44 MB** | 0.28 s · 108 MB | 0.07 s | 4.9 s |
@@ -82,11 +89,13 @@ Các lỗi thật tìm và sửa được trong lúc đối chiếu:
 | QFT | 26 | 40.4 s | **39.1 s** | 30.5 s | 13.0 s |
 
 - **Độ đúng:** mọi biên độ khớp Aer tới **10⁻¹⁶ – 10⁻²⁰**, và ⟨ψ|ψ⟩ = 1.000000000000.
-- **QFT:** GVM-64 xấp xỉ Aer 1 luồng. Ở 24 qubit nó còn **nhanh hơn** (8.8 s so với 17.2 s).
+- **QFT:** GVM-64 xấp xỉ Aer ép 1 luồng. Ở 24 qubit nó nhanh hơn Aer ép 1 luồng (8.8 s so với
+  17.2 s), nhưng chậm hơn Aer mặc định 20 luồng (3.8 s).
 - **RAM** bằng hoặc thấp hơn Aer (16 byte mỗi biên độ).
 - **Mạch ngẫu nhiên:** trước khi gộp cổng thì chậm hơn Aer 1 luồng 7–11 lần, vì mỗi cổng duyệt cả
   1 GB trạng thái (giới hạn băng thông bộ nhớ). **Gộp cổng** (v0.35, viết bằng GIAO) đưa về chậm hơn
-  **2.3 lần** ở 26 qubit, và **nhanh hơn** Aer 1 luồng ở 24 qubit. Hai bước tiếp theo: SIMD 128-bit
+  **2.3 lần** Aer ép 1 luồng ở 26 qubit, và nhanh hơn Aer ép 1 luồng ở 24 qubit (vẫn chậm hơn Aer
+  mặc định đa luồng 4.3 lần). Hai bước tiếp theo: SIMD 128-bit
   của WASM, và đa luồng (WASM threads).
 
 **Mật khẩu:** `kiem_lib_mật_khẩu.giao` trên GVM-64 **không cần nới trần bước** và chạy xong trong
