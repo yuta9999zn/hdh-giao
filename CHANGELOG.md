@@ -5,6 +5,38 @@ Nền học thuyết: Nguyễn Trường An (DFCT / NNL-NTHT / CDFL).
 
 ---
 
+## v0.41.0 — Ghim vân tay khoá sổ niêm phong · ML-DSA chuyển sang mldsa-native (2026-10-01)
+
+### Ghim khoá sổ niêm phong (vá giới hạn nêu ở v0.40.0)
+- Vân tay ĐỦ 256 bit của cặp khoá (SHA-256 của `'GIAO-KHOA-v1' ‖ pk_Ed25519 ‖ pk_ML-DSA-65`) được COMMIT ở
+  `khoa_niem_phong.ghim` — lịch sử git là nhân chứng độc lập với thư mục khoá `.khoa/`.
+- Khi nạp khoá: DỰNG LẠI khoá công khai từ khoá bí mật (tráo riêng `cong_khai.json` ⇒ lộ), so với ghim
+  (tráo cả thư mục khoá bằng một cặp tự nhất quán ⇒ lộ). Có ghim mà mất khoá ⇒ KHÔNG tự tạo khoá mới.
+  Máy mới / khôi phục: `python niem_phong.py --ghim-khoa` rồi commit (thay đổi ai cũng thấy trong git).
+- CI kín: `kiem_toan_bo.py` cho các bài kiểm dùng khoá TẠM (`GIAO_KHOA_NIEM_PHONG`,
+  `GIAO_GHIM_KHOA_NIEM_PHONG`) — chạy được cả trên bản clone mới, không đụng khoá thật.
+- `kiem_ky_kep.py` **21/21** (thêm 4: khoá đúng nạp được · tráo `cong_khai.json` · tráo cả thư mục khoá ·
+  mất khoá không tự tạo).
+
+### ML-DSA-65: PQClean (đã lưu trữ) → mldsa-native v2.0.0
+- Vendor **mldsa-native v2.0.0** (`834a90d`, PQ Code Package, Apache-2.0/ISC/MIT), bản dựng một khối
+  `mldsa_native.c`, bỏ các backend hợp ngữ x86_64/aarch64 (WASM không dùng). Dựng với
+  `MLD_CONFIG_NO_RANDOMIZED_API`: thư viện không có đường lấy ngẫu nhiên — chỉ `keypair_internal(ξ)` và
+  `signature_internal(…, rnd, …)`, không còn phải vá `randombytes` như với PQClean. Giao thức `ky_lenh`
+  giữ nguyên ⇒ `ky_kep.py`, `niem_phong.py` không đổi.
+- Kiểm: NIST ACVP ML-DSA-65 keyGen 25/25 · sigGen 15/15 · sigVer 15/15 (y như PQClean).
+- **So chéo trước khi gỡ PQClean:** 40 ca ngẫu nhiên (ξ, thông điệp 0–300 byte, ngữ cảnh 0–39 byte, rnd) —
+  khoá **40/40**, chữ ký tất định **40/40**, chữ ký cùng rnd **40/40** trùng từng byte; kiểm chéo (chữ ký
+  của bên này, bên kia kiểm) 40/40; chữ ký bị lật 1 bit bị cả hai từ chối 40/40.
+- Khoá thật của sổ (tạo bằng PQClean) vẫn khớp ghim khi nạp bằng mldsa-native — cùng ξ ⇒ cùng khoá.
+- Gỡ `ben_ngoai/pqclean/`. Ghim mới `wasm/ky.sha256` (tái lập được).
+
+### Ghi chú
+- Ổ E: mất kết nối giữa chừng (máy khởi động lại, ổ ngoài chưa cắm); sau khi cắm lại: `git fsck` sạch,
+  kho ở đúng commit `f387edc`, khoá sổ còn nguyên.
+
+---
+
 ## v0.40.0 — GĐ2 bắt đầu: ký kép ML-DSA-65 + Ed25519 cho sổ niêm phong (2026-09-30)
 
 ### Mã mật mã — vendor nguyên văn, dựng bằng wasi-sdk, ghim SHA-256

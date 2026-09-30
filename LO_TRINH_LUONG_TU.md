@@ -41,7 +41,8 @@ Trạng thái ghi theo ngày; ✅ xong và có kiểm · 🟡 làm một phần 
 | Ký các mục của sổ niêm phong bằng ML-DSA + Ed25519 (ký kép) | ✅ 2026-09-30 | `niem_phong.py` + `ky_kep.py` → `wasm/ky_lenh.wasm`; `kiem_ky_kep.py` 17/17 |
 | Ký bản cập nhật HĐH bằng ML-DSA + Ed25519 | ⬜ | |
 | Kết nối mạng (môi giới, MCP qua mạng) dùng TLS lai X25519 + ML-KEM | ⬜ | MCP hiện chạy qua stdio cục bộ; ảnh hưởng chính là môi giới gọi IBM |
-| Nguồn: biên dịch **PQClean** (ML-DSA-65) + **Monocypher** (Ed25519) sang WASM bằng wasi-sdk | ✅ 2026-09-30 | `wasm/dung_ky.sh`, ghim `wasm/ky.sha256`. ⚠ PQClean đã **lưu trữ (archived)** 2026-08; nên chuyển sang **mldsa-native** (PQ Code Package) |
+| Nguồn: biên dịch **mldsa-native v2.0.0** (ML-DSA-65) + **Monocypher 4.0.3** (Ed25519) sang WASM bằng wasi-sdk | ✅ 2026-10-01 | `wasm/dung_ky.sh`, ghim `wasm/ky.sha256`; thay PQClean (đã lưu trữ) — so chéo 40/40 trùng từng byte |
+| Vân tay khoá sổ ghim trong kho, độc lập với `.khoa/` | ✅ 2026-10-01 | `khoa_niem_phong.ghim`; tráo khoá / mất khoá ⇒ từ chối, không tự tạo khoá mới |
 | Kiểm bằng vector chính thức | ✅ 2026-09-30 | ML-DSA-65: NIST ACVP keyGen 25 · sigGen 15 · sigVer 15; Ed25519: RFC 8032 §7.1 (5) + ACVP sigVer (5) |
 
 ## Giai đoạn 3 — Tác vụ lượng tử trong HĐH

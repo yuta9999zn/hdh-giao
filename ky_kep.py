@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """KÝ KÉP ML-DSA-65 + Ed25519 — lớp gọi (host) cho wasm/ky_lenh.wasm.
 
-Mã mật mã KHÔNG ở đây: ML-DSA-65 là PQClean (FIPS 204), Ed25519 là Monocypher (RFC 8032), vendor nguyên
+Mã mật mã KHÔNG ở đây: ML-DSA-65 là mldsa-native v2.0.0 (FIPS 204), Ed25519 là Monocypher (RFC 8032), vendor nguyên
 văn trong ben_ngoai/, dựng bằng wasi-sdk (sh wasm/dung_ky.sh), chạy dưới wasmtime KHÔNG cấp thư mục. Tệp
 này chỉ đóng gói tham số, kiểm GHIM SHA-256 của module (wasm/ky.sha256) rồi gọi.
 
