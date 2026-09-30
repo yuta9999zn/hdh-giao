@@ -1,0 +1,151 @@
+# _cdfl.giao — TẦNG CDFL viết bằng GIAO, cho GVM-64 (giaoc64 hạ cú pháp CDFL xuống lời gọi các hàm này)
+#
+# Trình thông dịch (giao.py) cài tầng này trong Python: kho tâm/vật, học, giao, trôi, khi viên_mãn, de.
+# GVM-64 KHÔNG thêm lệnh máy nào cho nó: giaoc64 dịch
+#     vật x = e        → __cdfl_khai("vật", "x", e)        tâm x = e → __cdfl_khai("tâm", "x", e)
+#     tâm x / vật x    → __cdfl_đọc("tâm"|"vật", "x")      de        → __cdfl_de()
+#     học x            → __cdfl_học("x")
+#     giao t = tâm a ⋈ vật b   → đặt t = __cdfl_giao("a", "b")
+#     trôi x = e       → __cdfl_trôi_đk("x", hàm() { trả e })     trôi → __cdfl_trôi()
+#     khi viên_mãn e { … }     → nếu __cdfl_viên_mãn(e) { … }
+# Ngữ nghĩa bám từng dòng Runtime của giao.py (Decl, learn, resonance, TroiReg/TroiTick, KhiVienMan,
+# de_cau_truc/dark_existence); kiem_gvm64.py đối chiếu đầu ra từng ký tự.
+# Khác biệt DUY NHẤT đã biết: biểu thức luật trôi ở giao.py được tính trong môi trường LÚC NHỊP trôi,
+# ở đây là môi trường LÚC ĐĂNG KÝ (bao đóng). Chỉ lệch khi luật trôi đọc biến cục bộ bị đổi giữa hai lúc.
+# Tên bắt đầu bằng __cdfl_ để không va với tên của chương trình.
+
+đặt __cdfl_TÂM = bản()          # tên → giá trị (thứ tự chèn = thứ tự dict của giao.py)
+đặt __cdfl_VẬT = bản()
+đặt __cdfl_BẢN = bản()          # vat_version: tên vật → số lần đổi
+đặt __cdfl_HỌC = bản()          # tam_learned: tên → phiên bản vật lúc học
+đặt __cdfl_THẤY = bản()         # observed: vật đã phơi (qua học/giao)
+đặt __cdfl_GAMMA = bản()        # tam_gamma: γ gần nhất của mỗi tâm
+đặt __cdfl_TRÔI = bản()         # drifts: tên vật → bao đóng luật trôi
+đặt __cdfl_ALPHA = 0.5
+đặt __cdfl_TAU = 0.99
+
+hàm __cdfl_khai(trường, tên, v) {
+    nếu trường == "tâm" { đặt_khoá(__cdfl_TÂM, tên, v)  trả ẩn }
+    đặt_khoá(__cdfl_VẬT, tên, v)
+    đặt_khoá(__cdfl_BẢN, tên, __cdfl_phiên_bản(tên) + 1)
+    trả ẩn
+}
+
+hàm __cdfl_phiên_bản(tên) {
+    nếu có_khoá(__cdfl_BẢN, tên) { trả lấy_khoá(__cdfl_BẢN, tên) }
+    trả 0
+}
+
+hàm __cdfl_đọc(trường, tên) {
+    đặt kho = __cdfl_VẬT
+    nếu trường == "tâm" { đặt kho = __cdfl_TÂM }
+    nếu có_khoá(kho, tên) { trả lấy_khoá(kho, tên) }
+    __ném(trường + " '" + tên + "' chưa khai báo")
+}
+
+hàm __cdfl_số(x) { trả loại(x) == "số" }
+
+hàm __cdfl_cộng_hưởng(niềm_tin, thật) {          # Runtime.resonance
+    nếu loại(niềm_tin) == "ẩn" { trả ẩn }
+    nếu loại(thật) == "ẩn" { trả ẩn }
+    đặt g = ẩn
+    nếu __cdfl_số(niềm_tin) {
+        nếu __cdfl_số(thật) { đặt g = cộng_hưởng(niềm_tin, thật) }
+    }
+    nếu loại(g) == "ẩn" {
+        nếu niềm_tin == thật { đặt g = 1.0 } khác { đặt g = -1.0 }
+    }
+    trả [niềm_tin, g]
+}
+
+hàm __cdfl_giao(tên_tâm, tên_vật) {
+    đặt niềm_tin = ẩn
+    nếu có_khoá(__cdfl_TÂM, tên_tâm) { đặt niềm_tin = lấy_khoá(__cdfl_TÂM, tên_tâm) }
+    đặt thật = ẩn
+    nếu có_khoá(__cdfl_VẬT, tên_vật) {
+        đặt thật = lấy_khoá(__cdfl_VẬT, tên_vật)
+        đặt_khoá(__cdfl_THẤY, tên_vật, sáng)
+    }
+    đặt r = __cdfl_cộng_hưởng(niềm_tin, thật)
+    nếu loại(r) == "ẩn" { trả tạo_tri(ẩn, 0) }
+    đặt_khoá(__cdfl_GAMMA, tên_tâm, r[1])
+    trả tạo_tri(r[0], r[1])
+}
+
+hàm __cdfl_học(tên) {                              # Runtime.learn
+    nếu có_khoá(__cdfl_VẬT, tên) == tối { __ném("không thể học '" + tên + "': vật chưa khai báo") }
+    đặt thật = lấy_khoá(__cdfl_VẬT, tên)
+    đặt_khoá(__cdfl_THẤY, tên, sáng)
+    đặt niềm_tin = ẩn
+    nếu có_khoá(__cdfl_TÂM, tên) { đặt niềm_tin = lấy_khoá(__cdfl_TÂM, tên) }
+    nếu loại(niềm_tin) == "ẩn" { đặt niềm_tin = 0.0 }
+    đặt mới = thật
+    nếu __cdfl_số(thật) {
+        nếu __cdfl_số(niềm_tin) { đặt mới = niềm_tin + __cdfl_ALPHA * (thật - niềm_tin) }
+    }
+    đặt_khoá(__cdfl_TÂM, tên, mới)
+    đặt_khoá(__cdfl_HỌC, tên, __cdfl_phiên_bản(tên))
+    trả ẩn
+}
+
+hàm __cdfl_trôi_đk(tên, luật) {
+    nếu có_khoá(__cdfl_VẬT, tên) == tối { __ném("trôi '" + tên + "': vật chưa khai báo") }
+    đặt_khoá(__cdfl_TRÔI, tên, luật)
+    trả ẩn
+}
+
+hàm __cdfl_trôi() {
+    nếu dài(__cdfl_TRÔI) == 0 { __ném("trôi: chưa có luật trôi nào được đăng ký") }
+    lặp tên trong khoá(__cdfl_TRÔI) {
+        đặt luật = lấy_khoá(__cdfl_TRÔI, tên)
+        đặt_khoá(__cdfl_VẬT, tên, luật())
+        đặt_khoá(__cdfl_BẢN, tên, __cdfl_phiên_bản(tên) + 1)
+    }
+    trả ẩn
+}
+
+hàm __cdfl_viên_mãn(v) {
+    nếu loại(v) == "tri" {
+        đặt g = γ_của(v)
+        nếu loại(g) != "ẩn" { nếu g >= __cdfl_TAU { trả sáng } }
+    }
+    trả tối
+}
+
+hàm __cdfl_nối(ds) {
+    nếu dài(ds) == 0 { trả "∅" }
+    đặt s = ""  đặt đầu = sáng
+    lặp x trong ds {
+        nếu đầu == sáng { đặt s = x  đặt đầu = tối } khác { đặt s = s + ", " + x }
+    }
+    trả s
+}
+
+hàm __cdfl_de() {                                  # Runtime.dark_existence (de_cau_truc)
+    đặt de_x = []  đặt de_t = []  đặt de_if = []  đặt de_mf = []
+    lặp k trong khoá(__cdfl_VẬT) {
+        nếu có_khoá(__cdfl_TÂM, k) == tối { gom(de_x, k) }
+    }
+    lặp k trong khoá(__cdfl_HỌC) {
+        nếu __cdfl_phiên_bản(k) > lấy_khoá(__cdfl_HỌC, k) { gom(de_t, k) }
+    }
+    lặp k trong khoá(__cdfl_TÂM) {
+        đặt g = 0.0
+        nếu có_khoá(__cdfl_GAMMA, k) { đặt g = lấy_khoá(__cdfl_GAMMA, k) }
+        nếu loại(lấy_khoá(__cdfl_TÂM, k)) == "ẩn" { gom(de_if, k) } khác { nếu g < 0 { gom(de_if, k) } }
+    }
+    lặp k trong khoá(__cdfl_VẬT) {
+        nếu có_khoá(__cdfl_THẤY, k) == tối { gom(de_mf, k) }
+    }
+    đặt hợp = bản()
+    lặp ds trong [de_x, de_t, de_if, de_mf] { lặp k trong ds { đặt_khoá(hợp, k, sáng) } }
+    đặt tổng = dài(hợp)
+    đặt đuôi = "còn sàn tối D>0"
+    nếu tổng == 0 { đặt đuôi = "viên mãn cục bộ ở đây" }
+    đặt s = "DE — Vùng Tối BỐN MẶT (Dark Existence) — chồng nhau, DE ≠ tổng rời:\n"
+    đặt s = s + "   • DE_X  (không gian chưa tới): " + __cdfl_nối(de_x) + "\n"
+    đặt s = s + "   • DE_T  (tri thức cũ trôi)   : " + __cdfl_nối(de_t) + "\n"
+    đặt s = s + "   • DE_IF (tâm chưa hình dung) : " + __cdfl_nối(de_if) + "\n"
+    đặt s = s + "   • DE_MF (thế giới chưa phơi) : " + __cdfl_nối(de_mf) + "\n"
+    trả s + "   • |DE hợp|=" + tổng + "  →  " + đuôi
+}

@@ -12,7 +12,7 @@ Ngữ nghĩa BÁM trình thông dịch giao.py (chuẩn đối chiếu: kiem_gvm
   · `nhập` gộp mô-đun lúc biên dịch (một lần, trong cây thư mục của tệp chính, như giao.py);
   · tên: cục bộ → hàm bao ngoài (từ vựng) → toàn cục, BỎ QUA ô chưa gán (như tra cứu động);
   · `đặt` trong hàm luôn tạo biến cục bộ (như cur_define).
-Chưa hỗ trợ (báo lỗi rõ khi biên dịch): tầng CDFL vật/tâm/học/giao/trôi/khi viên_mãn/de.
+Tầng CDFL vật/tâm/học/giao/trôi/khi viên_mãn/de được HẠ xuống lời gọi _cdfl.giao (viết bằng GIAO).
 """
 import os, sys, struct
 from giao import (tokenize, Parser, Num, Str, AnLit, TruthLit, ListLit, FieldRef, VarRef, DeQuery, Bin,
@@ -45,10 +45,15 @@ for id_, names in [
     (44, "m_lấy"), (45, "m_gán"), (46, "m_sao"), (47, "m_sang_ds"), (48, "m_chọn"), (49, "m_đặt_chọn"),
     (50, "m_tổ_hợp"), (51, "m_nhân_số"), (52, "m_biến_đổi_cặp"), (53, "m_nhân_chọn"), (54, "m_đổi_chọn"),
     (55, "m_tổng_mô2_chọn"), (56, "m_tổng_mô2"), (57, "m_mô2_ds"), (58, "m_tích_trong"), (59, "m_rút"),
-    (63, "m_biến_đổi_bốn"), (64, "ngẫu_hệ ngau_he")]:
+    (63, "m_biến_đổi_bốn"), (64, "ngẫu_hệ ngau_he"), (65, "__ném")]:
     for nm in names.split(): BUILTIN[nm] = id_
 
 class LỗiBiênDịch(Exception): pass
+
+def _gọi(tên, *đối): return Goi(VarRef(tên), list(đối))
+def _câu(gốc, nút):
+    "Nút hạ tầng mang dòng/cột của câu gốc (thông báo lỗi chỉ đúng chỗ)."
+    nút.line, nút.col = gốc.line, gốc.col; return nút
 
 class Phạm_vi:
     "Phạm vi một HÀM: tên → ô trong khung (tham số trước, rồi biến cục bộ, rồi ô ẩn cho vòng lặp)."
@@ -175,8 +180,8 @@ class GiaoC64:
             for a in n.args: self.expr(a)
             self.e("GỌI", len(n.args))
         elif t is Lam: self.e("BAO_ĐÓNG", self.hàm_mới("λ", n.params, n.body))
-        elif t in (FieldRef, DeQuery):
-            raise LỗiBiênDịch("tầng CDFL (tâm/vật/de) chưa có trên GVM-64 — chạy bằng giao.py")
+        elif t is FieldRef: self.expr(_gọi("__cdfl_đọc", Str(n.field), Str(n.name)))    # tầng CDFL → _cdfl.giao
+        elif t is DeQuery: self.expr(_gọi("__cdfl_de"))
         else: raise LỗiBiênDịch(f"biểu thức {t.__name__} chưa hỗ trợ")
 
     def hàm_mới(self, tên, params, body):
@@ -255,8 +260,14 @@ class GiaoC64:
             self.block(s.bat)
             self.đặt_nhãn(L_hết)
         elif t is Nhap: self.nhập(s.path)
-        elif t in (Decl, Hoc, Giao, TroiReg, TroiTick, KhiVienMan):
-            raise LỗiBiênDịch("tầng CDFL (vật/tâm/học/giao/trôi/khi viên_mãn) chưa có trên GVM-64 — chạy bằng giao.py")
+        # ---- tầng CDFL: HẠ xuống lời gọi thư viện _cdfl.giao (viết bằng GIAO, không thêm lệnh máy) ----
+        elif t is Decl: self.stmt(_câu(s, ExprStmt(_gọi("__cdfl_khai", Str(s.field), Str(s.name), s.expr))))
+        elif t is Hoc: self.stmt(_câu(s, ExprStmt(_gọi("__cdfl_học", Str(s.name)))))
+        elif t is Giao: self.stmt(_câu(s, Dat(s.target, _gọi("__cdfl_giao", Str(s.ifname), Str(s.mfname)))))
+        elif t is TroiReg:
+            self.stmt(_câu(s, ExprStmt(_gọi("__cdfl_trôi_đk", Str(s.name), Lam([], [_câu(s, Tra(s.expr))])))))
+        elif t is TroiTick: self.stmt(_câu(s, ExprStmt(_gọi("__cdfl_trôi"))))
+        elif t is KhiVienMan: self.stmt(_câu(s, Neu(_gọi("__cdfl_viên_mãn", s.expr), s.body, None, None)))
         else: raise LỗiBiênDịch(f"câu lệnh {t.__name__} chưa hỗ trợ")
 
     def nhập(self, path):
@@ -335,6 +346,8 @@ def biên_dịch_tệp(đường_dẫn):
     "Trả (bytes .g64). Thư viện chuẩn chuẩn.giao luôn được biên dịch trước, như giao.py."
     with open(đường_dẫn, encoding="utf-8") as f: ast = Parser(tokenize(f.read())).parse()
     with open(os.path.join(P, "chuẩn.giao"), encoding="utf-8") as f: ast_chuẩn = Parser(tokenize(f.read())).parse()
+    with open(os.path.join(P, "_cdfl.giao"), encoding="utf-8") as f:              # tầng CDFL (viết bằng GIAO)
+        ast_chuẩn = ast_chuẩn + Parser(tokenize(f.read())).parse()
     c = GiaoC64(os.path.dirname(os.path.abspath(đường_dẫn)))
     return c.nhị_phân(c.biên_dịch(ast_chuẩn, ast))
 

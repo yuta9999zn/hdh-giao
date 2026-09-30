@@ -1,0 +1,69 @@
+# kiem_cdfl_gvm64.giao — tầng CDFL chạy GIỐNG HỆT trên trình thông dịch và GVM-64 (_cdfl.giao)
+#   python giao.py kiem_cdfl_gvm64.giao        ·  python kiem_gvm64.py kiem_cdfl_gvm64.giao
+# Phủ các nhánh biên: lỗi (bắt bằng thử), tri chuỗi/danh sách, học khi tâm ẩn, trôi nhiều luật, de, viên mãn.
+
+rọi "── lỗi ──"
+thử { rọi tâm chưa_có } bắt (e) { rọi "bắt: " + e }
+thử { học ma } bắt (e) { rọi "bắt: " + e }
+thử { trôi } bắt (e) { rọi "bắt: " + e }
+thử { trôi ma = 1 } bắt (e) { rọi "bắt: " + e }
+
+rọi "── giao: số, chuỗi, danh sách, ẩn ──"
+vật nhiệt = 30
+tâm nhiệt = 28
+giao g1 = tâm nhiệt ⋈ vật nhiệt
+rọi g1
+vật màu = "đỏ"
+tâm màu = "xanh"
+giao g2 = tâm màu ⋈ vật màu
+rọi g2
+tâm màu = "đỏ"
+giao g3 = màu
+rọi g3
+vật ds = [1, 2]
+tâm ds = [1, 2]
+giao g4 = tâm ds ⋈ vật ds
+rọi g4
+tâm mơ = ẩn
+giao g5 = tâm mơ ⋈ vật nhiệt
+rọi g5
+giao g6 = tâm không_khai ⋈ vật không_khai
+rọi g6
+
+rọi "── học ──"
+vật sóng = 10
+học sóng
+rọi tâm sóng
+học sóng
+rọi tâm sóng
+vật chữ = "biển"
+học chữ
+rọi tâm chữ
+
+rọi "── trôi ──"
+vật a = 1
+vật b = 100
+trôi a = vật a + 1
+trôi b = vật b - vật a
+trôi
+học a
+trôi
+rọi [vật a, vật b, tâm a]
+rọi de
+
+rọi "── khi viên_mãn ──"
+vật đích = 5
+tâm đích = 5
+giao gv = đích
+khi viên_mãn gv { rọi "viên mãn: γ = " + γ_của(gv) }
+khi viên_mãn g1 { rọi "g1 (28 so với 30) γ≈0.991 ≥ 0.99: cũng viên mãn" }
+khi viên_mãn 7 { rọi "SAI: số không phải tri" }
+
+hàm trong_hàm() {
+    tâm cục = 3
+    vật cục = 3
+    giao k = cục
+    trả k
+}
+rọi trong_hàm()
+rọi de

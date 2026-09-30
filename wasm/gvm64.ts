@@ -11,7 +11,7 @@
 // CHUẨN ĐỐI CHIẾU = trình thông dịch giao.py: cùng chương trình phải in RA Y HỆT (kiem_gvm64.py).
 // I/O = WASI tối thiểu (chuẩn WASM, KHÔNG phụ thuộc Node): máy chỉ ĐỌC stdin (chương trình) và
 // GHI stdout/stderr. Không thư mục, không mạng. Chạy trên runtime WASI bất kỳ, vd:
-//   wasmtime run wasm/gvm64.wasm -- [--bước N] [--trần-ds N] [--cho-giờ] < tệp.g64
+//   wasmtime run wasm/gvm64.wasm -- [--bước N] [--trần-ds N] [--cho-giờ] [--không-simd] < tệp.g64
 // Đồng hồ chỉ tới tay chương trình GIAO khi host cấp --cho-giờ (năng lực ở tầng GIAO).
 // ============================================================
 
@@ -109,6 +109,75 @@ export function dat_dung_san(g: i32, id: i32): void { gk[g] = K_BUILTIN; gv[g] =
 // ---------------- giới hạn (host đặt; mặc định như trình thông dịch) ----------------
 let MAX_STEPS: i64 = 4000000000; let MAX_DEPTH: i32 = 10000; let MAX_LIST: i32 = 1000000; let MAX_STR: i32 = 2000000;
 export function dat_gioi_han(buoc: i64, sau: i32, ds: i32, chuoi: i32): void { MAX_STEPS = buoc; MAX_DEPTH = sau; MAX_LIST = ds; MAX_STR = chuoi; }
+// ---------------- SIMD f64x2 (WASM 128-bit) ----------------
+// Hai biên độ LIỀN KỀ (i, i+1) một lượt. Điều kiện: bit 0 là bit TỰ DO (không thuộc sel), nên
+// các chỉ số cần xử lý đi thành từng CẶP liền kề. Mỗi làn làm ĐÚNG phép vô hướng theo ĐÚNG thứ tự
+// (f64x2.mul/add/sub là IEEE từng làn, không có FMA) ⇒ kết quả KHỚP TỪNG BIT với lõi vô hướng.
+let dungSimd = true;
+@inline function vld(a: Float64Array, i: i32): v128 { return v128.load(a.dataStart + (<usize>i << 3)); }
+@inline function vst(a: Float64Array, i: i32, v: v128): void { v128.store(a.dataStart + (<usize>i << 3), v); }
+function simdCap(re: Float64Array, im: Float64Array, N: i32, bt: i32, ar: f64, ai: f64, br: f64, bi: f64, cr: f64, ci: f64, dr: f64, di: f64): void {
+  let Ar = f64x2.splat(ar), Ai = f64x2.splat(ai), Br = f64x2.splat(br), Bi = f64x2.splat(bi);
+  let Cr = f64x2.splat(cr), Ci = f64x2.splat(ci), Dr = f64x2.splat(dr), Di = f64x2.splat(di);
+  for (let base = 0; base < N; base += 2 * bt) {
+    for (let i = base; i < base + bt; i += 2) {
+      let j = i + bt;
+      let xr = vld(re, i), xi = vld(im, i), yr = vld(re, j), yi = vld(im, j);
+      vst(re, i, f64x2.add(f64x2.sub(f64x2.mul(Ar, xr), f64x2.mul(Ai, xi)), f64x2.sub(f64x2.mul(Br, yr), f64x2.mul(Bi, yi))));
+      vst(im, i, f64x2.add(f64x2.add(f64x2.mul(Ar, xi), f64x2.mul(Ai, xr)), f64x2.add(f64x2.mul(Br, yi), f64x2.mul(Bi, yr))));
+      vst(re, j, f64x2.add(f64x2.sub(f64x2.mul(Cr, xr), f64x2.mul(Ci, xi)), f64x2.sub(f64x2.mul(Dr, yr), f64x2.mul(Di, yi))));
+      vst(im, j, f64x2.add(f64x2.add(f64x2.mul(Cr, xi), f64x2.mul(Ci, xr)), f64x2.add(f64x2.mul(Dr, yi), f64x2.mul(Di, yr))));
+    }
+  }
+}
+function simdCheo(re: Float64Array, im: Float64Array, N: i32, s: i32, mu: i32, zr: f64, zi: f64): void {
+  let Zr = f64x2.splat(zr), Zi = f64x2.splat(zi); let s1 = s | 1; let free = (N - 1) & ~s1;
+  for (let t = 0; ; t = ((t | s1) + 1) & ~s1) {
+    let i = t | mu; let xr = vld(re, i), xi = vld(im, i);
+    vst(re, i, f64x2.sub(f64x2.mul(Zr, xr), f64x2.mul(Zi, xi))); vst(im, i, f64x2.add(f64x2.mul(Zr, xi), f64x2.mul(Zi, xr)));
+    if (t == free) break;
+  }
+}
+function simdBon(re: Float64Array, im: Float64Array, N: i32, ba: i32, bb: i32, u: Float64Array): void {
+  let sel = ba | bb; let s1 = sel | 1; let free = (N - 1) & ~s1;
+  let A00r = f64x2.splat(unchecked(u[0])), A00i = f64x2.splat(unchecked(u[1])); let A01r = f64x2.splat(unchecked(u[2])), A01i = f64x2.splat(unchecked(u[3])); let A02r = f64x2.splat(unchecked(u[4])), A02i = f64x2.splat(unchecked(u[5])); let A03r = f64x2.splat(unchecked(u[6])), A03i = f64x2.splat(unchecked(u[7]));
+  let A10r = f64x2.splat(unchecked(u[8])), A10i = f64x2.splat(unchecked(u[9])); let A11r = f64x2.splat(unchecked(u[10])), A11i = f64x2.splat(unchecked(u[11])); let A12r = f64x2.splat(unchecked(u[12])), A12i = f64x2.splat(unchecked(u[13])); let A13r = f64x2.splat(unchecked(u[14])), A13i = f64x2.splat(unchecked(u[15]));
+  let A20r = f64x2.splat(unchecked(u[16])), A20i = f64x2.splat(unchecked(u[17])); let A21r = f64x2.splat(unchecked(u[18])), A21i = f64x2.splat(unchecked(u[19])); let A22r = f64x2.splat(unchecked(u[20])), A22i = f64x2.splat(unchecked(u[21])); let A23r = f64x2.splat(unchecked(u[22])), A23i = f64x2.splat(unchecked(u[23]));
+  let A30r = f64x2.splat(unchecked(u[24])), A30i = f64x2.splat(unchecked(u[25])); let A31r = f64x2.splat(unchecked(u[26])), A31i = f64x2.splat(unchecked(u[27])); let A32r = f64x2.splat(unchecked(u[28])), A32i = f64x2.splat(unchecked(u[29])); let A33r = f64x2.splat(unchecked(u[30])), A33i = f64x2.splat(unchecked(u[31]));
+  let Z = f64x2.splat(0.0);
+  for (let t = 0; ; t = ((t | s1) + 1) & ~s1) {
+    let i0 = t, i1 = t | ba, i2 = t | bb, i3 = t | sel;
+    let x0r = vld(re, i0), x0i = vld(im, i0), x1r = vld(re, i1), x1i = vld(im, i1);
+    let x2r = vld(re, i2), x2i = vld(im, i2), x3r = vld(re, i3), x3i = vld(im, i3);
+    let sr: v128, si: v128;
+    sr = Z; si = Z;
+    sr = f64x2.add(sr, f64x2.sub(f64x2.mul(A00r, x0r), f64x2.mul(A00i, x0i))); si = f64x2.add(si, f64x2.add(f64x2.mul(A00r, x0i), f64x2.mul(A00i, x0r)));
+    sr = f64x2.add(sr, f64x2.sub(f64x2.mul(A01r, x1r), f64x2.mul(A01i, x1i))); si = f64x2.add(si, f64x2.add(f64x2.mul(A01r, x1i), f64x2.mul(A01i, x1r)));
+    sr = f64x2.add(sr, f64x2.sub(f64x2.mul(A02r, x2r), f64x2.mul(A02i, x2i))); si = f64x2.add(si, f64x2.add(f64x2.mul(A02r, x2i), f64x2.mul(A02i, x2r)));
+    sr = f64x2.add(sr, f64x2.sub(f64x2.mul(A03r, x3r), f64x2.mul(A03i, x3i))); si = f64x2.add(si, f64x2.add(f64x2.mul(A03r, x3i), f64x2.mul(A03i, x3r)));
+    vst(re, i0, sr); vst(im, i0, si);
+    sr = Z; si = Z;
+    sr = f64x2.add(sr, f64x2.sub(f64x2.mul(A10r, x0r), f64x2.mul(A10i, x0i))); si = f64x2.add(si, f64x2.add(f64x2.mul(A10r, x0i), f64x2.mul(A10i, x0r)));
+    sr = f64x2.add(sr, f64x2.sub(f64x2.mul(A11r, x1r), f64x2.mul(A11i, x1i))); si = f64x2.add(si, f64x2.add(f64x2.mul(A11r, x1i), f64x2.mul(A11i, x1r)));
+    sr = f64x2.add(sr, f64x2.sub(f64x2.mul(A12r, x2r), f64x2.mul(A12i, x2i))); si = f64x2.add(si, f64x2.add(f64x2.mul(A12r, x2i), f64x2.mul(A12i, x2r)));
+    sr = f64x2.add(sr, f64x2.sub(f64x2.mul(A13r, x3r), f64x2.mul(A13i, x3i))); si = f64x2.add(si, f64x2.add(f64x2.mul(A13r, x3i), f64x2.mul(A13i, x3r)));
+    vst(re, i1, sr); vst(im, i1, si);
+    sr = Z; si = Z;
+    sr = f64x2.add(sr, f64x2.sub(f64x2.mul(A20r, x0r), f64x2.mul(A20i, x0i))); si = f64x2.add(si, f64x2.add(f64x2.mul(A20r, x0i), f64x2.mul(A20i, x0r)));
+    sr = f64x2.add(sr, f64x2.sub(f64x2.mul(A21r, x1r), f64x2.mul(A21i, x1i))); si = f64x2.add(si, f64x2.add(f64x2.mul(A21r, x1i), f64x2.mul(A21i, x1r)));
+    sr = f64x2.add(sr, f64x2.sub(f64x2.mul(A22r, x2r), f64x2.mul(A22i, x2i))); si = f64x2.add(si, f64x2.add(f64x2.mul(A22r, x2i), f64x2.mul(A22i, x2r)));
+    sr = f64x2.add(sr, f64x2.sub(f64x2.mul(A23r, x3r), f64x2.mul(A23i, x3i))); si = f64x2.add(si, f64x2.add(f64x2.mul(A23r, x3i), f64x2.mul(A23i, x3r)));
+    vst(re, i2, sr); vst(im, i2, si);
+    sr = Z; si = Z;
+    sr = f64x2.add(sr, f64x2.sub(f64x2.mul(A30r, x0r), f64x2.mul(A30i, x0i))); si = f64x2.add(si, f64x2.add(f64x2.mul(A30r, x0i), f64x2.mul(A30i, x0r)));
+    sr = f64x2.add(sr, f64x2.sub(f64x2.mul(A31r, x1r), f64x2.mul(A31i, x1i))); si = f64x2.add(si, f64x2.add(f64x2.mul(A31r, x1i), f64x2.mul(A31i, x1r)));
+    sr = f64x2.add(sr, f64x2.sub(f64x2.mul(A32r, x2r), f64x2.mul(A32i, x2i))); si = f64x2.add(si, f64x2.add(f64x2.mul(A32r, x2i), f64x2.mul(A32i, x2r)));
+    sr = f64x2.add(sr, f64x2.sub(f64x2.mul(A33r, x3r), f64x2.mul(A33i, x3i))); si = f64x2.add(si, f64x2.add(f64x2.mul(A33r, x3i), f64x2.mul(A33i, x3r)));
+    vst(re, i3, sr); vst(im, i3, si);
+    if (t == free) break;
+  }
+}
+
 let coGio = false;
 export function cap_gio(): void { coGio = true; }
 
@@ -1048,6 +1117,9 @@ function builtin(id: i32, b: i32, n: i32): void {
     case 64: { // ngẫu_hệ() — nguồn ngẫu nhiên của HĐH (WASI random_get)
       if (!need(n, 0, "ngẫu_hệ")) return; RI(host_ngau_he()); return;
     }
+    case 65: { // __ném(thông_điệp) — CHỈ cho thư viện hạ tầng (_cdfl.giao): lỗi runtime như self.err của giao.py
+      if (!need(n, 1, "__ném")) return; err(render(sk[b], sv[b], so[b])); return;
+    }
     case 60: case 61: case 62: { // tim / nhúng / nhịp_tim — cần LLM qua MẠNG
       err("'" + (id == 60 ? "tim" : (id == 61 ? "nhúng" : "nhịp_tim")) + "' cần năng lực LLM qua mạng — GVM-64 chạy trong hộp cát WASI không có mạng (chạy bằng giao.py)");
       return;
@@ -1143,6 +1215,7 @@ function builtin(id: i32, b: i32, n: i32): void {
       let ar = asF(ul.k[0], ul.v[0]), ai = asF(ul.k[1], ul.v[1]), br = asF(ul.k[2], ul.v[2]), bi = asF(ul.k[3], ul.v[3]);
       let cr = asF(ul.k[4], ul.v[4]), ci = asF(ul.k[5], ul.v[5]), dr = asF(ul.k[6], ul.v[6]), di = asF(ul.k[7], ul.v[7]);
       let bt = 1 << <i32>t; let mk = <i32>mask; let re = m.re, im = m.im;
+      if (mk == 0 && dungSimd && bt >= 2) { simdCap(re, im, N, bt, ar, ai, br, bi, cr, ci, dr, di); RO(K_MANG, m); return; }
       if (mk == 0) {
         for (let base = 0; base < N; base += 2 * bt) {
           for (let i = base; i < base + bt; i++) {
@@ -1174,6 +1247,7 @@ function builtin(id: i32, b: i32, n: i32): void {
       if (!checkMask(m.re.length, sel, mau, "m_nhân_chọn")) return;
       if (!carg(b + 3, "m_nhân_chọn")) return; let zr = czr, zi = czi;
       let N = m.re.length; let s = <i32>sel, mu = <i32>mau; let re = m.re, im = m.im; let free = (N - 1) & ~s;
+      if (dungSimd && (s & 1) == 0 && N >= 2 && !(zr == 0 && zi == 0)) { simdCheo(re, im, N, s, mu, zr, zi); RO(K_MANG, m); return; }
       for (let t = 0; ; t = ((t | s) + 1) & ~s) {                  // t chạy qua mọi tổ hợp bit TỰ DO, tăng dần
         let i = t | mu;
         if (zr == 0 && zi == 0) { unchecked(re[i] = 0); unchecked(im[i] = 0); }
@@ -1262,6 +1336,7 @@ function builtin(id: i32, b: i32, n: i32): void {
       let u = new Float64Array(32); for (let q = 0; q < 32; q++) u[q] = asFO(ul.k[q], ul.v[q], ul.o[q]);
       let ba = 1 << <i32>qa, bb = 1 << <i32>qb; let sel = ba | bb; let free = (N - 1) & ~sel;
       let re = m.re, im = m.im;
+      if (dungSimd && (sel & 1) == 0) { simdBon(re, im, N, ba, bb, u); RO(K_MANG, m); return; }
       // 32 hệ số vào BIẾN CỤC BỘ (thanh ghi); cộng dồn từ 0.0 theo c = 0..3 như mọi lõi khác
       let a00r = u[0], a00i = u[1], a01r = u[2], a01i = u[3], a02r = u[4], a02i = u[5], a03r = u[6], a03i = u[7];
       let a10r = u[8], a10i = u[9], a11r = u[10], a11i = u[11], a12r = u[12], a12i = u[13], a13r = u[14], a13i = u[15];
@@ -1496,6 +1571,7 @@ export function _start(): void {
     if ((a == "--bước" || a == "--buoc") && i + 1 < doi.length) { MAX_STEPS = I64.parseInt(doi[++i]); }
     else if ((a == "--trần-ds" || a == "--tran-ds") && i + 1 < doi.length) { MAX_LIST = I32.parseInt(doi[++i]); }
     else if (a == "--cho-giờ" || a == "--cho-gio") { coGio = true; }
+    else if (a == "--không-simd" || a == "--khong-simd") { dungSimd = false; }   // đo A/B cùng một tệp máy
   }
   docStdin();
   if (!napNhiPhan()) { ghiChuoi(2, "[gvm64] stdin không phải chương trình .g64 hợp lệ\n"); wasi_proc_exit(2); return; }

@@ -5,6 +5,35 @@ Nền học thuyết: Nguyễn Trường An (DFCT / NNL-NTHT / CDFL).
 
 ---
 
+## v0.36.0 — Tầng CDFL chạy trên GVM-64 · SIMD 128-bit · đa luồng: bị chặn ở vỏ (2026-09-30)
+
+### Tầng CDFL trên GVM-64 (viết bằng GIAO, không thêm lệnh máy)
+- `giaoc64` hạ `vật/tâm/học/giao/trôi/khi viên_mãn/de` xuống lời gọi thư viện mới **`_cdfl.giao`**:
+  kho tâm/vật, học (α = 0.5), cộng hưởng F.4, luật trôi, DE bốn mặt — bám từng dòng ngữ nghĩa của
+  `giao.py`. Builtin nội bộ `__ném` (id 65) để lỗi CDFL bắt được bằng `thử` như ở trình thông dịch.
+- Đối chiếu: **143 khớp · 0 lệch · 0 chưa biên dịch được** (trước: 131 · 0 · 9). Test biên mới
+  `kiem_cdfl_gvm64.giao` (lỗi, tri chuỗi/danh sách, học khi tâm ẩn, trôi, DE_T, viên mãn).
+- Khác biệt đã biết (ghi trong `_cdfl.giao`): luật trôi tính trong môi trường lúc đăng ký, không phải
+  lúc nhịp trôi.
+
+### SIMD 128-bit (f64x2) trong GVM-64
+- `m_biến_đổi_cặp`, `m_nhân_chọn`, `m_biến_đổi_bốn`: hai biên độ liền kề một lượt khi bit 0 tự do.
+  Cùng phép, cùng thứ tự, không FMA ⇒ **khớp từng bit** với lõi vô hướng. `--không-simd` để đo A/B;
+  `bench_gvm64.py --không-simd --ra tệp.json`.
+- 26 qubit: mạch ngẫu nhiên **19.6 → 9.1 s**, QFT **39.1 → 21.0 s** (Aer ép 1 luồng: 8.5 / 30.5 s;
+  Aer mặc định 20 luồng: 4.5 / 13.0 s). Lệch biên độ so Aer ≤ 1e-16.
+
+### Đa luồng — đã thử, bị chặn
+- wasmtime 49 đã bỏ wasi-threads (`-S threads` "no longer supported", import `wasi::thread-spawn`
+  không có). Thí nghiệm nhỏ (shared memory + atomics + thread-spawn) biên dịch được nhưng không chạy
+  được trên vỏ an toàn. Chi tiết và các đường còn lại: `GVM64.md` › Giới hạn.
+
+### Khác
+- `kaori-train/cdfl.py` (dự án Kaori System): `commitment(..., dims=1)` như `resonance.rb`; số cũ không
+  đổi vì S(σ‖u) ở đó đã là trung bình theo token. `resonance.rb` của KIAI đã ở dạng trung bình từ trước.
+
+---
+
 ## v0.35.1 — Muối mật khẩu lấy từ nguồn ngẫu nhiên của HĐH · băm lại bóng muối yếu · sửa cách diễn đạt số đo (2026-09-30)
 
 ### Muối mật khẩu (tiếp nối lỗi "chỉ có 16 muối" ở v0.32.1)

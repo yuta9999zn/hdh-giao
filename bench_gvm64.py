@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ĐO SỨC lib_lượng_tử.giao trên GVM-64 (wasmtime) — thời gian + RAM đỉnh, QFT và mạch ngẫu nhiên.
-    python bench_gvm64.py [--cỡ 20 24 26] [--qiskit <python_có_qiskit>]
+    python bench_gvm64.py [--cỡ 20 24 26] [--qiskit <python_có_qiskit>] [--không-simd] [--ra tệp.json]
 Chương trình GIAO do chính lib_lượng_tử.giao dựng mạch (mạch_qft / mạch_ngẫu_nhiên, như bench_luong_tu.py),
 biên dịch bằng giaoc64, chạy trên gvm64.wasm dưới wasmtime — KHÔNG có Python lúc chạy.
 Thời gian mô phỏng đo BÊN TRONG máy bằng giờ_hệ() (năng lực --cho-giờ) — không tính dựng mạch/khởi động.
@@ -14,6 +14,7 @@ import psutil
 
 WASMTIME = shutil.which("wasmtime") or r"D:\wasmtime\wasmtime.exe"
 TMP = os.path.join(P, "__pycache__", "bench_lt"); os.makedirs(TMP, exist_ok=True)
+CỜ_MÁY = []                             # vd --không-simd (đo A/B trên cùng tệp máy)
 CHỈ_SỐ = [0, 1, 12345, 777777]           # biên độ đem đối chiếu (lọc < 2^n)
 
 def nguồn(loại, n):
@@ -35,7 +36,7 @@ def chạy(loại, n):
     with open(g, "wb") as f: f.write(dữ)
     với = open(g, "rb"); t0 = time.perf_counter()
     fo, fe = open(g + ".out", "wb"), open(g + ".err", "wb")          # tệp, KHÔNG pipe (pipe Windows nhỏ → nghẽn)
-    pr = psutil.Popen([WASMTIME, "run", os.path.join(P, "wasm", "gvm64.wasm"), "--", "--cho-giờ"],
+    pr = psutil.Popen([WASMTIME, "run", os.path.join(P, "wasm", "gvm64.wasm"), "--", "--cho-giờ"] + CỜ_MÁY,
                       stdin=với, stdout=fo, stderr=fe)
     đỉnh = 0
     while pr.poll() is None:
@@ -69,6 +70,8 @@ if __name__ == "__main__":
         i = a.index("--cỡ") + 1; cỡ = []
         while i < len(a) and not a[i].startswith("--"): cỡ.append(int(a[i])); i += 1
     if "--qiskit" in a: py_q = a[a.index("--qiskit") + 1]
+    if "--không-simd" in a: CỜ_MÁY.append("--không-simd")
+    ra = a[a.index("--ra") + 1] if "--ra" in a else "bench_gvm64.json"
     kq = []
     print(f"{'mạch':<5} {'n':>3} {'cổng':>5} {'giây mô phỏng':>14} {'RAM đỉnh':>10}   ⟨ψ|ψ⟩ · đối chiếu Aer")
     for n in cỡ:
@@ -85,4 +88,4 @@ if __name__ == "__main__":
                 else: ghi += " · (Aer lỗi: " + r.stderr.strip()[-120:] + ")"
             print(f"{loại:<5} {n:>3} {d['số_cổng']:>5} {d['giây_mô_phỏng']:>14.2f} {d['ram_đỉnh_MB']:>7} MB   {ghi}", flush=True)
             kq.append(d)
-    with open(os.path.join(P, "bench_gvm64.json"), "w", encoding="utf-8") as f: json.dump(kq, f, ensure_ascii=False, indent=1)
+    with open(os.path.join(P, ra), "w", encoding="utf-8") as f: json.dump(kq, f, ensure_ascii=False, indent=1)

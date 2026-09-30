@@ -53,9 +53,15 @@ Máy không thấy thư mục nào, không có mạng, không chạy được ti
 
 Đối chiếu mọi chương trình GIAO trong dự án giữa trình thông dịch và GVM-64, **so stdout từng ký tự**,
 với cùng cờ host mà CI dùng:
-- **131 khớp · 0 lệch.**
-- 12 chương trình cần năng lực host (tệp/mạng/mmio/phần cứng/LLM) hoặc in thời gian đo thật.
-- 9 chương trình chưa biên dịch được, vì dùng tầng CDFL `vật/tâm/học/giao/trôi`.
+- **143 khớp · 0 lệch · 0 chưa biên dịch được.**
+- 13 chương trình cần năng lực host (tệp/mạng/mmio/phần cứng/LLM) hoặc in thời gian đo thật.
+
+**Tầng CDFL** (`vật/tâm/học/giao/trôi/khi viên_mãn/de`) không thêm lệnh máy nào. `giaoc64` hạ cú pháp
+xuống lời gọi thư viện `_cdfl.giao`, viết bằng GIAO: kho tâm/vật, học (α = 0.5), cộng hưởng (F.4), luật
+trôi và DE bốn mặt, bám từng dòng ngữ nghĩa của `giao.py`. Lỗi (`tâm 'x' chưa khai báo`…) đi qua builtin
+nội bộ `__ném`, bắt được bằng `thử`. `kiem_cdfl_gvm64.giao` phủ các nhánh biên. Khác biệt duy nhất đã
+biết: biểu thức luật trôi được tính trong môi trường lúc ĐĂNG KÝ (bao đóng), còn `giao.py` tính trong
+môi trường lúc NHỊP trôi; chỉ lệch khi luật đọc biến cục bộ bị đổi giữa hai lúc.
 
 Các lỗi thật tìm và sửa được trong lúc đối chiếu:
 - Chuỗi có emoji bị đếm theo UTF-16 → đổi sang đếm theo điểm mã. Vector SHA-256 thứ 4 giờ đúng.
@@ -88,6 +94,21 @@ rõ đang so với cấu hình nào.
 | ngẫu nhiên | 26 | 97 s | **19.6 s** | 8.5 s | 4.5 s |
 | QFT | 26 | 40.4 s | **39.1 s** | 30.5 s | 13.0 s |
 
+**Sau SIMD 128-bit (v0.36, f64x2):** hai biên độ liền kề một lượt ở các lõi `m_biến_đổi_cặp`,
+`m_nhân_chọn`, `m_biến_đổi_bốn` (khi bit 0 là bit tự do). Mỗi làn làm đúng phép vô hướng theo đúng thứ tự,
+không FMA, nên kết quả **khớp từng bit** với lõi vô hướng (đã so biên độ đủ chữ số và ⟨ψ|ψ⟩ ở 20 và 24
+qubit, QFT và ngẫu nhiên). `--không-simd` tắt SIMD trên cùng tệp máy để đo A/B.
+
+| mạch | n | GVM-64 vô hướng | **GVM-64 SIMD** | Aer ép 1 luồng | Aer mặc định (20 luồng) |
+|---|---|---|---|---|---|
+| QFT | 24 | 9.57 s | **4.72 s** | 17.2 s | 3.8 s |
+| ngẫu nhiên | 24 | 4.77 s | **2.17 s** | 13.7 s | 1.05 s |
+| QFT | 26 | 39.1 s | **21.0 s** | 30.5 s | 13.0 s |
+| ngẫu nhiên | 26 | 19.6 s | **9.1 s** | 8.5 s | 4.5 s |
+
+Biên độ vẫn khớp Aer tới 10⁻¹⁶ – 10⁻²⁰. RAM không đổi (~1.07 GB ở 26 qubit). So với Aer **mặc định**
+(đa luồng) GVM-64 còn chậm hơn 1.6–2 lần; so với Aer ép 1 luồng thì QFT nhanh hơn, mạch ngẫu nhiên xấp xỉ.
+
 - **Độ đúng:** mọi biên độ khớp Aer tới **10⁻¹⁶ – 10⁻²⁰**, và ⟨ψ|ψ⟩ = 1.000000000000.
 - **QFT:** GVM-64 xấp xỉ Aer ép 1 luồng. Ở 24 qubit nó nhanh hơn Aer ép 1 luồng (8.8 s so với
   17.2 s), nhưng chậm hơn Aer mặc định 20 luồng (3.8 s).
@@ -95,8 +116,7 @@ rõ đang so với cấu hình nào.
 - **Mạch ngẫu nhiên:** trước khi gộp cổng thì chậm hơn Aer 1 luồng 7–11 lần, vì mỗi cổng duyệt cả
   1 GB trạng thái (giới hạn băng thông bộ nhớ). **Gộp cổng** (v0.35, viết bằng GIAO) đưa về chậm hơn
   **2.3 lần** Aer ép 1 luồng ở 26 qubit, và nhanh hơn Aer ép 1 luồng ở 24 qubit (vẫn chậm hơn Aer
-  mặc định đa luồng 4.3 lần). Hai bước tiếp theo: SIMD 128-bit
-  của WASM, và đa luồng (WASM threads).
+  mặc định đa luồng 4.3 lần). SIMD (v0.36) giảm tiếp một nửa, xem bảng trên.
 
 **Mật khẩu:** `kiem_lib_mật_khẩu.giao` trên GVM-64 **không cần nới trần bước** và chạy xong trong
 0.69 s. Trình thông dịch chạm trần 5 triệu bước; nới `--bước 200000000` thì mất 8.52 s. Đầu ra trùng
@@ -105,9 +125,16 @@ khít.
 ## Giới hạn
 
 - **wasm32 tối đa 4 GB bộ nhớ**, nên mô phỏng lượng tử tối đa khoảng 27 qubit.
-- **Chưa có SIMD, chưa có đa luồng.** Aer 20 luồng nhanh hơn 3–9 lần (sau gộp cổng).
+- **Chưa có đa luồng — bị chặn ở vỏ, không phải ở máy.** Đã thử (v0.36): WASM có shared memory +
+  atomics, nhưng tạo luồng cần import `wasi::thread-spawn` (đề xuất wasi-threads). **wasmtime 49 đã
+  bỏ hẳn nó**: `-S threads` báo "no longer supported", module có import ấy không khởi tạo được.
+  Node `node:wasi` cũng không có. Các đường còn lại đều đổi lấy an toàn hoặc công sức lớn:
+  (1) quay về wasmtime cũ còn wasi-threads (thử nghiệm, đã bị bỏ — không nên);
+  (2) tự viết vỏ Rust nhúng thư viện wasmtime, tự cấp `thread-spawn` (hàng trăm dòng Rust, và
+  AssemblyScript còn phải tránh GC trong luồng phụ: mỗi luồng là một instance mới dùng chung bộ nhớ,
+  chạy lại khởi tạo tĩnh); (3) chờ đề xuất shared-everything-threads. Hiện Aer mặc định (đa luồng) nhanh
+  hơn GVM-64 1.6–2 lần.
 - **Trình biên dịch vẫn viết bằng Python**, nhưng chỉ chạy lúc dựng. Lúc chạy không có Python.
   Tự thân hoá `giaoc64` bằng GIAO rồi chạy chính nó trên GVM-64 là bước sau.
-- **Tầng CDFL chưa biên dịch được:** `vật/tâm/học/giao/trôi/khi viên_mãn/de`.
 - `log`/`mũ` dùng thư viện toán của AssemblyScript, có thể lệch ở chữ số cuối so với libm của Python.
   Chưa thấy lệch trong đầu ra (in `%.4g`).
