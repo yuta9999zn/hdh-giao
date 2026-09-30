@@ -1,0 +1,28 @@
+# ============================================================
+# LƯỢNG TỬ 3 — dịch chuyển lượng tử (teleportation): gửi trạng thái của q0 sang q2
+# chỉ bằng một cặp vướng víu + hai bit cổ điển. Q0 bị PHÁ khi đo (không sao chép được).
+#   python giao.py lượng_tử_dịch_chuyển.giao
+# Hiệu chỉnh dùng "đo trễ" (CX/CZ có điều khiển trước khi đo) — tương đương, chạy được trên máy thật.
+# ============================================================
+nhập "lib_lượng_tử.giao"
+
+# Trạng thái cần gửi: φ = RZ(0.7)·RY(1.2)|0⟩
+đặt φ = trạng_thái(1)
+áp_cổng(φ, cổng_ry(1.2), 0)
+áp_cổng(φ, cổng_rz(0.7), 0)
+rọi "Trạng thái cần gửi φ = " + chuỗi_trạng_thái(φ)
+
+đặt m = mạch(3)
+RY(m, 1.2, 0)  RZ(m, 0.7, 0)          # chuẩn bị φ trên q0
+H(m, 1)  CX(m, 1, 2)                  # cặp Bell q1–q2 (q2 ở "phía nhận")
+CX(m, 0, 1)  H(m, 0)                  # phép đo Bell của bên gửi
+CX(m, 1, 2)  CZ(m, 0, 2)              # hiệu chỉnh bên nhận (đo trễ)
+ĐO(m, 0)  ĐO(m, 1)
+
+lặp seed trong [1, 5, 8, 11, 2026, 31337] {
+    đặt kq = chạy_mạch(m, seed)
+    đặt ρ2 = vết_riêng(ma_trận_mật_độ(kq["ψ"]), 3, [2])
+    rọi "  bit đo q0=" + kq["bit"][0] + " q1=" + kq["bit"][1] + " · tri = " + hiện(kq["tri"]) + " · độ trung thực của q2 với φ = " + độ_trung_thực_ρ(φ, ρ2)
+}
+rọi "→ mọi kết quả đo đều cho độ trung thực 1: trạng thái φ đã sang q2."
+rọi "  Mỗi tri có γ = 0.5: từng bit đo là ngẫu nhiên thuần — bản thân nó không mang thông tin về φ."

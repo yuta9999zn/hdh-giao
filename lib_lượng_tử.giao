@@ -1,0 +1,1029 @@
+# ============================================================
+# LƯỢNG TỬ — mô phỏng máy tính lượng tử BẰNG GIAO (trên máy cổ điển)
+#
+#   nhập "lib_lượng_tử.giao"
+#
+# ĐÂY LÀ MÔ PHỎNG, KHÔNG PHẢI MÁY LƯỢNG TỬ. Trạng thái n qubit được lưu đủ 2^n biên độ
+# phức bằng số thực thường → bộ nhớ/thời gian tăng MŨ theo n. Trình thông dịch GIAO chạy
+# thoải mái tới ~10 qubit (nới trần bằng --bước nếu cần). Muốn chạy trên phần cứng qubit
+# THẬT: dựng mạch rồi xuất OpenQASM (sang_qasm / sang_qasm3) và gửi lên IBM Quantum,
+# AWS Braket… — xem LUONG_TU.md.
+#
+# Nội dung:
+#   1. Số phức  z = [thực, ảo]                    phức · p_cộng · p_nhân · p_mũ_i …
+#   2. Ma trận phức (hàng × cột, phần tử [thực, ảo])  mt_nhân · mt_dagger · mt_kron · mt_vết
+#   3. Vector trạng thái  ψ = bản {n, re, im}     trạng_thái · áp_h · áp_cx · đo_qubit …
+#      Qubit q ↔ bit q của chỉ số (little-endian, CÙNG quy ước Qiskit) → chuỗi "q_{n-1}…q_0".
+#   4. Ba trị: trước khi đo, qubit ở chồng chập là ẨN (chưa biết — không phải "bằng 0.5");
+#      sau khi đo, kết quả là tri(bit, γ = xác suất của kết quả ấy, sáng).
+#   5. Ma trận mật độ · vết riêng · trị riêng Hermitian (Jacobi) · entropy von Neumann ·
+#      độ vướng víu · thông tin tương hỗ lượng tử.
+#   6. Mạch = dữ liệu: mạch(n) → H(m,0) · CX(m,0,1) · ĐO(m,0) … → chạy_mạch / lấy_mẫu /
+#      sang_qasm (OpenQASM 2.0) / sang_qasm3 (OpenQASM 3.0).
+# Phép đo cần ngẫu nhiên: dùng hạt giống (seed) TẤT ĐỊNH qua ngẫu() của thư viện chuẩn
+# → chạy lại cho cùng kết quả. Muốn entropy thật thì host cấp --cho-ngẫu và tự đưa seed.
+# ============================================================
+
+đặt SỐ_PI = 3.141592653589793
+đặt _NGHỊCH_CĂN2 = 0.7071067811865476        # 1/√2
+đặt _EPS = 0.000000000001                      # 1e-12: dưới ngưỡng này coi như 0
+
+# ---------------- lượng giác (chuỗi Taylor sau khi rút góc về [-π, π]) ----------------
+hàm _rút_góc(x) {
+    đặt k = nguyên((x + SỐ_PI) / (2 * SỐ_PI))
+    trả x - k * 2 * SỐ_PI
+}
+hàm sin_rad(x) {
+    đặt x = _rút_góc(x)
+    đặt x2 = x * x  đặt hạng = x  đặt tổng = x
+    lặp k trong dải_từ(1, 14) {
+        đặt hạng = 0 - hạng * x2 / ((2 * k) * (2 * k + 1))
+        đặt tổng = tổng + hạng
+    }
+    trả tổng
+}
+hàm cos_rad(x) {
+    đặt x = _rút_góc(x)
+    đặt x2 = x * x  đặt hạng = 1  đặt tổng = 1
+    lặp k trong dải_từ(1, 14) {
+        đặt hạng = 0 - hạng * x2 / ((2 * k - 1) * (2 * k))
+        đặt tổng = tổng + hạng
+    }
+    trả tổng
+}
+
+# ============================================================
+# 1. SỐ PHỨC  z = [thực, ảo]
+# ============================================================
+hàm phức(a, b) { trả [a, b] }
+hàm p_cộng(z, w) { trả [z[0] + w[0], z[1] + w[1]] }
+hàm p_trừ(z, w) { trả [z[0] - w[0], z[1] - w[1]] }
+hàm p_nhân(z, w) { trả [z[0] * w[0] - z[1] * w[1], z[0] * w[1] + z[1] * w[0]] }
+hàm p_nhân_số(z, k) { trả [z[0] * k, z[1] * k] }
+hàm p_liên_hợp(z) { trả [z[0], 0 - z[1]] }
+hàm p_mô2(z) { trả z[0] * z[0] + z[1] * z[1] }          # |z|²
+hàm p_mô(z) { trả căn(p_mô2(z)) }                        # |z|
+hàm p_chia(z, w) {                                        # z / w ; w = 0 → ẩn
+    đặt d = p_mô2(w)
+    nếu d == 0 { trả ẩn }
+    trả p_nhân_số(p_nhân(z, p_liên_hợp(w)), 1 / d)
+}
+hàm p_mũ_i(θ) { trả [cos_rad(θ), sin_rad(θ)] }                   # e^{iθ}
+hàm p_chuỗi(z) {                                          # "a", "bi", "a+bi", "a-bi"
+    đặt a = z[0]  đặt b = z[1]
+    nếu tuyệt(b) < _EPS { trả "" + a }
+    nếu tuyệt(a) < _EPS { trả "" + b + "i" }
+    nếu b < 0 { trả "(" + a + "-" + (0 - b) + "i)" }
+    trả "(" + a + "+" + b + "i)"
+}
+
+# ============================================================
+# 2. MA TRẬN PHỨC  (danh sách hàng; phần tử [thực, ảo])
+# ============================================================
+hàm mt_không(h, c) {
+    đặt m = []
+    lặp i trong dải(h) {
+        đặt hàng = []
+        lặp j trong dải(c) { gom(hàng, [0, 0]) }
+        gom(m, hàng)
+    }
+    trả m
+}
+hàm mt_đơn_vị(n) {
+    đặt m = mt_không(n, n)
+    lặp i trong dải(n) { đặt m[i][i] = [1, 0] }
+    trả m
+}
+hàm mt_nhân(A, B) {
+    đặt h = dài(A)  đặt k = dài(B)  đặt c = dài(B[0])
+    đặt m = mt_không(h, c)
+    lặp i trong dải(h) {
+        lặp j trong dải(c) {
+            đặt sr = 0  đặt si = 0
+            lặp t trong dải(k) {
+                đặt x = A[i][t]  đặt y = B[t][j]
+                đặt sr = sr + x[0] * y[0] - x[1] * y[1]
+                đặt si = si + x[0] * y[1] + x[1] * y[0]
+            }
+            đặt m[i][j] = [sr, si]
+        }
+    }
+    trả m
+}
+hàm mt_nhân_v(A, v) {                                     # A · v  (v: danh sách số phức)
+    đặt kq = []
+    lặp hàng trong A {
+        đặt sr = 0  đặt si = 0  đặt t = 0
+        lặp x trong hàng {
+            đặt y = v[t]
+            đặt sr = sr + x[0] * y[0] - x[1] * y[1]
+            đặt si = si + x[0] * y[1] + x[1] * y[0]
+            đặt t = t + 1
+        }
+        gom(kq, [sr, si])
+    }
+    trả kq
+}
+hàm mt_dagger(A) {                                        # A† = liên hợp chuyển vị
+    đặt h = dài(A)  đặt c = dài(A[0])
+    đặt m = mt_không(c, h)
+    lặp i trong dải(h) { lặp j trong dải(c) { đặt m[j][i] = p_liên_hợp(A[i][j]) } }
+    trả m
+}
+hàm mt_kron(A, B) {                                       # tích Kronecker A ⊗ B
+    đặt ha = dài(A)  đặt ca = dài(A[0])  đặt hb = dài(B)  đặt cb = dài(B[0])
+    đặt m = mt_không(ha * hb, ca * cb)
+    lặp i trong dải(ha) { lặp j trong dải(ca) { lặp k trong dải(hb) { lặp l trong dải(cb) {
+        đặt m[i * hb + k][j * cb + l] = p_nhân(A[i][j], B[k][l])
+    } } } }
+    trả m
+}
+hàm mt_vết(A) {                                           # Tr(A)
+    đặt s = [0, 0]
+    lặp i trong dải(dài(A)) { đặt s = p_cộng(s, A[i][i]) }
+    trả s
+}
+
+# ============================================================
+# 3. VECTOR TRẠNG THÁI  ψ = bản {"n": n, "re": [...], "im": [...]}
+# ============================================================
+# HAI LÕI, CÙNG NGỮ NGHĨA:
+#   · MẢNG (mặc định): ψ = {n, v} — v là kiểu `mảng` của GIAO (2 array('d') liền khối, 16 byte/biên
+#     độ). Mỗi cổng là MỘT phép TẠI CHỖ trên cả mảng (m_biến_đổi_cặp · m_nhân_chọn · m_đổi_chọn),
+#     vòng lặp theo phần tử chạy ở tầng host theo KHÚC — cách numpy chạy, nhưng KHÔNG dùng numpy.
+#   · GIAO THUẦN: ψ = {n, re, im} — mọi phần tử đi qua trình thông dịch. Chậm, nhưng là CHUẨN ĐỐI
+#     CHIẾU (kiem_luong_tu.py so hai lõi từng biên độ).
+# dùng_lõi_mảng(tối) → các trạng thái TẠO SAU đó dùng lõi GIAO thuần. Hàm nào cũng tự nhận ra lõi của ψ.
+đặt _LT = bản()
+đặt _LT["mảng"] = mảng_sẵn()
+hàm dùng_lõi_mảng(bật) {
+    nếu bật { nếu mảng_sẵn() == tối { trả tối } }
+    đặt _LT["mảng"] = bật
+    trả bật
+}
+hàm lõi_hiện() { nếu _LT["mảng"] { trả "mảng" } trả "GIAO thuần" }
+hàm _là_mảng(ψ) { trả có_khoá(ψ, "v") }
+
+hàm trạng_thái_cơ_sở(n, k) {                              # |k⟩ trên n qubit
+    đặt N = dịch_trái(1, n)
+    đặt ψ = bản()
+    đặt ψ["n"] = n
+    nếu _LT["mảng"] {
+        đặt v = mảng_không(N)  m_gán(v, k, [1, 0])
+        đặt ψ["v"] = v
+        trả ψ
+    }
+    đặt re = []  đặt im = []
+    lặp i trong dải(N) { gom(re, 0)  gom(im, 0) }
+    đặt re[k] = 1
+    đặt ψ["re"] = re  đặt ψ["im"] = im
+    trả ψ
+}
+hàm trạng_thái(n) { trả trạng_thái_cơ_sở(n, 0) }          # |0…0⟩
+hàm sao_trạng_thái(ψ) {
+    đặt φ = bản()
+    đặt φ["n"] = ψ["n"]
+    nếu _là_mảng(ψ) { đặt φ["v"] = m_sao(ψ["v"])  trả φ }
+    đặt φ["re"] = ghép([], ψ["re"])  đặt φ["im"] = ghép([], ψ["im"])
+    trả φ
+}
+hàm biên_độ(ψ, k) {
+    nếu _là_mảng(ψ) { trả m_lấy(ψ["v"], k) }
+    trả [ψ["re"][k], ψ["im"][k]]
+}
+hàm số_biên_độ(ψ) { trả dịch_trái(1, ψ["n"]) }
+hàm sang_lõi_thuần(ψ) {                                   # mảng → GIAO thuần (để đối chiếu)
+    nếu _là_mảng(ψ) == tối { trả ψ }
+    đặt ds = m_sang_ds(ψ["v"])
+    đặt φ = bản()
+    đặt φ["n"] = ψ["n"]  đặt φ["re"] = ds[0]  đặt φ["im"] = ds[1]
+    trả φ
+}
+
+# Ma trận 2×2 dạng PHẲNG: [u00r,u00i, u01r,u01i, u10r,u10i, u11r,u11i]
+đặt CỔNG_H   = [_NGHỊCH_CĂN2, 0, _NGHỊCH_CĂN2, 0, _NGHỊCH_CĂN2, 0, 0 - _NGHỊCH_CĂN2, 0]
+đặt CỔNG_X   = [0, 0, 1, 0, 1, 0, 0, 0]
+đặt CỔNG_Y   = [0, 0, 0, -1, 0, 1, 0, 0]
+đặt CỔNG_Z   = [1, 0, 0, 0, 0, 0, -1, 0]
+đặt CỔNG_S   = [1, 0, 0, 0, 0, 0, 0, 1]
+đặt CỔNG_SDG = [1, 0, 0, 0, 0, 0, 0, -1]
+đặt CỔNG_T   = [1, 0, 0, 0, 0, 0, _NGHỊCH_CĂN2, _NGHỊCH_CĂN2]
+đặt CỔNG_TDG = [1, 0, 0, 0, 0, 0, _NGHỊCH_CĂN2, 0 - _NGHỊCH_CĂN2]
+hàm cổng_rx(θ) { đặt c = cos_rad(θ / 2)  đặt s = sin_rad(θ / 2)  trả [c, 0, 0, 0 - s, 0, 0 - s, c, 0] }
+hàm cổng_ry(θ) { đặt c = cos_rad(θ / 2)  đặt s = sin_rad(θ / 2)  trả [c, 0, 0 - s, 0, s, 0, c, 0] }
+hàm cổng_rz(θ) { đặt c = cos_rad(θ / 2)  đặt s = sin_rad(θ / 2)  trả [c, 0 - s, 0, 0, 0, 0, c, s] }
+hàm cổng_p(θ)  { trả [1, 0, 0, 0, 0, 0, cos_rad(θ), sin_rad(θ)] }   # pha: diag(1, e^{iθ})
+
+# Áp cổng 1-qubit u lên qubit q, CHỈ ở các thành phần mà mọi bit trong `mặt_nạ` = 1
+# (mặt_nạ = 0 → cổng thường; mặt_nạ = bit điều khiển → cổng có điều khiển). Sửa ψ TẠI CHỖ.
+hàm áp_cổng_đk(ψ, u, mặt_nạ, q) {
+    đặt b = dịch_trái(1, q)
+    nếu _là_mảng(ψ) {                                     # LÕI MẢNG: MỘT phép TẠI CHỖ (bộ nhớ tạm O(khúc))
+        đặt sel = hoặc_bit(mặt_nạ, b)
+        nếu _là_chéo(u) {                                 # cổng CHÉO (Z S T RZ P CZ CP): chỉ nhân pha,
+            nếu _khác_1(u[0], u[1]) { m_nhân_chọn(ψ["v"], sel, mặt_nạ, [u[0], u[1]]) }   # và chỉ phần
+            nếu _khác_1(u[6], u[7]) { m_nhân_chọn(ψ["v"], sel, sel, [u[6], u[7]]) }      # hệ số ≠ 1 (CP: ¼)
+            trả ψ
+        }
+        nếu _là_x(u) { m_đổi_chọn(ψ["v"], sel, mặt_nạ, sel)  trả ψ }   # X / CX / CCX: hoán vị THUẦN
+        m_biến_đổi_cặp(ψ["v"], q, mặt_nạ, u)              # cổng tổng quát: "cánh bướm" 2×2 trên cặp
+        trả ψ
+    }
+    # LÕI GIAO THUẦN (đã tối ưu): chỉ duyệt N/2 cặp theo khối; vòng DÀI hơn đặt ở trong
+    đặt re = ψ["re"]  đặt im = ψ["im"]  đặt N = dài(re)
+    đặt u0 = u[0]  đặt u1 = u[1]  đặt u2 = u[2]  đặt u3 = u[3]
+    đặt u4 = u[4]  đặt u5 = u[5]  đặt u6 = u[6]  đặt u7 = u[7]
+    đặt số_khối = N // (2 * b)
+    đặt ngoài = _dải_nhớ(số_khối, 2 * b)  đặt trong = _dải_nhớ(b, 1)
+    nếu b > số_khối { đặt ngoài = _dải_nhớ(b, 1)  đặt trong = _dải_nhớ(số_khối, 2 * b) }
+    lặp x trong ngoài {
+        lặp y trong trong {
+            đặt i = x + y
+            đặt làm = sáng
+            nếu mặt_nạ != 0 { nếu và_bit(i, mặt_nạ) != mặt_nạ { đặt làm = tối } }
+            nếu làm {
+                đặt j = i + b
+                đặt ar = re[i]  đặt ai = im[i]  đặt br = re[j]  đặt bi = im[j]
+                đặt re[i] = u0 * ar - u1 * ai + u2 * br - u3 * bi
+                đặt im[i] = u0 * ai + u1 * ar + u2 * bi + u3 * br
+                đặt re[j] = u4 * ar - u5 * ai + u6 * br - u7 * bi
+                đặt im[j] = u4 * ai + u5 * ar + u6 * bi + u7 * br
+            }
+        }
+    }
+    trả ψ
+}
+đặt _DẢI_NHỚ = bản()
+hàm _dải_nhớ(số, bước) {                                  # [0, bước, 2·bước, …] (số phần tử) — nhớ lại
+    đặt khoá_d = "" + số + ":" + bước
+    nếu có_khoá(_DẢI_NHỚ, khoá_d) { trả _DẢI_NHỚ[khoá_d] }
+    đặt ds = []  đặt x = 0
+    lặp k trong dải(số) { gom(ds, x)  đặt x = x + bước }
+    đặt _DẢI_NHỚ[khoá_d] = ds
+    trả ds
+}
+hàm _là_chéo(u) {
+    nếu u[2] != 0 { trả tối }  nếu u[3] != 0 { trả tối }  nếu u[4] != 0 { trả tối }  nếu u[5] != 0 { trả tối }
+    trả sáng
+}
+hàm _là_x(u) {
+    nếu u[0] != 0 { trả tối }  nếu u[1] != 0 { trả tối }  nếu u[6] != 0 { trả tối }  nếu u[7] != 0 { trả tối }
+    nếu u[2] != 1 { trả tối }  nếu u[3] != 0 { trả tối }  nếu u[4] != 1 { trả tối }  nếu u[5] != 0 { trả tối }
+    trả sáng
+}
+hàm _khác_1(a, b) { nếu a != 1 { trả sáng }  nếu b != 0 { trả sáng }  trả tối }
+hàm áp_cổng(ψ, u, q) { trả áp_cổng_đk(ψ, u, 0, q) }
+# Ma trận 4×4 PHẲNG (32 số, hàng trước) lên cặp qubit (a, b); chỉ số cục bộ = bit_a + 2·bit_b.
+# Mỗi biên độ ra = Σ_c U[r][c]·x_c, CỘNG DỒN từ 0 theo c = 0..3 (cùng thứ tự ở mọi lõi → khớp từng bit).
+hàm _bốn_chéo(U) {                                         # 4×4 có phải ma trận CHÉO?
+    lặp r trong [0, 1, 2, 3] { lặp c trong [0, 1, 2, 3] {
+        nếu r != c { nếu U[2 * (4 * r + c)] != 0 { trả tối }  nếu U[2 * (4 * r + c) + 1] != 0 { trả tối } }
+    } }
+    trả sáng
+}
+hàm áp_cổng_bốn(ψ, U, a, b) {
+    # 4×4 CHÉO (CZ/CP… gộp lại): chỉ nhân pha — tối đa 4 phần tư mảng, bỏ qua pha = 1
+    nếu _bốn_chéo(U) {
+        đặt ba = dịch_trái(1, a)  đặt bb = dịch_trái(1, b)  đặt sel = hoặc_bit(ba, bb)
+        đặt mẫu = [0, ba, bb, sel]
+        lặp r trong [0, 1, 2, 3] {
+            đặt k = 2 * (4 * r + r)
+            nếu _khác_1(U[k], U[k + 1]) {
+                nếu _là_mảng(ψ) { m_nhân_chọn(ψ["v"], sel, mẫu[r], [U[k], U[k + 1]]) }
+                khác { _nhân_chọn_thuần(ψ, sel, mẫu[r], U[k], U[k + 1]) }
+            }
+        }
+        trả ψ
+    }
+    nếu _là_mảng(ψ) { m_biến_đổi_bốn(ψ["v"], a, b, U)  trả ψ }
+    đặt re = ψ["re"]  đặt im = ψ["im"]  đặt N = dài(re)
+    đặt ba = dịch_trái(1, a)  đặt bb = dịch_trái(1, b)  đặt sel = hoặc_bit(ba, bb)
+    lặp i trong dải(N) {
+        nếu và_bit(i, sel) == 0 {
+            đặt ix = [i, i + ba, i + bb, i + ba + bb]
+            đặt xr = [re[ix[0]], re[ix[1]], re[ix[2]], re[ix[3]]]  đặt xi = [im[ix[0]], im[ix[1]], im[ix[2]], im[ix[3]]]
+            lặp r trong [0, 1, 2, 3] {
+                đặt sr = 0.0  đặt si = 0.0
+                lặp c trong [0, 1, 2, 3] {
+                    đặt k = 2 * (4 * r + c)
+                    đặt sr = sr + (U[k] * xr[c] - U[k + 1] * xi[c])
+                    đặt si = si + (U[k] * xi[c] + U[k + 1] * xr[c])
+                }
+                đặt re[ix[r]] = sr  đặt im[ix[r]] = si
+            }
+        }
+    }
+    trả ψ
+}
+hàm áp_h(ψ, q) { trả áp_cổng(ψ, CỔNG_H, q) }
+hàm áp_x(ψ, q) { trả áp_cổng(ψ, CỔNG_X, q) }
+hàm áp_y(ψ, q) { trả áp_cổng(ψ, CỔNG_Y, q) }
+hàm áp_z(ψ, q) { trả áp_cổng(ψ, CỔNG_Z, q) }
+hàm áp_cx(ψ, c, t) { trả áp_cổng_đk(ψ, CỔNG_X, dịch_trái(1, c), t) }
+hàm áp_cz(ψ, c, t) { trả áp_cổng_đk(ψ, CỔNG_Z, dịch_trái(1, c), t) }
+hàm áp_ccx(ψ, c1, c2, t) { trả áp_cổng_đk(ψ, CỔNG_X, hoặc_bit(dịch_trái(1, c1), dịch_trái(1, c2)), t) }
+hàm áp_cp(ψ, θ, c, t) { trả áp_cổng_đk(ψ, cổng_p(θ), dịch_trái(1, c), t) }   # pha có điều khiển
+hàm áp_swap(ψ, a, b) {
+    nếu _là_mảng(ψ) {                                     # hoán vị: đổi chỗ phần (a=1,b=0) ↔ (a=0,b=1)
+        đặt ba = dịch_trái(1, a)  đặt bb = dịch_trái(1, b)  đặt sel = hoặc_bit(ba, bb)
+        m_đổi_chọn(ψ["v"], sel, ba, bb)
+        trả ψ
+    }
+    áp_cx(ψ, a, b)  áp_cx(ψ, b, a)  trả áp_cx(ψ, a, b)
+}
+
+# ---------------- xác suất ----------------
+hàm phân_phối(ψ) {                                        # [|ψ_0|², |ψ_1|², …]
+    nếu _là_mảng(ψ) { trả m_mô2_ds(ψ["v"]) }
+    đặt re = ψ["re"]  đặt im = ψ["im"]  đặt kq = []
+    lặp i trong dải(dài(re)) { gom(kq, re[i] * re[i] + im[i] * im[i]) }
+    trả kq
+}
+hàm chuẩn_bình_phương(ψ) {                                # ⟨ψ|ψ⟩ (phải = 1)
+    nếu _là_mảng(ψ) { trả m_tổng_mô2(ψ["v"]) }
+    trả gộp(phân_phối(ψ))
+}        # ⟨ψ|ψ⟩ (phải = 1)
+hàm xác_suất_1(ψ, q) {                                    # P(qubit q = 1)
+    nếu _là_mảng(ψ) { đặt b = dịch_trái(1, q)  trả m_tổng_mô2_chọn(ψ["v"], b, b) }
+    đặt re = ψ["re"]  đặt im = ψ["im"]  đặt b = dịch_trái(1, q)  đặt p = 0
+    lặp i trong dải(dài(re)) {
+        nếu và_bit(i, b) != 0 { đặt p = p + re[i] * re[i] + im[i] * im[i] }
+    }
+    trả p
+}
+hàm tích_trong(ψ, φ) {                                    # ⟨ψ|φ⟩
+    nếu _là_mảng(ψ) { nếu _là_mảng(φ) { trả m_tích_trong(ψ["v"], φ["v"]) } }
+    đặt sr = 0  đặt si = 0
+    lặp i trong dải(số_biên_độ(ψ)) {
+        đặt z = biên_độ(ψ, i)  đặt w = biên_độ(φ, i)
+        đặt ar = z[0]  đặt ai = 0 - z[1]  đặt br = w[0]  đặt bi = w[1]
+        đặt sr = sr + ar * br - ai * bi
+        đặt si = si + ar * bi + ai * br
+    }
+    trả [sr, si]
+}
+hàm độ_trung_thực(ψ, φ) { trả p_mô2(tích_trong(ψ, φ)) }   # |⟨ψ|φ⟩|²
+
+# ============================================================
+# 4. BA TRỊ ↔ LƯỢNG TỬ
+# ============================================================
+# Trước khi đo: qubit đã XÁC ĐỊNH (P=0 hoặc 1) → tri(bit, γ=+1, sáng);
+# còn ở chồng chập → ẨN: GIAO không bịa giá trị cho cái chưa được quan sát.
+hàm tri_qubit(ψ, q) {
+    đặt p1 = xác_suất_1(ψ, q)
+    nếu p1 > 1 - _EPS { trả tạo_tri(1, 1) }
+    nếu p1 < _EPS { trả tạo_tri(0, 1) }
+    trả ẩn
+}
+hàm độ_chắc(ψ, q) { trả tuyệt(2 * xác_suất_1(ψ, q) - 1) }   # 0 = chồng chập đều · 1 = xác định
+
+hàm _sụp(ψ, q, bit, p) {                                  # chiếu lên qubit q = bit, chuẩn hoá lại
+    nếu _là_mảng(ψ) {
+        đặt b = dịch_trái(1, q)  đặt giữ = 0  đặt bỏ = b
+        nếu bit == 1 { đặt giữ = b  đặt bỏ = 0 }
+        đặt v = ψ["v"]
+        m_nhân_chọn(v, b, giữ, [1 / căn(p), 0])
+        m_nhân_chọn(v, b, bỏ, [0, 0])
+        trả ψ
+    }
+    đặt re = ψ["re"]  đặt im = ψ["im"]  đặt b = dịch_trái(1, q)
+    đặt k = 1 / căn(p)
+    lặp i trong dải(dài(re)) {
+        đặt có = 0
+        nếu và_bit(i, b) != 0 { đặt có = 1 }
+        nếu có == bit {
+            đặt re[i] = re[i] * k  đặt im[i] = im[i] * k
+        } khác {
+            đặt re[i] = 0  đặt im[i] = 0
+        }
+    }
+}
+# Đo qubit q (SỤP ψ tại chỗ). Trả bản {bit, p, tri, seed}: tri = tri(bit, γ = P(bit), sáng).
+hàm đo_qubit(ψ, q, seed) {
+    đặt p1 = xác_suất_1(ψ, q)
+    đặt s = ngẫu(seed)
+    đặt u = s / 2147483648
+    đặt bit = 0  đặt p = 1 - p1
+    nếu u < p1 { đặt bit = 1  đặt p = p1 }
+    _sụp(ψ, q, bit, p)
+    đặt kq = bản()
+    đặt kq["bit"] = bit  đặt kq["p"] = p  đặt kq["tri"] = tạo_tri(bit, p)  đặt kq["seed"] = s
+    trả kq
+}
+
+# ---------------- in ----------------
+# hiện(x): chuỗi hiển thị ĐẦY ĐỦ của x. Cần vì "…" + tri chỉ lấy GIÁ TRỊ của tri, và "…" + ẩn = ẩn.
+hàm hiện(x) { trả nối([x], "") }
+hàm chuỗi_nhị_phân(k, n) {                                # k → "b_{n-1}…b_0"
+    đặt s = ""
+    lặp i trong dải(n) {
+        nếu và_bit(k, dịch_trái(1, i)) != 0 { đặt s = "1" + s } khác { đặt s = "0" + s }
+    }
+    trả s
+}
+hàm chuỗi_trạng_thái(ψ) {                                 # "0.7071|00⟩ + 0.7071|11⟩"
+    đặt phần = []
+    lặp i trong dải(số_biên_độ(ψ)) {
+        đặt z = biên_độ(ψ, i)
+        nếu p_mô2(z) > _EPS { gom(phần, p_chuỗi(z) + "|" + chuỗi_nhị_phân(i, ψ["n"]) + "⟩") }
+    }
+    trả nối(phần, " + ")
+}
+
+# ============================================================
+# 5. MA TRẬN MẬT ĐỘ · TRỊ RIÊNG · ENTROPY VON NEUMANN · VƯỚNG VÍU
+# ============================================================
+hàm ma_trận_mật_độ(ψ) {                                   # ρ = |ψ⟩⟨ψ|
+    đặt N = số_biên_độ(ψ)  đặt ρ = mt_không(N, N)
+    lặp i trong dải(N) { lặp j trong dải(N) {
+        đặt ρ[i][j] = p_nhân(biên_độ(ψ, i), p_liên_hợp(biên_độ(ψ, j)))
+    } }
+    trả ρ
+}
+hàm _nén_bit(i, giữ) {                                    # lấy các bit ở vị trí `giữ` → chỉ số con
+    đặt k = 0  đặt t = 0
+    lặp q trong giữ {
+        nếu và_bit(i, dịch_trái(1, q)) != 0 { đặt k = k + dịch_trái(1, t) }
+        đặt t = t + 1
+    }
+    trả k
+}
+# Vết riêng: ρ trên n qubit → ρ_giữ (qubit giữ[k] ↔ bit k của ma trận con). Lấy vết các qubit còn lại.
+hàm vết_riêng(ρ, n, giữ) {
+    đặt mặt_giữ = 0
+    lặp q trong giữ { đặt mặt_giữ = hoặc_bit(mặt_giữ, dịch_trái(1, q)) }
+    đặt mặt_bỏ = xor(dịch_trái(1, n) - 1, mặt_giữ)
+    đặt N = dịch_trái(1, n)
+    đặt nén = []  đặt dư_bit = []
+    lặp i trong dải(N) { gom(nén, _nén_bit(i, giữ))  gom(dư_bit, và_bit(i, mặt_bỏ)) }
+    đặt m = dịch_trái(1, dài(giữ))
+    đặt r = mt_không(m, m)
+    lặp i trong dải(N) { lặp j trong dải(N) {
+        nếu dư_bit[i] == dư_bit[j] {
+            đặt a = nén[i]  đặt b = nén[j]
+            đặt r[a][b] = p_cộng(r[a][b], ρ[i][j])
+        }
+    } }
+    trả r
+}
+
+hàm _sắp_tăng(ds) {                                       # sắp chèn (danh sách nhỏ)
+    đặt kq = []
+    lặp x trong ds {
+        gom(kq, x)
+        đặt i = dài(kq) - 1
+        mãi {
+            nếu i == 0 { dừng }
+            nếu kq[i - 1] <= kq[i] { dừng }
+            đặt tạm = kq[i - 1]  đặt kq[i - 1] = kq[i]  đặt kq[i] = tạm
+            đặt i = i - 1
+        }
+    }
+    trả kq
+}
+# Jacobi vòng cho ma trận THỰC ĐỐI XỨNG a (m×m, bị sửa tại chỗ) → danh sách trị riêng
+hàm _jacobi(a, m) {
+    lặp quét trong dải(100) {
+        đặt lệch = 0
+        lặp p trong dải(m) { lặp q trong dải_từ(p + 1, m) { đặt lệch = lệch + a[p][q] * a[p][q] } }
+        nếu lệch < 0.000000000000000000000001 { dừng }
+        lặp p trong dải(m) { lặp q trong dải_từ(p + 1, m) {
+            đặt apq = a[p][q]
+            nếu tuyệt(apq) > 0.0000000000000000001 {
+                đặt θ = (a[q][q] - a[p][p]) / (2 * apq)
+                đặt t = 1 / (tuyệt(θ) + căn(θ * θ + 1))
+                nếu θ < 0 { đặt t = 0 - t }
+                đặt c = 1 / căn(t * t + 1)  đặt s = t * c
+                lặp k trong dải(m) {
+                    đặt akp = a[k][p]  đặt akq = a[k][q]
+                    đặt a[k][p] = c * akp - s * akq
+                    đặt a[k][q] = s * akp + c * akq
+                }
+                lặp k trong dải(m) {
+                    đặt apk = a[p][k]  đặt aqk = a[q][k]
+                    đặt a[p][k] = c * apk - s * aqk
+                    đặt a[q][k] = s * apk + c * aqk
+                }
+            }
+        } }
+    }
+    đặt kq = []
+    lặp i trong dải(m) { gom(kq, a[i][i]) }
+    trả kq
+}
+# Trị riêng của ma trận HERMITIAN H = A + iB (n×n phức), tăng dần.
+# Nhúng thực: [[A, −B], [B, A]] (2n×2n, đối xứng) có đúng các trị riêng của H, mỗi trị LẶP 2 lần.
+hàm trị_riêng_hermitian(H) {
+    đặt n = dài(H)  đặt m = 2 * n
+    đặt a = []
+    lặp i trong dải(m) {
+        đặt hàng = []
+        lặp j trong dải(m) { gom(hàng, 0) }
+        gom(a, hàng)
+    }
+    lặp i trong dải(n) { lặp j trong dải(n) {
+        đặt z = H[i][j]
+        đặt a[i][j] = z[0]  đặt a[i + n][j + n] = z[0]
+        đặt a[i][j + n] = 0 - z[1]  đặt a[i + n][j] = z[1]
+    } }
+    đặt đủ = _sắp_tăng(_jacobi(a, m))
+    đặt kq = []
+    lặp i trong dải(n) { gom(kq, (đủ[2 * i] + đủ[2 * i + 1]) / 2) }
+    trả kq
+}
+hàm entropy_von_neumann(ρ) {                              # S(ρ) = −Σ λ ln λ   (đơn vị nat)
+    đặt s = 0
+    lặp λ trong trị_riêng_hermitian(ρ) {
+        nếu λ > _EPS { đặt s = s - λ * log(λ) }
+    }
+    trả s
+}
+# ρ_giữ của trạng thái THUẦN, tính thẳng từ ψ: ρ[a][b] = Σ_r ψ(a,r)·ψ*(b,r) — O(2^n·4^k) thay vì
+# dựng cả ρ 2^n×2^n (O(4^n)). Nhóm con V_a = các biên độ có bit `giữ` = a (thứ tự r tăng, khớp nhau).
+hàm ma_trận_rút_gọn(ψ, giữ) {
+    đặt k = dài(giữ)  đặt m = dịch_trái(1, k)
+    đặt sel = 0  lặp q trong giữ { đặt sel = hoặc_bit(sel, dịch_trái(1, q)) }
+    đặt nhóm = []
+    nếu _là_mảng(ψ) {
+        lặp a trong dải(m) {
+            đặt mẫu = 0  đặt t = 0
+            lặp q trong giữ { nếu và_bit(a, dịch_trái(1, t)) != 0 { đặt mẫu = hoặc_bit(mẫu, dịch_trái(1, q)) }  đặt t = t + 1 }
+            gom(nhóm, m_chọn(ψ["v"], sel, mẫu))
+        }
+    } khác {
+        lặp a trong dải(m) { gom(nhóm, []) }
+        lặp i trong dải(số_biên_độ(ψ)) { gom(nhóm[_nén_bit(i, giữ)], biên_độ(ψ, i)) }
+    }
+    đặt ρ = mt_không(m, m)
+    lặp a trong dải(m) { lặp b trong dải(m) {
+        nếu _là_mảng(ψ) { đặt ρ[a][b] = m_tích_trong(nhóm[b], nhóm[a]) } khác {
+            đặt sr = 0  đặt si = 0  đặt r = 0
+            lặp x trong nhóm[a] {
+                đặt y = nhóm[b][r]                          # x·conj(y)
+                đặt sr = sr + x[0] * y[0] + x[1] * y[1]
+                đặt si = si + x[1] * y[0] - x[0] * y[1]
+                đặt r = r + 1
+            }
+            đặt ρ[a][b] = [sr, si]
+        }
+    } }
+    trả ρ
+}
+hàm độ_vướng(ψ, giữ) {                                    # entropy vướng víu S(ρ_giữ) của trạng thái thuần
+    trả entropy_von_neumann(ma_trận_rút_gọn(ψ, giữ))
+}
+hàm thông_tin_tương_hỗ(ψ, A, B) {                         # I(A:B) cho trạng thái thuần
+    trả độ_vướng(ψ, A) + độ_vướng(ψ, B) - độ_vướng(ψ, ghép(A, B))
+}
+hàm độ_trung_thực_ρ(φ, ρ) {                               # ⟨φ|ρ|φ⟩ (φ thuần, ρ bất kỳ)
+    đặt v = []
+    lặp i trong dải(số_biên_độ(φ)) { gom(v, biên_độ(φ, i)) }
+    đặt ρv = mt_nhân_v(ρ, v)  đặt s = 0
+    lặp i trong dải(dài(v)) { đặt s = s + p_nhân(p_liên_hợp(v[i]), ρv[i])[0] }
+    trả s
+}
+hàm thông_tin_tương_hỗ_ρ(ρ, n, A, B) {                    # I(A:B) = S(A) + S(B) − S(AB), ρ có thể HỖN HỢP
+    đặt sA = entropy_von_neumann(vết_riêng(ρ, n, A))
+    đặt sB = entropy_von_neumann(vết_riêng(ρ, n, B))
+    trả sA + sB - entropy_von_neumann(vết_riêng(ρ, n, ghép(A, B)))
+}
+
+# ============================================================
+# 6. MẠCH = DỮ LIỆU  →  mô phỏng · lấy mẫu · OpenQASM
+# Lệnh: [tên, góc (ẩn nếu không có), [qubit…]]  ·  đo: ["đo", ẩn, [qubit, bit_cổ_điển]]
+# ============================================================
+hàm mạch(n) {
+    đặt m = bản()
+    đặt m["n"] = n  đặt m["lệnh"] = []
+    trả m
+}
+hàm _lệnh(m, tên, góc, qs) { gom(m["lệnh"], [tên, góc, qs])  trả m }
+hàm H(m, q)   { trả _lệnh(m, "h", ẩn, [q]) }
+hàm X(m, q)   { trả _lệnh(m, "x", ẩn, [q]) }
+hàm Y(m, q)   { trả _lệnh(m, "y", ẩn, [q]) }
+hàm Z(m, q)   { trả _lệnh(m, "z", ẩn, [q]) }
+hàm S(m, q)   { trả _lệnh(m, "s", ẩn, [q]) }
+hàm SDG(m, q) { trả _lệnh(m, "sdg", ẩn, [q]) }
+hàm T(m, q)   { trả _lệnh(m, "t", ẩn, [q]) }
+hàm TDG(m, q) { trả _lệnh(m, "tdg", ẩn, [q]) }
+hàm RX(m, θ, q) { trả _lệnh(m, "rx", θ, [q]) }
+hàm RY(m, θ, q) { trả _lệnh(m, "ry", θ, [q]) }
+hàm RZ(m, θ, q) { trả _lệnh(m, "rz", θ, [q]) }
+hàm P(m, θ, q)  { trả _lệnh(m, "p", θ, [q]) }
+hàm CX(m, c, t) { trả _lệnh(m, "cx", ẩn, [c, t]) }
+hàm CNOT(m, c, t) { trả CX(m, c, t) }
+hàm CZ(m, c, t) { trả _lệnh(m, "cz", ẩn, [c, t]) }
+hàm CP(m, θ, c, t) { trả _lệnh(m, "cp", θ, [c, t]) }       # pha có điều khiển diag(1,1,1,e^{iθ})
+hàm SWAP(m, a, b) { trả _lệnh(m, "swap", ẩn, [a, b]) }
+hàm CCX(m, c1, c2, t) { trả _lệnh(m, "ccx", ẩn, [c1, c2, t]) }
+hàm TOFFOLI(m, c1, c2, t) { trả CCX(m, c1, c2, t) }
+hàm ĐO(m, q) { trả _lệnh(m, "đo", ẩn, [q, q]) }             # đo qubit q vào bit cổ điển q
+hàm ĐO_VÀO(m, q, c) { trả _lệnh(m, "đo", ẩn, [q, c]) }
+hàm ĐO_HẾT(m) { lặp q trong dải(m["n"]) { ĐO(m, q) }  trả m }
+
+# Biến đổi Fourier lượng tử n qubit (có SWAP cuối — cùng quy ước với qiskit QFT, do_swaps=True)
+hàm mạch_qft(n) {
+    đặt m = mạch(n)
+    lặp k trong dải(n) {
+        đặt j = n - 1 - k
+        H(m, j)
+        lặp i trong dải(j) { CP(m, SỐ_PI / dịch_trái(1, j - i), i, j) }
+    }
+    lặp i trong dải(n // 2) { SWAP(m, i, n - 1 - i) }
+    trả m
+}
+# Mạch ngẫu nhiên kiểu "brickwork": mỗi lớp = RY, RZ góc ngẫu nhiên trên MỌI qubit + CZ xen kẽ cặp
+# (0,1)(2,3)… ở lớp chẵn, (1,2)(3,4)… ở lớp lẻ. Góc lấy từ ngẫu(seed) → tất định, tái lập được.
+hàm mạch_ngẫu_nhiên(n, độ_sâu, seed) {
+    đặt m = mạch(n)  đặt s = seed
+    lặp lớp trong dải(độ_sâu) {
+        lặp q trong dải(n) {
+            đặt s = ngẫu(s)  RY(m, s / 2147483648 * 2 * SỐ_PI, q)
+            đặt s = ngẫu(s)  RZ(m, s / 2147483648 * 2 * SỐ_PI, q)
+        }
+        đặt q = dư(lớp, 2)
+        mãi { nếu q + 1 >= n { dừng }  CZ(m, q, q + 1)  đặt q = q + 2 }
+    }
+    trả m
+}
+
+hàm _áp_lệnh(ψ, l) {                                      # một lệnh cổng (không phải đo)
+    đặt tên = l[0]  đặt θ = l[1]  đặt qs = l[2]
+    nếu tên == "h"   { trả áp_cổng(ψ, CỔNG_H, qs[0]) }
+    nếu tên == "x"   { trả áp_cổng(ψ, CỔNG_X, qs[0]) }
+    nếu tên == "y"   { trả áp_cổng(ψ, CỔNG_Y, qs[0]) }
+    nếu tên == "z"   { trả áp_cổng(ψ, CỔNG_Z, qs[0]) }
+    nếu tên == "s"   { trả áp_cổng(ψ, CỔNG_S, qs[0]) }
+    nếu tên == "sdg" { trả áp_cổng(ψ, CỔNG_SDG, qs[0]) }
+    nếu tên == "t"   { trả áp_cổng(ψ, CỔNG_T, qs[0]) }
+    nếu tên == "tdg" { trả áp_cổng(ψ, CỔNG_TDG, qs[0]) }
+    nếu tên == "rx"  { trả áp_cổng(ψ, cổng_rx(θ), qs[0]) }
+    nếu tên == "ry"  { trả áp_cổng(ψ, cổng_ry(θ), qs[0]) }
+    nếu tên == "rz"  { trả áp_cổng(ψ, cổng_rz(θ), qs[0]) }
+    nếu tên == "p"   { trả áp_cổng(ψ, cổng_p(θ), qs[0]) }
+    nếu tên == "cx"  { trả áp_cx(ψ, qs[0], qs[1]) }
+    nếu tên == "cz"  { trả áp_cz(ψ, qs[0], qs[1]) }
+    nếu tên == "cp"  { trả áp_cp(ψ, θ, qs[0], qs[1]) }
+    nếu tên == "swap" { trả áp_swap(ψ, qs[0], qs[1]) }
+    nếu tên == "ccx" { trả áp_ccx(ψ, qs[0], qs[1], qs[2]) }
+    nếu tên == "u"   { trả áp_cổng(ψ, θ, qs[0]) }                  # cổng 1-qubit ĐÃ GỘP (θ = ma trận 2×2)
+    nếu tên == "u4"  { trả áp_cổng_bốn(ψ, θ, qs[0], qs[1]) }       # cổng 2-qubit ĐÃ GỘP (θ = ma trận 4×4)
+    trả ẩn
+}
+# Chạy mạch MỘT lần (một "shot"). Trả bản {ψ, bit (danh sách bit cổ điển), chuỗi_bit, tri, seed}.
+hàm chạy_mạch(m, seed) {
+    đặt n = m["n"]  đặt ψ = trạng_thái(n)
+    đặt bits = []  lặp i trong dải(n) { gom(bits, 0) }
+    đặt các_tri = []
+    lặp l trong lệnh_để_chạy(m) {
+        nếu l[0] == "đo" {
+            đặt kq = đo_qubit(ψ, l[2][0], seed)
+            đặt seed = kq["seed"]  đặt bits[l[2][1]] = kq["bit"]  gom(các_tri, kq["tri"])
+        } khác {
+            nếu loại(_áp_lệnh(ψ, l)) == "ẩn" { trả ẩn }       # cổng lạ → ẩn (không bịa)
+        }
+    }
+    đặt s = ""
+    lặp b trong bits { đặt s = b + s }
+    đặt kq = bản()
+    đặt kq["ψ"] = ψ  đặt kq["bit"] = bits  đặt kq["chuỗi_bit"] = s  đặt kq["tri"] = các_tri  đặt kq["seed"] = seed
+    trả kq
+}
+hàm trạng_thái_cuối(m) {                                  # ψ sau mọi CỔNG (bỏ qua phép đo)
+    đặt ψ = trạng_thái(m["n"])
+    lặp l trong lệnh_để_chạy(m) { nếu l[0] != "đo" { _áp_lệnh(ψ, l) } }
+    trả ψ
+}
+
+# ============================================================
+# GỘP CỔNG (gate fusion) — một PHÉP BIẾN ĐỔI MẠCH, viết bằng GIAO
+# Ở n lớn, mỗi cổng phải duyệt TOÀN BỘ 2^n biên độ ⇒ tốc độ bị chặn bởi BĂNG THÔNG BỘ NHỚ, không bởi
+# số phép nhân. Gộp nhiều cổng thành MỘT ma trận rồi duyệt bộ nhớ MỘT lần (như Qiskit Aer):
+#   · cổng 1-qubit liên tiếp trên cùng qubit → nhân dồn thành ma trận 2×2 (lệnh "u");
+#   · cổng 2-qubit (cx/cz/cp/swap) hút các 2×2 đang chờ của hai qubit ấy vào MỘT ma trận 4×4 (lệnh
+#     "u4"), rồi tiếp tục hút mọi cổng sau trên cùng cặp;
+#   · chỉ XẢ khi buộc phải: cặp khác đụng tới, ccx, phép đo (chỉ qubit bị đo), hoặc hết mạch.
+# Phần đang chờ trên các qubit RỜI nhau luôn giao hoán ⇒ thứ tự xả không đổi kết quả.
+# Mạch gốc (m["lệnh"]) giữ nguyên — OpenQASM xuất ra vẫn là các cổng gốc. dùng_hợp_nhất(tối) để tắt.
+# ============================================================
+đặt _LT["hợp_nhất"] = sáng
+hàm dùng_hợp_nhất(bật) { đặt _LT["hợp_nhất"] = bật  trả bật }
+hàm lệnh_để_chạy(m) {                                   # nhớ đệm: mạch chỉ LỚN THÊM (gom) nên so số lệnh là đủ
+    nếu _LT["hợp_nhất"] == tối { trả m["lệnh"] }
+    nếu có_khoá(m, "_gộp_n") { nếu m["_gộp_n"] == dài(m["lệnh"]) { trả m["_gộp"] } }
+    đặt m["_gộp"] = hợp_nhất_cổng(m["lệnh"])  đặt m["_gộp_n"] = dài(m["lệnh"])
+    trả m["_gộp"]
+}
+hàm _mtp_nhân(A, B, d) {                                  # C = A·B, ma trận phức PHẲNG d×d
+    đặt C = []
+    lặp r trong dải(d) { lặp c trong dải(d) {
+        đặt sr = 0  đặt si = 0
+        lặp k trong dải(d) {
+            đặt p = 2 * (d * r + k)  đặt q = 2 * (d * k + c)
+            đặt sr = sr + A[p] * B[q] - A[p + 1] * B[q + 1]
+            đặt si = si + A[p] * B[q + 1] + A[p + 1] * B[q]
+        }
+        gom(C, sr)  gom(C, si)
+    } }
+    trả C
+}
+hàm _mtp_đơn_vị(d) {
+    đặt C = []
+    lặp r trong dải(d) { lặp c trong dải(d) { nếu r == c { gom(C, 1) } khác { gom(C, 0) }  gom(C, 0) } }
+    trả C
+}
+hàm _ma_trận_một(tên, θ) {                                # ma trận 2×2 của cổng 1-qubit (ẩn nếu không phải)
+    nếu tên == "h"   { trả CỔNG_H }
+    nếu tên == "x"   { trả CỔNG_X }
+    nếu tên == "y"   { trả CỔNG_Y }
+    nếu tên == "z"   { trả CỔNG_Z }
+    nếu tên == "s"   { trả CỔNG_S }
+    nếu tên == "sdg" { trả CỔNG_SDG }
+    nếu tên == "t"   { trả CỔNG_T }
+    nếu tên == "tdg" { trả CỔNG_TDG }
+    nếu tên == "rx"  { trả cổng_rx(θ) }
+    nếu tên == "ry"  { trả cổng_ry(θ) }
+    nếu tên == "rz"  { trả cổng_rz(θ) }
+    nếu tên == "p"   { trả cổng_p(θ) }
+    nếu tên == "u"   { trả θ }
+    trả ẩn
+}
+hàm _nhúng_1(G, vị_trí) {                                 # 2×2 → 4×4 trên vị trí 0 (qubit a) hay 1 (qubit b)
+    đặt C = []
+    lặp r trong [0, 1, 2, 3] { lặp c trong [0, 1, 2, 3] {
+        đặt ra = dư(r, 2)  đặt rb = r // 2  đặt ca = dư(c, 2)  đặt cb = c // 2
+        đặt vr = 0  đặt vi = 0
+        nếu vị_trí == 0 {
+            nếu rb == cb { đặt vr = G[2 * (2 * ra + ca)]  đặt vi = G[2 * (2 * ra + ca) + 1] }
+        } khác {
+            nếu ra == ca { đặt vr = G[2 * (2 * rb + cb)]  đặt vi = G[2 * (2 * rb + cb) + 1] }
+        }
+        gom(C, vr)  gom(C, vi)
+    } }
+    trả C
+}
+hàm _ma_trận_hai(tên, θ, qs, a, b) {                      # 4×4 của cx/cz/cp/swap trong không gian cặp (a, b)
+    đặt M = []  lặp k trong dải(32) { gom(M, 0) }
+    lặp c trong [0, 1, 2, 3] {
+        đặt xa = dư(c, 2)  đặt xb = c // 2  đặt pr = 1  đặt pi = 0
+        nếu tên == "cx" {
+            đặt xc = xa
+            nếu qs[0] == b { đặt xc = xb }
+            nếu xc == 1 { nếu qs[1] == a { đặt xa = 1 - xa } khác { đặt xb = 1 - xb } }
+        }
+        nếu tên == "swap" { đặt tg = xa  đặt xa = xb  đặt xb = tg }
+        nếu tên == "cz" { nếu xa == 1 { nếu xb == 1 { đặt pr = -1 } } }
+        nếu tên == "cp" { nếu xa == 1 { nếu xb == 1 { đặt pr = cos_rad(θ)  đặt pi = sin_rad(θ) } } }
+        đặt r = xa + 2 * xb
+        đặt M[2 * (4 * r + c)] = pr  đặt M[2 * (4 * r + c) + 1] = pi
+    }
+    trả M
+}
+hàm _nhân_chọn_thuần(ψ, sel, mẫu, zr, zi) {                # lõi GIAO thuần của m_nhân_chọn (cùng phép tính)
+    đặt re = ψ["re"]  đặt im = ψ["im"]
+    lặp i trong dải(dài(re)) {
+        nếu và_bit(i, sel) == mẫu { đặt xr = re[i]  đặt xi = im[i]  đặt re[i] = zr * xr - zi * xi  đặt im[i] = zr * xi + zi * xr }
+    }
+}
+hàm _hn_khoá(p) { trả "" + p[0] + ":" + p[1] }
+hàm _hn_xả_một(st, q) {
+    nếu có_khoá(st["chờ1"], q) { gom(st["ra"], ["u", st["chờ1"][q], [q]])  xoá_khoá(st["chờ1"], q) }
+}
+hàm _hn_xả_cặp(st, q) {
+    nếu có_khoá(st["cặp"], q) {
+        đặt p = st["cặp"][q]  đặt k = _hn_khoá(p)
+        gom(st["ra"], ["u4", st["mt4"][k], [p[0], p[1]]])
+        xoá_khoá(st["mt4"], k)  xoá_khoá(st["cặp"], p[0])  xoá_khoá(st["cặp"], p[1])
+    }
+}
+hàm _hn_xả(st, q) { _hn_xả_cặp(st, q)  _hn_xả_một(st, q) }
+hàm _hn_hai(tên) {
+    nếu tên == "cx" { trả sáng }  nếu tên == "cz" { trả sáng }  nếu tên == "cp" { trả sáng }  nếu tên == "swap" { trả sáng }
+    trả tối
+}
+hàm hợp_nhất_cổng(ds) {                                   # danh sách lệnh → danh sách lệnh ĐÃ GỘP
+    đặt st = bản()
+    đặt st["ra"] = []  đặt st["chờ1"] = bản()  đặt st["cặp"] = bản()  đặt st["mt4"] = bản()
+    lặp l trong ds {
+        đặt tên = l[0]  đặt qs = l[2]  đặt G = ẩn
+        nếu dài(qs) == 1 { đặt G = _ma_trận_một(tên, l[1]) }
+        nếu loại(G) == "danh_sách" {                      # cổng 1-qubit
+            đặt q = qs[0]
+            nếu có_khoá(st["cặp"], q) {
+                đặt p = st["cặp"][q]  đặt k = _hn_khoá(p)  đặt vt = 0
+                nếu q == p[1] { đặt vt = 1 }
+                đặt st["mt4"][k] = _mtp_nhân(_nhúng_1(G, vt), st["mt4"][k], 4)
+            } khác {
+                nếu có_khoá(st["chờ1"], q) { đặt st["chờ1"][q] = _mtp_nhân(G, st["chờ1"][q], 2) }
+                khác { đặt st["chờ1"][q] = G }
+            }
+        } khác {
+            nếu _hn_hai(tên) {                            # cổng 2-qubit
+                đặt a = qs[0]  đặt b = qs[1]  đặt cùng = tối
+                nếu có_khoá(st["cặp"], a) {
+                    đặt p = st["cặp"][a]
+                    nếu p[0] == a { nếu p[1] == b { đặt cùng = sáng } }
+                    nếu p[0] == b { nếu p[1] == a { đặt cùng = sáng } }
+                }
+                nếu cùng {
+                    đặt p = st["cặp"][a]  đặt k = _hn_khoá(p)
+                    đặt st["mt4"][k] = _mtp_nhân(_ma_trận_hai(tên, l[1], qs, p[0], p[1]), st["mt4"][k], 4)
+                } khác {
+                    _hn_xả_cặp(st, a)  _hn_xả_cặp(st, b)
+                    đặt P = _mtp_đơn_vị(4)
+                    nếu có_khoá(st["chờ1"], a) { đặt P = _mtp_nhân(_nhúng_1(st["chờ1"][a], 0), P, 4)  xoá_khoá(st["chờ1"], a) }
+                    nếu có_khoá(st["chờ1"], b) { đặt P = _mtp_nhân(_nhúng_1(st["chờ1"][b], 1), P, 4)  xoá_khoá(st["chờ1"], b) }
+                    đặt st["mt4"][_hn_khoá([a, b])] = _mtp_nhân(_ma_trận_hai(tên, l[1], qs, a, b), P, 4)
+                    đặt đôi = [a, b]  đặt st["cặp"][a] = đôi  đặt st["cặp"][b] = đôi
+                }
+            } khác {                                      # rào chắn: đo (chỉ qubit bị đo) / ccx / lệnh lạ
+                nếu tên == "đo" { _hn_xả(st, qs[0]) } khác { lặp q trong qs { _hn_xả(st, q) } }
+                gom(st["ra"], l)
+            }
+        }
+    }
+    lặp q trong khoá(st["cặp"]) { _hn_xả_cặp(st, q) }
+    lặp q trong khoá(st["chờ1"]) { _hn_xả_một(st, q) }
+    trả st["ra"]
+}
+hàm _đo_ở_cuối(m) {                                       # mọi phép đo đứng SAU mọi cổng?
+    đặt đã_đo = tối
+    lặp l trong m["lệnh"] {
+        nếu l[0] == "đo" { đặt đã_đo = sáng } khác { nếu đã_đo { trả tối } }
+    }
+    trả sáng
+}
+# Lấy mẫu `số_lần` shot → bản {chuỗi_bit: số_lần_gặp}. Chuỗi bit theo thứ tự c[n-1]…c[0] (như Qiskit).
+hàm lấy_mẫu(m, số_lần, seed) { trả lấy_mẫu_nhiễu(m, số_lần, seed, 0) }
+# Mô hình nhiễu KHỬ CỰC TOÀN CỤC (global depolarizing): mỗi shot, với xác suất p, máy "quên" hết và
+# trả một chuỗi bit NGẪU NHIÊN ĐỀU; còn lại trả mẫu lý tưởng. Mô hình thô nhất nhưng chuẩn để hiệu
+# chỉnh XEB: F_XEB tuyến tính ≈ 1 − p. KHÔNG thay được nhiễu thật của phần cứng.
+hàm lấy_mẫu_nhiễu(m, số_lần, seed, p) {
+    đặt đếm = bản()  đặt n = m["n"]
+    nếu _đo_ở_cuối(m) {                                   # nhanh: mô phỏng MỘT lần rồi rút mẫu
+        đặt các_đo = lọc(hàm(l) { trả l[0] == "đo" }, m["lệnh"])
+        đặt us = []
+        lặp lần trong dải(số_lần) { đặt seed = ngẫu(seed)  gom(us, seed / 2147483648) }
+        đặt đếm_k = bản()                                 # đếm theo CHỈ SỐ trước, đổi ra chuỗi bit sau
+        đặt các_k = rút_chỉ_số(trạng_thái_cuối(m), us)
+        nếu p > 0 {
+            đặt N = dịch_trái(1, n)
+            lặp i trong dải(dài(các_k)) {
+                đặt seed = ngẫu(seed)
+                nếu seed / 2147483648 < p { đặt seed = ngẫu(seed)  đặt các_k[i] = nguyên(seed / 2147483648 * N) }   # bit CAO — bit thấp của LCG chu kỳ ngắn
+            }
+        }
+        lặp k trong các_k {
+            nếu có_khoá(đếm_k, k) { đặt đếm_k[k] = đếm_k[k] + 1 } khác { đặt đếm_k[k] = 1 }
+        }
+        lặp k trong đếm_k {
+            đặt bits = []  lặp i trong dải(n) { gom(bits, 0) }
+            lặp l trong các_đo {
+                nếu và_bit(k, dịch_trái(1, l[2][0])) != 0 { đặt bits[l[2][1]] = 1 } khác { đặt bits[l[2][1]] = 0 }
+            }
+            đặt s = ""  lặp b trong bits { đặt s = b + s }
+            nếu có_khoá(đếm, s) { đặt đếm[s] = đếm[s] + đếm_k[k] } khác { đặt đếm[s] = đếm_k[k] }
+        }
+        trả đếm
+    }
+    lặp lần trong dải(số_lần) {                           # có đo GIỮA mạch → chạy lại từng shot
+        đặt kq = chạy_mạch(m, seed)
+        đặt seed = ngẫu(kq["seed"])  đặt s = kq["chuỗi_bit"]
+        nếu p > 0 {
+            đặt seed = ngẫu(seed)
+            nếu seed / 2147483648 < p { đặt seed = ngẫu(seed)  đặt s = chuỗi_nhị_phân(nguyên(seed / 2147483648 * dịch_trái(1, n)), n) }
+        }
+        nếu có_khoá(đếm, s) { đặt đếm[s] = đếm[s] + 1 } khác { đặt đếm[s] = 1 }
+    }
+    trả đếm
+}
+# Với mỗi u ∈ [0,1): chỉ số k NHỎ NHẤT có u < Σ_{i≤k} |ψ_i|² (tìm nhị phân trên tổng dồn)
+hàm rút_chỉ_số(ψ, us) {
+    nếu _là_mảng(ψ) { trả m_rút(ψ["v"], us) }
+    đặt dồn = []  đặt s = 0
+    lặp p trong phân_phối(ψ) { đặt s = s + p  gom(dồn, s) }
+    đặt cuối = dài(dồn) - 1  đặt kq = []
+    lặp u trong us {
+        đặt lo = 0  đặt hi = cuối
+        mãi {
+            nếu lo >= hi { dừng }
+            đặt giữa = (lo + hi) // 2
+            nếu u < dồn[giữa] { đặt hi = giữa } khác { đặt lo = giữa + 1 }
+        }
+        gom(kq, lo)
+    }
+    trả kq
+}
+hàm in_đếm(đếm) {                                         # in theo thứ tự chuỗi bit
+    lặp k trong _sắp_tăng(khoá(đếm)) { rọi "  " + k + ": " + đếm[k] }
+}
+
+# ============================================================
+# γ TRÊN PHÂN PHỐI KẾT QUẢ ĐO (Phụ lục F.4) ≈ XEB
+#   ρ = phân phối THẬT sinh ra mẫu (phần cứng / mô phỏng nhiễu) — chỉ biết qua MẪU `đếm`
+#   σ = phân phối MÔ HÌNH lý tưởng p(x) = |⟨x|ψ⟩|² (mô phỏng chính xác)
+#   u = đều 2^-n — nền "đèn chưa rọi"
+#   γ = [S(ρ‖u) − S(ρ‖σ)] / [S(ρ‖u) + S(ρ‖σ)];  tử số = E_ρ[ln σ − ln u] = XEB dạng log.
+# Chuỗi bit trong `đếm` là c[n-1]…c[0] với c[q] = qubit q (mạch dùng ĐO_HẾT).
+# ============================================================
+hàm _chỉ_số_chuỗi(s) {                                    # "101" → 5
+    đặt k = 0
+    lặp c trong s { đặt k = k * 2  nếu c == "1" { đặt k = k + 1 } }
+    trả k
+}
+# XEB TUYẾN TÍNH (Google 2019): F = 2^n · E_mẫu[p(x)] − 1. Lý tưởng (Porter–Thomas) ≈ 1 · đều ≈ 0.
+# Ước lượng được ở MỌI cỡ n, chỉ cần p(x) của các chuỗi đã gặp.
+hàm xeb_tuyến_tính(đếm, ψ) {
+    đặt N = số_biên_độ(ψ)  đặt tổng = 0  đặt số = 0
+    lặp s trong đếm {
+        đặt c = đếm[s]
+        đặt tổng = tổng + c * p_mô2(biên_độ(ψ, _chỉ_số_chuỗi(s)))
+        đặt số = số + c
+    }
+    nếu số == 0 { trả ẩn }
+    trả N * tổng / số - 1
+}
+# γ_mẫu(đếm, ψ, ε): ρ ước lượng bằng TẦN SUẤT (plug-in) — chỉ KHÔNG lệch khi số mẫu ≫ 2^n; ở n lớn
+# dùng xeb_tuyến_tính. ε ∈ [0,1) làm mềm mô hình: σ_ε = (1−ε)σ + ε·u. ε = 0 là định nghĩa GỐC:
+# gặp một chuỗi mà σ cho xác suất 0 ⇒ S(ρ‖σ) = ∞ ⇒ γ = −1 (mô hình tự tin mà sai — đốm tối).
+hàm γ_mẫu(đếm, ψ, ε) {
+    đặt N = số_biên_độ(ψ)  đặt số = 0
+    lặp s trong đếm { đặt số = số + đếm[s] }
+    nếu số == 0 { trả ẩn }
+    đặt a = 0  đặt b = 0                                  # a = S(ρ‖u) · b = S(ρ‖σ)
+    lặp s trong đếm {
+        đặt r = đếm[s] / số
+        đặt σx = (1 - ε) * p_mô2(biên_độ(ψ, _chỉ_số_chuỗi(s))) + ε / N
+        nếu σx <= 0 { trả -1 }
+        đặt a = a + r * log(r * N)
+        đặt b = b + r * log(r / σx)
+    }
+    nếu a + b <= 0 { trả 0 }
+    trả (a - b) / (a + b)
+}
+# Chấm mẫu → bản {γ, xeb, số_mẫu, tri}: tri(xeb, γ) — sáng khi mô hình lý tưởng GIẢI THÍCH được mẫu
+# tốt hơn nền đều, tối khi tệ hơn (γ < 0).
+hàm chấm_mẫu(đếm, ψ, ε) {
+    đặt kq = bản()  đặt số = 0
+    lặp s trong đếm { đặt số = số + đếm[s] }
+    đặt kq["γ"] = γ_mẫu(đếm, ψ, ε)  đặt kq["xeb"] = xeb_tuyến_tính(đếm, ψ)  đặt kq["số_mẫu"] = số
+    đặt kq["tri"] = tạo_tri(kq["xeb"], kq["γ"])
+    trả kq
+}
+
+# Số thực → chuỗi thập phân ĐỦ chính xác (render mặc định chỉ 4 chữ số — không đủ cho góc).
+hàm số_chính_xác(x) {
+    nếu loại(x) == "ẩn" { trả "0" }
+    nếu x < 0 { trả "-" + số_chính_xác(0 - x) }
+    đặt i = nguyên(x)  đặt f = x - i
+    nếu f == 0 { trả "" + i }
+    đặt chữ = []
+    lặp k trong dải(16) {
+        đặt f = f * 10  đặt d = nguyên(f)
+        nếu d > 9 { đặt d = 9 }
+        gom(chữ, d)  đặt f = f - d
+    }
+    mãi {                                                 # bỏ số 0 thừa ở đuôi
+        nếu dài(chữ) == 1 { dừng }
+        nếu chữ[dài(chữ) - 1] != 0 { dừng }
+        đặt chữ = lấy_n(chữ, dài(chữ) - 1)
+    }
+    trả "" + i + "." + nối(chữ, "")
+}
+hàm _q(k) { trả "q[" + k + "]" }
+hàm _dòng_cổng(l, bản3) {                                 # một lệnh → một (vài) dòng QASM
+    đặt tên = l[0]  đặt qs = l[2]
+    nếu tên == "đo" {
+        nếu bản3 { trả ["c[" + qs[1] + "] = measure " + _q(qs[0]) + ";"] }
+        trả ["measure " + _q(qs[0]) + " -> c[" + qs[1] + "];"]
+    }
+    nếu tên == "swap" {                                   # qelib1 GỐC không có swap → 3 CNOT
+        trả ["cx " + _q(qs[0]) + "," + _q(qs[1]) + ";", "cx " + _q(qs[1]) + "," + _q(qs[0]) + ";",
+             "cx " + _q(qs[0]) + "," + _q(qs[1]) + ";"]
+    }
+    đặt đích = nối(bản_đồ(_q, qs), ",")
+    nếu tên == "p" {
+        nếu bản3 { trả ["p(" + số_chính_xác(l[1]) + ") " + đích + ";"] }
+        trả ["u1(" + số_chính_xác(l[1]) + ") " + đích + ";"]     # qelib1: pha = u1
+    }
+    nếu tên == "cp" {
+        nếu bản3 { trả ["cp(" + số_chính_xác(l[1]) + ") " + đích + ";"] }
+        trả ["cu1(" + số_chính_xác(l[1]) + ") " + đích + ";"]    # qelib1: pha có điều khiển = cu1
+    }
+    nếu loại(l[1]) == "số" { trả [tên + "(" + số_chính_xác(l[1]) + ") " + đích + ";"] }
+    trả [tên + " " + đích + ";"]
+}
+hàm _qasm(m, bản3) {
+    đặt n = m["n"]  đặt dòng = []
+    nếu bản3 {
+        gom(dòng, "OPENQASM 3.0;")  gom(dòng, "include \"stdgates.inc\";")
+        gom(dòng, "qubit[" + n + "] q;")  gom(dòng, "bit[" + n + "] c;")
+    } khác {
+        gom(dòng, "OPENQASM 2.0;")  gom(dòng, "include \"qelib1.inc\";")
+        gom(dòng, "qreg q[" + n + "];")  gom(dòng, "creg c[" + n + "];")
+    }
+    lặp l trong m["lệnh"] { lặp d trong _dòng_cổng(l, bản3) { gom(dòng, d) } }
+    trả nối(dòng, "\n")
+}
+hàm sang_qasm(m)  { trả _qasm(m, tối) }                   # OpenQASM 2.0 (IBM Quantum / Qiskit)
+hàm sang_qasm3(m) { trả _qasm(m, sáng) }                  # OpenQASM 3.0 (Qiskit qasm3, AWS Braket)

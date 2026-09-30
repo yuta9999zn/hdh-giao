@@ -1,0 +1,28 @@
+# ============================================================
+# LƯỢNG TỬ 4 — trạng thái GHZ 20 qubit: (|00…0⟩ + |11…1⟩)/√2  — 1.048.576 biên độ phức
+#   python giao.py lượng_tử_ghz.giao
+# Chạy trên LÕI MẢNG (mặc định): mỗi cổng là vài phép trên CẢ MẢNG (m_chọn · m_tổ_hợp ·
+# m_đặt_chọn), vòng lặp theo phần tử ở tầng host — cách numpy chạy, không cần numpy.
+# Lõi GIAO thuần làm cùng việc này mất ~15 giây/cổng; lõi mảng ~0.1 giây/cổng.
+# ============================================================
+nhập "lib_lượng_tử.giao"
+
+đặt n = 20
+rọi "Lõi: " + lõi_hiện() + " · " + n + " qubit · " + dịch_trái(1, n) + " biên độ"
+đặt m = mạch(n)
+H(m, 0)
+lặp q trong dải(n - 1) { CX(m, q, q + 1) }
+đặt ψ = trạng_thái_cuối(m)
+rọi "Số cổng: " + dài(m["lệnh"]) + " · ⟨ψ|ψ⟩ = " + chuẩn_bình_phương(ψ)
+rọi "P(|0…0⟩) = " + p_mô2(biên_độ(ψ, 0)) + " · P(|1…1⟩) = " + p_mô2(biên_độ(ψ, dịch_trái(1, n) - 1))
+rọi "Qubit 7 trước khi đo: " + hiện(tri_qubit(ψ, 7))
+rọi "Entropy vướng víu của qubit 0 với 19 qubit còn lại: " + độ_vướng(ψ, [0]) + " (= ln2)"
+rọi "Entropy của nhóm {0, 5, 13}: " + độ_vướng(ψ, [0, 5, 13]) + " (vẫn ln2 — GHZ chỉ có 1 bit vướng víu chung)"
+
+đặt kq = đo_qubit(ψ, 7, 2026)
+rọi "Đo qubit 7 → " + hiện(kq["tri"]) + " · qubit 19 giờ: " + hiện(tri_qubit(ψ, 19)) + " (chưa đo mà đã biết)"
+
+ĐO_HẾT(m)
+đặt đ = lấy_mẫu(m, 1000, 7)
+rọi "1000 shots: chỉ " + dài(khoá(đ)) + " chuỗi bit xuất hiện (00…0 và 11…1):"
+in_đếm(đ)

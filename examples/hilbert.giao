@@ -7,6 +7,9 @@
 # trường hợp dùng để chẩn đoán — entropy von Neumann S(ρ)=−Σλ ln λ rút gọn thành
 # entropy Shannon, và I(I:M) thành THÔNG TIN TƯƠNG HỖ CỔ ĐIỂN trên phân phối kết hợp.
 # Dùng toán GIAO tự xây: ln (chuỗi atanh). KHÔNG thư viện ngoài.
+#
+# ★ BẢN ĐẦY ĐỦ (ρ KHÔNG chéo, có vướng víu): ../lượng_tử_hilbert.giao — dùng trị_riêng_hermitian
+#   của lib_lượng_tử.giao. Ở đó Bell cho I = 2·ln2, gấp đôi trần cổ điển ln2 mà bản này đo được.
 # ============================================================
 
 # S(p) = −Σ p ln p  (entropy; bỏ p=0 vì 0·ln0 = 0)

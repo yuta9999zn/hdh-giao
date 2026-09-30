@@ -1,0 +1,35 @@
+# ============================================================
+# LƯỢNG TỬ 5 — γ (Phụ lục F.4) chấm MẪU ĐO so với mô phỏng lý tưởng  ≈  XEB của Google
+#   python giao.py lượng_tử_xeb.giao
+# σ = mô hình lý tưởng (mô phỏng chính xác) · ρ = "máy" sinh mẫu (ở đây: mô phỏng + nhiễu khử cực
+# toàn cục, vì chưa có phần cứng thật) · u = nền đều.  γ = [S(ρ‖u) − S(ρ‖σ)] / [S(ρ‖u) + S(ρ‖σ)].
+# ============================================================
+nhập "lib_lượng_tử.giao"
+
+đặt m = mạch_ngẫu_nhiên(6, 5, 11)
+đặt ψ = trạng_thái_cuối(m)
+ĐO_HẾT(m)
+rọi "Mạch ngẫu nhiên 6 qubit, " + dài(m["lệnh"]) + " cổng. Mỗi dòng: 4000 mẫu từ một 'máy' có mức nhiễu p."
+rọi ""
+rọi "  nhiễu p   độ trung thực   XEB tuyến tính      γ (F.4)     tri"
+lặp p trong [0, 0.2, 0.4, 0.5, 0.6, 1] {
+    đặt k = chấm_mẫu(lấy_mẫu_nhiễu(m, 4000, 3, p), ψ, 0)
+    rọi "   " + p + "          " + (1 - p) + "           " + k["xeb"] + "          " + k["γ"] + "     " + hiện(k["tri"])
+}
+rọi ""
+rọi "Đọc bảng:"
+rọi "  · XEB tuyến tính giảm TỈ LỆ với độ trung thực (≈ (1−p)·XEB lý tưởng) — thước đo Google dùng."
+rọi "  · γ NGHIÊM hơn: tử số là E_ρ[ln σ − ln u]. Mẫu nhiễu rơi vào chuỗi mà σ cho xác suất thấp bị"
+rọi "    phạt theo log, nên γ ĐỔI DẤU khi độ trung thực < ~0.56 (phân phối Porter–Thomas)."
+rọi "    γ trả lời câu hỏi khác XEB: 'mô hình lý tưởng có GIẢI THÍCH máy này tốt hơn KHÔNG BIẾT GÌ?'"
+rọi "    γ < 0 ⇒ tối: tin mô hình lý tưởng về máy này là ẢO TƯỞNG — đúng nghĩa đốm tối của F.4."
+rọi ""
+rọi "Chuỗi 'không thể': Bell (|00⟩+|11⟩)/√2 trên máy nhiễu 10% — máy đôi khi ra 01/10."
+đặt b = mạch(2)  H(b, 0)  CX(b, 0, 1)
+đặt ψb = trạng_thái_cuối(b)
+ĐO_HẾT(b)
+đặt đb = lấy_mẫu_nhiễu(b, 2000, 5, 0.1)
+in_đếm(đb)
+rọi "  ε = 0    (định nghĩa gốc): γ = " + γ_mẫu(đb, ψb, 0) + "   ← σ nói 01 KHÔNG THỂ mà nó xảy ra ⇒ S(ρ‖σ) = ∞"
+rọi "  ε = 0.05 (σ khiêm tốn 5%): γ = " + γ_mẫu(đb, ψb, 0.05)
+rọi "Lưu ý: γ_mẫu ước lượng ρ bằng tần suất — chỉ chuẩn khi số mẫu ≫ 2^n. Ở n lớn dùng xeb_tuyến_tính."

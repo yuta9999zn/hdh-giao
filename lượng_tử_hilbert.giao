@@ -1,0 +1,41 @@
+# ============================================================
+# ĐỘ ĐO HILBERT |OR| = I(I:M) — BẢN ĐẦY ĐỦ (ma trận mật độ KHÔNG chéo)
+#   python giao.py lượng_tử_hilbert.giao
+# examples/hilbert.giao chỉ làm trường hợp ρ CHÉO (cổ điển) vì chưa có bộ giải trị riêng.
+# Bản này dùng trị_riêng_hermitian (Jacobi, lib_lượng_tử.giao) → S(ρ) = −Σ λ ln λ cho ρ bất kỳ.
+# Tâm I = qubit 0, vật M = qubit 1.
+# ============================================================
+nhập "lib_lượng_tử.giao"
+
+hàm I_IM(ρ) { trả thông_tin_tương_hỗ_ρ(ρ, 2, [0], [1]) }
+hàm ρ_của(ψ) { trả ma_trận_mật_độ(ψ) }
+hàm trộn(ρa, ρb) {                                        # ½ρa + ½ρb (hỗn hợp cổ điển)
+    đặt r = mt_không(dài(ρa), dài(ρa))
+    lặp i trong dải(dài(ρa)) { lặp j trong dải(dài(ρa)) {
+        đặt r[i][j] = p_nhân_số(p_cộng(ρa[i][j], ρb[i][j]), 0.5)
+    } }
+    trả r
+}
+
+# (A) Tích thuần |0⟩|0⟩
+rọi "(A) Tích |00⟩:                    I(I:M) = " + I_IM(ρ_của(trạng_thái(2)))
+rọi "    → 0: tâm và vật độc lập."
+
+# (B) Tương quan CỔ ĐIỂN: ½|00⟩⟨00| + ½|11⟩⟨11|  (ρ chéo — bản examples/hilbert.giao cũng tính được)
+đặt ρ_cđ = trộn(ρ_của(trạng_thái_cơ_sở(2, 0)), ρ_của(trạng_thái_cơ_sở(2, 3)))
+rọi "(B) Hỗn hợp cổ điển ½(00+11):     I(I:M) = " + I_IM(ρ_cđ)
+rọi "    → ln2 ≈ 0.693: trần của tương quan cổ điển trên 2×2."
+
+# (C) VƯỚNG VÍU: (|00⟩ + |11⟩)/√2  — ρ có phần tử NGOÀI đường chéo
+đặt ψ = trạng_thái(2)
+áp_h(ψ, 0)  áp_cx(ψ, 0, 1)
+đặt ρ_b = ρ_của(ψ)
+rọi "(C) Bell (|00⟩+|11⟩)/√2:          I(I:M) = " + I_IM(ρ_b)
+rọi "    → 2·ln2 ≈ 1.386: GẤP ĐÔI trần cổ điển. Phần vượt là vướng víu — thứ mà"
+rọi "      phép rút gọn 'ρ chéo' (Shannon) không nhìn thấy: đọc đường chéo của (C) ra ln2."
+
+# (D) Vì sao cần trị riêng: một qubit |+⟩ là THUẦN (S=0) nhưng đường chéo là [½, ½]
+đặt c = trạng_thái(1)  áp_h(c, 0)
+rọi ""
+rọi "(D) |+⟩⟨+|: S von Neumann = " + entropy_von_neumann(ρ_của(c)) + " · trị riêng = " + trị_riêng_hermitian(ρ_của(c))
+rọi "    đường chéo = [½, ½] → Shannon ra ln2 (SAI): chỉ trị riêng mới cho đúng S = 0."

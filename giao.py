@@ -973,7 +973,18 @@ class Runtime:
             s = unicodedata.normalize('NFD', a[0])
             s = "".join(c for c in s if unicodedata.category(c) != "Mn")
             return s.replace("đ","d").replace("Đ","D")
+        def b_tao_tri(a):                                 # tạo_tri(giá_trị, γ) → tri; γ>0 sáng · γ<0 tối · γ=0/ẩn → ẩn
+            need(a,2,"tạo_tri"); v,g=a                    # (vd phép ĐO qubit: tri(bit, γ=xác suất))
+            if v is AN or g is AN: return Tri(AN,None,"ẩn")
+            if not isinstance(g,(int,float)) or isinstance(g,bool): self.err(f"tạo_tri cần γ là số, gặp {self._loai(g)}")
+            g=max(-1.0,min(1.0,float(g)))
+            if g==0: return Tri(AN,None,"ẩn")
+            return Tri(v,g,SANG if g>0 else TOI)
+        def b_gamma_cua(a):                               # γ_của(tri) → γ ; không phải tri / tri ẩn → ẩn
+            need(a,1,"γ_của"); v=a[0]
+            return v.gamma if isinstance(v,Tri) and v.gamma is not None else AN
         reg={"dài":b_dai,"dai":b_dai, "đầu":b_dau,"dau":b_dau, "đuôi":b_duoi,"duoi":b_duoi,
+             "tạo_tri":b_tao_tri,"tao_tri":b_tao_tri, "γ_của":b_gamma_cua,"gamma_cua":b_gamma_cua,
              "thêm":b_them,"them":b_them, "ghép":b_ghep,"ghep":b_ghep,
              "gom":b_gom, "đảo":b_dao,"dao":b_dao, "nối":b_noi,"noi":b_noi, "tách":b_tach,"tach":b_tach,
              "là_ds":b_la_ds,"la_ds":b_la_ds, "là_số":b_la_so,"la_so":b_la_so,
@@ -995,6 +1006,14 @@ class Runtime:
              "cam_kết":b_cam_ket,"cam_ket":b_cam_ket,
              "tim":b_tim, "nhúng":b_nhung,"nhung":b_nhung, "nhịp_tim":b_nhiptim,"nhip_tim":b_nhiptim,
              "bỏ_dấu":b_bo_dau,"bo_dau":b_bo_dau}
+        # MẢNG — kiểu vector phức + phép toán TRÊN CẢ MẢNG (cách numpy chạy: không để từng phần tử
+        # đi qua trình thông dịch). Chỉ dùng thư viện chuẩn Python. Thiếu giao_mang.py (vd playground
+        # Pyodide chỉ nhúng giao.py) → chỉ có mảng_sẵn() = tối, lib dùng vòng lặp GIAO thuần.
+        try:
+            import giao_mang
+            reg.update(giao_mang.builtins(self, SANG, TOI))
+        except ImportError:
+            reg["mảng_sẵn"] = lambda a: TOI
         self.glob.update(reg)
 
     # ============================================================
@@ -1459,7 +1478,7 @@ def nạp_chuẩn(rt):
 
 def _phân_tích_cờ(argv):
     "Tách tệp nguồn + các cờ CẤP QUYỀN I/O. Không cờ ⇒ không quyền ⇒ sandbox tuyệt đối."
-    tệp=None; đọc=[]; chạy=[]; ghi=[]; giờ=[False]; pc=[False]; mmio=[False]; máy_cờ=[False]; bước=[None]
+    tệp=None; đọc=[]; chạy=[]; ghi=[]; giờ=[False]; pc=[False]; mmio=[False]; máy_cờ=[False]; bước=[None]; trần_ds=[None]
     mạng=[]; i=0
     while i < len(argv):
         a=argv[i]
@@ -1482,13 +1501,19 @@ def _phân_tích_cờ(argv):
             try: bước[0]=int(argv[i+1])
             except ValueError: pass
             i+=2
+        # --trần-ds N: NỚI trần độ dài danh sách (mặc định 1 triệu). Mô phỏng ≥20 qubit cần 2^n
+        # phần tử một cách CHÍNH ĐÁNG; cũng như --bước, host phải nới TƯỜNG MINH.
+        elif a in ("--trần-ds","--tran-ds") and i+1<len(argv):
+            try: trần_ds[0]=int(argv[i+1])
+            except ValueError: pass
+            i+=2
         elif a.startswith("--bước=") or a.startswith("--buoc="):
             try: bước[0]=int(a.split("=",1)[1])
             except ValueError: pass
             i+=1
         elif tệp is None and not a.startswith("--"): tệp=a; i+=1
         else: i+=1
-    return tệp, đọc, chạy, ghi, giờ[0], pc[0], mmio[0], máy_cờ[0], bước[0], mạng
+    return tệp, đọc, chạy, ghi, giờ[0], pc[0], mmio[0], máy_cờ[0], bước[0], mạng, trần_ds[0]
 
 def khung_lỗi(src, line, col):
     "Dòng nguồn + dấu ^ tại cột (như compiler hiện đại). '' nếu thiếu thông tin."
@@ -1546,13 +1571,14 @@ def repl(đọc=(), chạy=(), ghi=()):
 
 def main():
     sys.setrecursionlimit(40000)             # để giới hạn đệ quy của GIAO bắt trước
-    tệp, đọc, chạy, ghi, giờ, pc, mmio, máy_cờ, bước, mạng = _phân_tích_cờ(sys.argv[1:])
+    tệp, đọc, chạy, ghi, giờ, pc, mmio, máy_cờ, bước, mạng, trần_ds = _phân_tích_cờ(sys.argv[1:])
     if tệp is None:
         repl(đọc, chạy, ghi); return         # KHÔNG tham số tệp → vào REPL
     with open(tệp, encoding="utf-8") as f: src=f.read()
     try:
         rt=Runtime(); rt.base_dir=os.path.dirname(os.path.abspath(tệp))   # gốc cho `nhập`
         if bước: rt.MAX_STEPS = bước                     # host nới trần bước (tường minh)
+        if trần_ds: rt.MAX_LIST = trần_ds                # host nới trần danh sách (tường minh)
         nạp_chuẩn(rt)                        # thư viện chuẩn sẵn dùng cho mọi chương trình
         if đọc: rt.cấp_quyền("đọc_tệp", gốc=đọc); rt.cấp_quyền("liệt_kê", gốc=đọc)
         if chạy: rt.cấp_quyền("chạy", lệnh=chạy)

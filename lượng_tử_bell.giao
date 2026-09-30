@@ -1,0 +1,44 @@
+# ============================================================
+# LƯỢNG TỬ 1 — cặp Bell: chồng chập, vướng víu, phép đo ↔ ba trị, xuất OpenQASM
+#   python giao.py lượng_tử_bell.giao
+# (Mô phỏng trên máy cổ điển. QASM in ở cuối chạy được trên IBM Quantum / AWS Braket.)
+# ============================================================
+nhập "lib_lượng_tử.giao"
+
+rọi "── 1. Chồng chập: H|0⟩ ──"
+đặt ψ = trạng_thái(2)
+áp_h(ψ, 0)
+rọi "ψ = " + chuỗi_trạng_thái(ψ)
+rọi "qubit 0 trước khi đo: " + hiện(tri_qubit(ψ, 0)) + "   ← ẨN: chưa quan sát thì không có giá trị"
+rọi "qubit 1 trước khi đo: " + hiện(tri_qubit(ψ, 1)) + "   ← đã xác định, không cần đo"
+rọi "q0 == 1 ?  " + hiện(tri_qubit(ψ, 0) == 1) + "   ← logic ba ngả: hỏi về cái ẩn thì câu trả lời là ẩn"
+rọi ""
+
+rọi "── 2. Vướng víu: CNOT(0→1) ──"
+áp_cx(ψ, 0, 1)
+rọi "ψ = " + chuỗi_trạng_thái(ψ)
+rọi "entropy vướng víu S(ρ_q0) = " + độ_vướng(ψ, [0]) + "  (= ln2: vướng víu cực đại)"
+rọi "I(q0:q1) lượng tử     = " + thông_tin_tương_hỗ(ψ, [0], [1]) + "  (= 2·ln2 — VƯỢT trần cổ điển ln2)"
+rọi ""
+
+rọi "── 3. Đo q0 → sụp cả q1 ──"
+đặt kq = đo_qubit(ψ, 0, 2026)
+rọi "đo q0: bit = " + kq["bit"] + ", tri = " + hiện(kq["tri"]) + "   (γ = xác suất của kết quả)"
+rọi "ψ sau đo = " + chuỗi_trạng_thái(ψ)
+rọi "qubit 1 giờ: " + hiện(tri_qubit(ψ, 1)) + "   ← chưa đo q1 mà đã BIẾT: tri thức chung do vướng víu"
+rọi ""
+
+rọi "── 4. Mạch Bell + 1000 lần đo (shots) ──"
+đặt m = mạch(2)
+H(m, 0)
+CX(m, 0, 1)
+ĐO_HẾT(m)
+in_đếm(lấy_mẫu(m, 1000, 7))
+rọi "→ chỉ 00 và 11: hai qubit luôn trùng nhau, dù mỗi cái riêng lẻ là ngẫu nhiên."
+rọi ""
+
+rọi "── 5. OpenQASM 2.0 (dán vào IBM Quantum Composer / qiskit.qasm2.loads) ──"
+rọi sang_qasm(m)
+rọi ""
+rọi "── OpenQASM 3.0 (qiskit.qasm3 / AWS Braket) ──"
+rọi sang_qasm3(m)

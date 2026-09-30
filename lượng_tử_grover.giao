@@ -1,0 +1,39 @@
+# ============================================================
+# LƯỢNG TỬ 2 — thuật toán Grover 3 qubit: tìm phần tử được đánh dấu |101⟩ trong 8 phần tử
+#   python giao.py lượng_tử_grover.giao
+# Cổ điển: trung bình phải thử ~4 lần. Grover: 2 vòng lặp → P(đúng) ≈ 94.5%.
+# (Lợi thế √N chỉ THẬT khi chạy trên phần cứng lượng tử — ở đây ta mô phỏng nên
+#  chi phí vẫn là 2^n. Mục đích: kiểm chứng mạch đúng trước khi gửi lên máy thật.)
+# ============================================================
+nhập "lib_lượng_tử.giao"
+
+hàm CCZ(m, a, b, c) { H(m, c)  CCX(m, a, b, c)  trả H(m, c) }
+
+# Oracle: lật pha |101⟩ (q2=1, q1=0, q0=1) — bọc q1 bằng X để CCZ bắt đúng trạng thái đó
+hàm oracle_101(m) { X(m, 1)  CCZ(m, 0, 1, 2)  trả X(m, 1) }
+
+# Khuếch tán: phản xạ quanh trạng thái trung bình  2|s⟩⟨s| − I
+hàm khuếch_tán(m) {
+    lặp q trong dải(3) { H(m, q) }
+    lặp q trong dải(3) { X(m, q) }
+    CCZ(m, 0, 1, 2)
+    lặp q trong dải(3) { X(m, q) }
+    lặp q trong dải(3) { H(m, q) }
+    trả m
+}
+
+đặt m = mạch(3)
+lặp q trong dải(3) { H(m, q) }
+rọi "Bắt đầu: P(|101⟩) = " + phân_phối(trạng_thái_cuối(m))[5] + "  (= 1/8)"
+lặp vòng trong dải(2) {
+    oracle_101(m)
+    khuếch_tán(m)
+    rọi "Sau vòng " + (vòng + 1) + ": P(|101⟩) = " + phân_phối(trạng_thái_cuối(m))[5]
+}
+ĐO_HẾT(m)
+rọi ""
+rọi "1000 lần đo:"
+in_đếm(lấy_mẫu(m, 1000, 11))
+rọi ""
+rọi "Số cổng: " + dài(m["lệnh"]) + " — OpenQASM 2.0 để chạy trên máy thật:"
+rọi sang_qasm(m)
