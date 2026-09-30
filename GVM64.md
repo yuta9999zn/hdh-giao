@@ -86,9 +86,10 @@ với cùng cờ host mà CI dùng:
 **Tầng CDFL** (`vật/tâm/học/giao/trôi/khi viên_mãn/de`) không thêm lệnh máy nào. `giaoc64` hạ cú pháp
 xuống lời gọi thư viện `_cdfl.giao`, viết bằng GIAO: kho tâm/vật, học (α = 0.5), cộng hưởng (F.4), luật
 trôi và DE bốn mặt, bám từng dòng ngữ nghĩa của `giao.py`. Lỗi (`tâm 'x' chưa khai báo`…) đi qua builtin
-nội bộ `__ném`, bắt được bằng `thử`. `kiem_cdfl_gvm64.giao` phủ các nhánh biên. Khác biệt duy nhất đã
-biết: biểu thức luật trôi được tính trong môi trường lúc ĐĂNG KÝ (bao đóng), còn `giao.py` tính trong
-môi trường lúc NHỊP trôi; chỉ lệch khi luật đọc biến cục bộ bị đổi giữa hai lúc.
+nội bộ `__ném`, bắt được bằng `thử`. `kiem_cdfl_gvm64.giao` phủ các nhánh biên. Luật `trôi`
+(v0.39, lựa chọn C) chỉ được đọc `vật`, hằng số và tên toàn cục, kiểm lúc đọc mã ở cả hai trình biên
+dịch và trình thông dịch; tên toàn cục đọc giá trị tại mỗi nhịp. Khác biệt cũ (bao đóng vs môi trường
+lúc nhịp) không còn: `kiem_troi_c.py` chứng minh hai máy khớp.
 
 Các lỗi thật tìm và sửa được trong lúc đối chiếu:
 - Chuỗi có emoji bị đếm theo UTF-16 → đổi sang đếm theo điểm mã. Vector SHA-256 thứ 4 giờ đúng.

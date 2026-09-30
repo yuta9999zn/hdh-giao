@@ -24,6 +24,7 @@ Khoảng XEB: cao ≥ 0.5 · vừa 0.2–0.5 · thấp < 0.2.
 import os, sys, json, time, hashlib, shutil, subprocess, tempfile
 P = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, P)
 from niem_phong import SổNiêmPhong
+from vo_gvm64 import lệnh_gvm64
 
 WT = shutil.which("wasmtime") or r"D:\wasmtime\wasmtime.exe"
 SH = shutil.which("sh") or r"C:\Program Files\Git\usr\bin\sh.exe"
@@ -36,8 +37,8 @@ def chạy_giao(mã_nguồn, thư_mục):
     try:
         g = subprocess.run([SH, os.path.join(P, "tu_bien_dich.sh"), tệp], capture_output=True, timeout=900)
         if g.returncode != 0: raise RuntimeError("biên dịch GIAO lỗi: " + g.stderr.decode("utf-8", "replace")[-400:])
-        r = subprocess.run([WT, "run", "--preload", "argon2=" + os.path.join(P, "wasm", "argon2.wasm"), os.path.join(P, "wasm", "gvm64.wasm"), "--", "--bước", "4000000000",
-                            "--trần-ds", "200000000"], input=g.stdout, capture_output=True, timeout=3600)
+        r = subprocess.run(lệnh_gvm64(["--bước", "4000000000",
+                            "--trần-ds", "200000000"]), input=g.stdout, capture_output=True, timeout=3600)
         if r.returncode != 0: raise RuntimeError("GVM-64 lỗi: " + r.stderr.decode("utf-8", "replace")[-400:])
         return r.stdout.decode("utf-8")
     finally:

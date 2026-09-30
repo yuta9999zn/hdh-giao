@@ -30,6 +30,7 @@ Trạng thái ghi theo ngày; ✅ xong và có kiểm · 🟡 làm một phần 
 | `random_get` vào danh sách hàm WASI của GVM-64 | ✅ 2026-09-30 | builtin `ngẫu_hệ()` (giao.py: `secrets`); `GVM64.md` › An toàn |
 | Muối lấy từ nguồn ngẫu nhiên HĐH, không từ hằng số/đồng hồ | ✅ 2026-09-30 | `muối_a2_hệ()` 16 byte; `kiem_muoi_he.giao`, `kiem_argon2.giao` ⑤ |
 | Băm lại mật khẩu bị lỗi "16 muối" | ✅ 2026-09-30 | `xác_thực` băm lại khi đăng nhập đúng; `bóng_yếu()` liệt kê người phải buộc đặt lại |
+| Ghim SHA-256 của module Argon2, kiểm trước mỗi lần nạp | ✅ 2026-09-30 | `wasm/argon2.sha256` (bản dựng tái lập được); `kiem_ghim_argon2.py` |
 | Mật khẩu dùng **Argon2id** (mã tham chiếu, không tự viết) | ✅ 2026-09-30 | `ben_ngoai/argon2` → wasi-sdk → `wasm/argon2.wasm`; 3 vector RFC 9106 khớp (`kiem_argon2.giao`); `$g1/g2/g3$` băm lại khi đăng nhập |
 | Hàm `ngẫu_nhiên_an_toàn(n)` trả n byte | ⬜ | hiện có `ngẫu_hệ()` (31 bit/lần); bọc thành n byte là việc nhỏ |
 
@@ -65,4 +66,4 @@ Trạng thái ghi theo ngày; ✅ xong và có kiểm · 🟡 làm một phần 
 
 ## Việc đang chờ quyết định
 
-- **Ngữ nghĩa luật `trôi`** (động / từ vựng / thuần thế giới) — đề xuất ở CHANGELOG v0.38.0, chờ chủ dự án chọn.
+- ~~Ngữ nghĩa luật `trôi`~~ — đã chọn (C) "thuần thế giới", làm xong v0.39.0.

@@ -19,7 +19,13 @@ if (!tệp) { process.stderr.write("Dùng: node wasm/giao64.mjs <tệp.g64> [--b
 const wasi = new WASI({ version: "preview1", args: ["gvm64", ...cờ], env: {}, preopens: {},
                         stdin: openSync(tệp, "r"), stdout: 1, stderr: 2, returnOnExit: true });
 // Argon2 tham chiếu (module riêng, không import gì) — tương đương `--preload argon2=…` của wasmtime.
-const a2 = (await WebAssembly.instantiate(readFileSync(join(here, "argon2.wasm")), {})).instance;
+// Kiểm GHIM SHA-256 (argon2.sha256) trước khi nạp — lệch thì từ chối.
+const a2byte = readFileSync(join(here, "argon2.wasm"));
+const ghim = readFileSync(join(here, "argon2.sha256"), "utf8").split(/\r?\n/).find(d => d.endsWith(" wasm/argon2.wasm"));
+const { createHash } = await import("node:crypto");
+const thật = createHash("sha256").update(a2byte).digest("hex");
+if (!ghim || ghim.split(/\s+/)[0] !== thật) { process.stderr.write(`argon2.wasm: SHA-256 ${thật} KHÁC ghim — từ chối nạp\n`); process.exit(3); }
+const a2 = (await WebAssembly.instantiate(a2byte, {})).instance;
 if (a2.exports._initialize) a2.exports._initialize();
 const imports = { ...wasi.getImportObject(), argon2: a2.exports };
 const { instance } = await WebAssembly.instantiate(readFileSync(join(here, "gvm64.wasm")), imports);

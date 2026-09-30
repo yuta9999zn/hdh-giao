@@ -10,6 +10,7 @@ Máy in vài biên độ với ĐỦ chữ số (số_chính_xác) → đối ch
 import os, sys, time, json, subprocess, shutil
 P = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, P)
 from giaoc64 import biên_dịch_tệp
+from vo_gvm64 import lệnh_gvm64
 import psutil
 
 WASMTIME = shutil.which("wasmtime") or r"D:\wasmtime\wasmtime.exe"
@@ -36,7 +37,7 @@ def chạy(loại, n):
     with open(g, "wb") as f: f.write(dữ)
     với = open(g, "rb"); t0 = time.perf_counter()
     fo, fe = open(g + ".out", "wb"), open(g + ".err", "wb")          # tệp, KHÔNG pipe (pipe Windows nhỏ → nghẽn)
-    pr = psutil.Popen([WASMTIME, "run", "--preload", "argon2=" + os.path.join(P, "wasm", "argon2.wasm"), os.path.join(P, "wasm", "gvm64.wasm"), "--", "--cho-giờ"] + CỜ_MÁY,
+    pr = psutil.Popen(lệnh_gvm64(["--cho-giờ"] + CỜ_MÁY),
                       stdin=với, stdout=fo, stderr=fe)
     đỉnh = 0
     while pr.poll() is None:

@@ -422,6 +422,12 @@ if _wt:
     ok, o = chạy("tu_bien_dich", ["kiem_tu_bien_dich.py"] + _dd, "KẾT QUẢ TỰ BIÊN DỊCH")
     mục("TỰ THÂN HOÁ: giaoc64.giao trên GVM-64 ≡ giaoc64.py từng byte + điểm bất động 2 thế hệ",
         ok and f"{len(_dd)} trùng từng byte · 0 lệch" in o and "điểm bất động đạt" in o, o[-400:])
+    ok, o = chạy("troi_c", ["kiem_troi_c.py"], "LUẬT TRÔI (C)")
+    mục("luật trôi (C) thuần thế giới: thông dịch ≡ giaoc64.py ≡ giaoc64.giao; 10 vi phạm bị cả ba từ chối lúc đọc mã",
+        ok and "✗" not in o, o[-300:])
+    ok, o = chạy("ghim_a2", ["kiem_ghim_argon2.py"], "GHIM ARGON2")
+    mục("ghim SHA-256 argon2.wasm: bản tráo 1 byte bị MỌI vỏ từ chối (Python · sh · thông dịch · Node)",
+        ok and "✗" not in o, o[-300:])
     ok, o = chạy("moi_gioi", ["kiem_moi_gioi.py"], "MÔI GIỚI LƯỢNG TỬ")
     mục("môi giới lượng tử: chạy khô → cần_người_duyệt, thiếu token → từ chối, không niêm phong treo",
         ok and "✗" not in o, o[-300:])

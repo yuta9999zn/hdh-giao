@@ -5,6 +5,29 @@ Nền học thuyết: Nguyễn Trường An (DFCT / NNL-NTHT / CDFL).
 
 ---
 
+## v0.39.0 — Luật trôi "thuần thế giới" (C) · ghim SHA-256 cho Argon2 (2026-09-30)
+
+### Luật `trôi` — lựa chọn (C)
+- `trôi x = e`: e chỉ được đọc `vật …`, hằng số và tên TOÀN CỤC (kể cả hàm/builtin toàn cục). Tên toàn
+  cục đọc **giá trị tại mỗi nhịp**. Cấm, và báo lỗi **lúc đọc mã** kèm dòng:cột: biến cục bộ (tham số,
+  `đặt`, biến lặp, tên bắt, hàm lồng — của mọi hàm bao ngoài), `tâm …`, `de`, hàm vô danh.
+- Cài ở `giao.py` (`kiểm_luật_trôi` trong `Parser.parse` — dùng chung cho trình thông dịch, `nhập`,
+  giaoc64.py) và bản chép 1-1 trong `giaoc64.giao`. Trình thông dịch tính luật trong môi trường toàn
+  cục tại nhịp; GVM-64 (bao đóng không bắt biến cục bộ nào) cho cùng kết quả.
+- `kiem_troi_c.py` **14/14**: `kiem_troi_c.giao` giống hệt trên thông dịch · giaoc64.py→GVM-64 ·
+  giaoc64.giao→GVM-64, hai `.g64` trùng từng byte; 10 luật vi phạm bị CẢ BA đường từ chối, cùng lý do,
+  cùng dòng. Ví dụ lệch cũ (+100 rồi +7 vs +5 rồi +5) nay là lỗi lúc đọc mã. Cả 4 luật trôi có sẵn
+  trong dự án đều hợp lệ.
+
+### Ghim SHA-256 cho module Argon2
+- Bản dựng Argon2 **tái lập được** (dựng lại → trùng hash, trùng bản đã commit). Ghim ở
+  `wasm/argon2.sha256`; `dung_argon2.sh` thất bại nếu hash khác ghim (cố ý đổi: `--ghim`).
+- Kiểm TRƯỚC mỗi lần nạp, lệch ⇒ từ chối (hỏng thì đóng): `vo_gvm64.py` (vỏ Python dùng chung cho
+  kiem_gvm64, bench, môi giới, kiem_troi_c), `tu_bien_dich.sh`, `giao.py` (argon2_lenh.wasm), vỏ Node.
+- `kiem_ghim_argon2.py` **7/7**: bản sửa MỘT byte bị cả bốn vỏ từ chối.
+
+---
+
 ## v0.38.0 — Mật khẩu chuyển sang Argon2id THẬT (mã tham chiếu C → WASM) · lộ trình lượng tử (2026-09-30)
 
 ### Argon2id — không tự viết mật mã

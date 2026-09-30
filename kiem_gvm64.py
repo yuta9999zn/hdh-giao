@@ -11,6 +11,7 @@ import os, sys, glob, shutil, subprocess
 P = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, P)
 from giaoc64 import biên_dịch_tệp, LỗiBiênDịch
+from vo_gvm64 import lệnh_gvm64
 
 ENV = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
 TMP = os.path.join(P, "__pycache__", "g64"); os.makedirs(TMP, exist_ok=True)
@@ -19,7 +20,7 @@ WASMTIME = shutil.which("wasmtime") or next((x for x in (r"D:\wasmtime\wasmtime.
 def chạy_vm(tệp_g64, cờ=()):
     if WASMTIME:
         with open(tệp_g64, "rb") as f:
-            r = subprocess.run([WASMTIME, "run", "--preload", "argon2=" + os.path.join(P, "wasm", "argon2.wasm"), os.path.join(P, "wasm", "gvm64.wasm"), "--", *cờ],
+            r = subprocess.run(lệnh_gvm64(cờ),
                                stdin=f, capture_output=True, timeout=600)
     else:
         r = subprocess.run(["node", "--no-warnings", os.path.join(P, "wasm", "giao64.mjs"), tệp_g64, *cờ],
