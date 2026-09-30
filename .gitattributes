@@ -1,0 +1,2 @@
+# script sh phải giữ LF (CRLF làm sh hỏng: $'')
+*.sh text eol=lf
