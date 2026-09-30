@@ -18,19 +18,19 @@ GHIM = os.path.join(P, "wasm", "argon2.sha256")
 
 class LệchGhim(RuntimeError): pass
 
-def _ghim():
+def _ghim(tệp_ghim=None):
     ra = {}
-    with open(GHIM, encoding="utf-8") as f:
+    with open(tệp_ghim or GHIM, encoding="utf-8") as f:
         for d in f:
             d = d.strip()
             if d: h, tên = d.split(None, 1); ra[os.path.basename(tên.lstrip("*"))] = h.lower()
     return ra
 
-def kiểm_ghim(đường_dẫn, tên=None):
+def kiểm_ghim(đường_dẫn, tên=None, tệp_ghim=None):
     "Ném LệchGhim nếu SHA-256 của tệp khác ghim (tên = tên trong tệp ghim, mặc định = basename)."
     tên = tên or os.path.basename(đường_dẫn)
-    kỳ = _ghim().get(tên)
-    if kỳ is None: raise LệchGhim(f"không có ghim cho {tên} trong {GHIM}")
+    kỳ = _ghim(tệp_ghim).get(tên)
+    if kỳ is None: raise LệchGhim(f"không có ghim cho {tên} trong {tệp_ghim or GHIM}")
     with open(đường_dẫn, "rb") as f: thật = hashlib.sha256(f.read()).hexdigest()
     if thật != kỳ:
         raise LệchGhim(f"{đường_dẫn}: SHA-256 {thật[:16]}… KHÁC ghim {kỳ[:16]}… — từ chối nạp "

@@ -38,10 +38,11 @@ Trạng thái ghi theo ngày; ✅ xong và có kiểm · 🟡 làm một phần 
 
 | việc | trạng thái | ghi chú |
 |---|---|---|
-| Ký các mục của sổ niêm phong bằng ML-DSA + Ed25519 (ký kép) | ⬜ | sổ hiện chỉ có chuỗi băm SHA-256 — phát hiện sửa, nhưng chưa chứng minh AI viết |
+| Ký các mục của sổ niêm phong bằng ML-DSA + Ed25519 (ký kép) | ✅ 2026-09-30 | `niem_phong.py` + `ky_kep.py` → `wasm/ky_lenh.wasm`; `kiem_ky_kep.py` 17/17 |
 | Ký bản cập nhật HĐH bằng ML-DSA + Ed25519 | ⬜ | |
 | Kết nối mạng (môi giới, MCP qua mạng) dùng TLS lai X25519 + ML-KEM | ⬜ | MCP hiện chạy qua stdio cục bộ; ảnh hưởng chính là môi giới gọi IBM |
-| Nguồn: biên dịch **PQClean/liboqs** sang WASM bằng wasi-sdk, gắn như `argon2.wasm` | ⬜ | cùng đường ống đã dựng cho Argon2 (`wasm/dung_argon2.sh`) |
+| Nguồn: biên dịch **PQClean** (ML-DSA-65) + **Monocypher** (Ed25519) sang WASM bằng wasi-sdk | ✅ 2026-09-30 | `wasm/dung_ky.sh`, ghim `wasm/ky.sha256`. ⚠ PQClean đã **lưu trữ (archived)** 2026-08; nên chuyển sang **mldsa-native** (PQ Code Package) |
+| Kiểm bằng vector chính thức | ✅ 2026-09-30 | ML-DSA-65: NIST ACVP keyGen 25 · sigGen 15 · sigVer 15; Ed25519: RFC 8032 §7.1 (5) + ACVP sigVer (5) |
 
 ## Giai đoạn 3 — Tác vụ lượng tử trong HĐH
 

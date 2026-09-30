@@ -42,3 +42,6 @@ soi_mang/*.jsonl
 soi_mang/*.log
 soi_mang_usb/*.jsonl
 soi_mang_usb/*.log
+
+# ───────────────────────────────────────────────────────── khoá ký kép sổ niêm phong (bí mật, sinh tự động)
+.khoa/

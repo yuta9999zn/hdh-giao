@@ -69,6 +69,19 @@ try:
         r = subprocess.run([node, os.path.join(wasm_tạm, "giao64.mjs"), g64], capture_output=True, timeout=120)
         ca("vỏ Node (giao64.mjs): argon2.wasm sửa 1 byte ⇒ từ chối (mã 3)", r.returncode == 3, r.stderr.decode("utf-8", "replace")[-200:])
         shutil.rmtree(wasm_tạm, ignore_errors=True)
+    # module ký kép (ML-DSA-65 + Ed25519) cũng được ghim (wasm/ky.sha256)
+    g3 = giả(os.path.join(P, "wasm", "ky_lenh.wasm"))
+    try:
+        mã = ("import sys; sys.path.insert(0, r'" + P + "'); import ky_kep\n"
+              "try:\n    ky_kep.ed_khoá(bytes(32)); print('CHẠY')\nexcept Exception as e: print('CHẶN', type(e).__name__)\n")
+        r1 = subprocess.run([sys.executable, "-c", mã], capture_output=True, text=True, encoding="utf-8",
+                            env=dict(os.environ, PYTHONIOENCODING="utf-8"))
+        r2 = subprocess.run([sys.executable, "-c", mã], capture_output=True, text=True, encoding="utf-8",
+                            env=dict(os.environ, PYTHONIOENCODING="utf-8", GIAO_KY_WASM=g3))
+        ca("ky_lenh.wasm (ký kép): tệp thật chạy · bản sửa 1 byte ⇒ từ chối (LệchGhim)",
+           r1.stdout.strip() == "CHẠY" and r2.stdout.strip() == "CHẶN LệchGhim", r1.stdout + r2.stdout + r2.stderr[-200:])
+    finally:
+        os.remove(g3)
 finally:
     os.remove(g1); os.remove(g2)
 print(f"\nGHIM ARGON2: {đạt}/{đạt + rớt}")

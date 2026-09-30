@@ -26,14 +26,57 @@ MẶC_ĐỊNH = os.environ.get("GIAO_SO_NIEM_PHONG") or os.path.join(P, "__pycac
 GỐC = "0" * 64
 
 def _băm(mục):
-    "SHA-256 của mục (không kể trường 'băm'), JSON chuẩn tắc (khoá sắp xếp, không khoảng trắng thừa)."
-    d = {k: v for k, v in mục.items() if k != "băm"}
+    "SHA-256 của mục (không kể 'băm' và 'ký'), JSON chuẩn tắc (khoá sắp xếp, không khoảng trắng thừa)."
+    d = {k: v for k, v in mục.items() if k not in ("băm", "ký")}
     return hashlib.sha256(json.dumps(d, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
 
+# ---------------- KÝ KÉP ML-DSA-65 + Ed25519 (v0.40, lộ trình GĐ2) ----------------
+# Chuỗi băm phát hiện SỬA nhưng không chứng minh AI VIẾT: ai có quyền ghi tệp đều dựng lại được cả chuỗi.
+# Nay mỗi mục mới được KÝ KÉP trên `băm` của nó (băm đã nối cả chuỗi phía trước): ML-DSA-65 (PQClean, FIPS
+# 204) và Ed25519 (Monocypher, RFC 8032), mã vendor nguyên văn → WASM (ky_kep.py). Mục chỉ HỢP LỆ khi CẢ
+# HAI chữ ký đúng. Khoá sinh từ os.urandom lần đầu dùng, nằm ở .khoa/niem_phong/ (không commit).
+KHOÁ_MẶC_ĐỊNH = os.environ.get("GIAO_KHOA_NIEM_PHONG") or os.path.join(P, ".khoa", "niem_phong")
+TIỀN_TỐ_KÝ = b"GIAO-NIEM-PHONG-v1\x00"
+
+def _thông_điệp_ký(băm): return TIỀN_TỐ_KÝ + bytes.fromhex(băm)
+def vân_tay(pk_ed, pk_ml): return hashlib.sha256(b"GIAO-KHOA-v1" + pk_ed + pk_ml).hexdigest()[:32]
+
+class KhoáSổ:
+    "Cặp khoá ký kép của sổ. bi_mat.json = (ξ ML-DSA, hạt Ed25519); cong_khai.json = khoá công khai + vân tay."
+    def __init__(self, thư_mục=KHOÁ_MẶC_ĐỊNH, tạo=True):
+        import ky_kep as K
+        self.K = K; self.thư_mục = thư_mục
+        bí, công = os.path.join(thư_mục, "bi_mat.json"), os.path.join(thư_mục, "cong_khai.json")
+        if not os.path.exists(bí):
+            if not tạo: raise FileNotFoundError(bí)
+            os.makedirs(thư_mục, exist_ok=True)
+            ξ, hạt = os.urandom(32), os.urandom(32)
+            pk_ml, _ = K.mldsa_khoá(ξ); pk_ed = K.ed_khoá(hạt)
+            fd = os.open(bí, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as f: json.dump({"mldsa_xi": ξ.hex(), "ed_hat": hạt.hex()}, f)
+            with open(công, "w", encoding="utf-8") as f:
+                json.dump({"ed25519": pk_ed.hex(), "mldsa65": pk_ml.hex(), "vân_tay": vân_tay(pk_ed, pk_ml)}, f)
+        d = json.load(open(bí, encoding="utf-8")); c = json.load(open(công, encoding="utf-8"))
+        self._ξ, self._hạt = bytes.fromhex(d["mldsa_xi"]), bytes.fromhex(d["ed_hat"])
+        self.công = {"ed25519": c["ed25519"], "mldsa65": c["mldsa65"], "vân_tay": c["vân_tay"]}
+    def ký(self, băm):
+        ed, ml = self.K.ký_kép(self._ξ, self._hạt, _thông_điệp_ký(băm))
+        return {"vân_tay": self.công["vân_tay"], "ed25519": ed.hex(), "mldsa65": ml.hex()}
+
+def _có_thể_ký():
+    if os.environ.get("GIAO_NIEM_PHONG_KY", "1") == "0": return False
+    try:
+        from vo_gvm64 import WASMTIME
+        return os.path.exists(os.path.join(P, "wasm", "ky_lenh.wasm")) and bool(WASMTIME) and os.path.exists(WASMTIME)
+    except Exception: return False
+
 class SổNiêmPhong:
-    def __init__(self, đường_dẫn=MẶC_ĐỊNH):
+    def __init__(self, đường_dẫn=MẶC_ĐỊNH, ký=None, khoá=None):
+        "ký=None ⇒ tự ký nếu có ky_lenh.wasm + wasmtime (tắt: GIAO_NIEM_PHONG_KY=0). khoá = KhoáSổ hoặc thư mục."
         self.đường_dẫn = đường_dẫn
         os.makedirs(os.path.dirname(os.path.abspath(đường_dẫn)), exist_ok=True)
+        if ký is None: ký = _có_thể_ký()
+        self.khoá = (khoá if isinstance(khoá, KhoáSổ) else KhoáSổ(khoá or KHOÁ_MẶC_ĐỊNH)) if ký else None
 
     def đọc(self):
         if not os.path.exists(self.đường_dẫn): return []
@@ -45,6 +88,7 @@ class SổNiêmPhong:
         mục["số"] = len(ds); mục["băm_trước"] = ds[-1]["băm"] if ds else GỐC
         mục["lúc"] = time.strftime("%Y-%m-%dT%H:%M:%S")
         mục["băm"] = _băm(mục)
+        if self.khoá is not None: mục["ký"] = self.khoá.ký(mục["băm"])
         with open(self.đường_dẫn, "a", encoding="utf-8") as f:
             f.write(json.dumps(mục, ensure_ascii=False, sort_keys=True) + "\n")
         return mục["băm"]
@@ -66,18 +110,36 @@ class SổNiêmPhong:
         self._ghi({"loại": "chấm", "niêm": băm_niêm, "kết_quả": kết_quả, "trúng": trúng, "lệch": lệch})
         return {"trúng": trúng, "lệch": lệch}
 
-    def kiểm_chuỗi(self):
-        "Kiểm toàn vẹn: mỗi mục băm đúng + nối đúng mục trước + chấm trỏ tới niêm phong CÓ TRƯỚC."
-        trước = GỐC; đã_niêm = set()
+    def kiểm_chuỗi(self, khoá_công=None, bắt_buộc_ký=False):
+        """Kiểm toàn vẹn: mỗi mục băm đúng + nối đúng mục trước + chấm trỏ tới niêm phong CÓ TRƯỚC; và KÝ KÉP:
+        mục có chữ ký phải đúng CẢ Ed25519 LẪN ML-DSA-65 theo khoá công khai (mặc định: khoá của sổ này);
+        từ mục ký đầu tiên trở đi, mục nào THIẾU chữ ký là lỗi (chống gỡ chữ ký). bắt_buộc_ký=True: MỌI mục
+        phải có chữ ký (sổ mới — chống gỡ SẠCH mọi chữ ký, trường hợp mà quy tắc trên không bắt được)."""
+        khoá_công = khoá_công or (self.khoá.công if self.khoá is not None else None)
+        trước = GỐC; đã_niêm = set(); đã_ký = False; K = None
         for i, m in enumerate(self.đọc()):
             if m.get("số") != i: return False, f"mục {i}: số thứ tự sai ({m.get('số')}) — có mục bị xoá/chèn"
             if m.get("băm_trước") != trước: return False, f"mục {i}: đứt chuỗi (băm_trước không khớp)"
             if _băm(m) != m.get("băm"): return False, f"mục {i}: nội dung bị SỬA (băm không khớp)"
+            if "ký" in m:
+                if khoá_công is None: return False, f"mục {i}: có chữ ký nhưng không có khoá công khai để kiểm"
+                k = m["ký"]
+                if k.get("vân_tay") != khoá_công["vân_tay"]: return False, f"mục {i}: ký bằng KHOÁ LẠ (vân tay {str(k.get('vân_tay'))[:12]}…)"
+                if K is None: import ky_kep as K
+                try:
+                    ok_ed, ok_ml = K.kiểm_kép(bytes.fromhex(khoá_công["ed25519"]), bytes.fromhex(khoá_công["mldsa65"]),
+                                              _thông_điệp_ký(m["băm"]), bytes.fromhex(k["ed25519"]), bytes.fromhex(k["mldsa65"]))
+                except (ValueError, K.LỗiKý): ok_ed = ok_ml = False
+                if not ok_ed: return False, f"mục {i}: chữ ký Ed25519 SAI"
+                if not ok_ml: return False, f"mục {i}: chữ ký ML-DSA-65 SAI"
+                đã_ký = True
+            elif đã_ký: return False, f"mục {i}: THIẾU chữ ký sau mục đã ký (chữ ký bị gỡ?)"
+            elif bắt_buộc_ký: return False, f"mục {i}: THIẾU chữ ký (sổ bắt buộc ký)"
             if m.get("loại") == "niêm_phong": đã_niêm.add(m["băm"])
             elif m.get("loại") == "chấm" and m.get("niêm") not in đã_niêm:
                 return False, f"mục {i}: chấm một niêm phong không có TRƯỚC nó"
             trước = m["băm"]
-        return True, "chuỗi nguyên vẹn"
+        return True, "chuỗi nguyên vẹn" + (" · mọi chữ ký kép đúng" if đã_ký else "")
 
     def thống_kê(self):
         "Theo từng 'ai': số niêm phong, số đã chấm, tỉ lệ trúng, và ĐƯỜNG NỀN (đoán theo tỉ lệ nền)."
@@ -102,6 +164,9 @@ class SổNiêmPhong:
 if __name__ == "__main__":
     sổ = SổNiêmPhong(sys.argv[1] if len(sys.argv) > 1 else MẶC_ĐỊNH)
     ok, lý = sổ.kiểm_chuỗi()
-    print(f"sổ: {sổ.đường_dẫn}\ntoàn vẹn: {'✓' if ok else '✗'} {lý}")
+    ds = sổ.đọc(); n_ký = sum(1 for m in ds if "ký" in m)
+    print(f"sổ: {sổ.đường_dẫn}")
+    print(f"toàn vẹn: {'✓' if ok else '✗'} {lý}")
+    print(f"ký kép (ML-DSA-65 + Ed25519): {n_ký}/{len(ds)} mục" + (f" · khoá {sổ.khoá.công['vân_tay'][:16]}…" if sổ.khoá else ""))
     print(json.dumps(sổ.thống_kê(), ensure_ascii=False, indent=1))
     sys.exit(0 if ok else 1)

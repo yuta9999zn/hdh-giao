@@ -428,6 +428,9 @@ if _wt:
     ok, o = chạy("ghim_a2", ["kiem_ghim_argon2.py"], "GHIM ARGON2")
     mục("ghim SHA-256 argon2.wasm: bản tráo 1 byte bị MỌI vỏ từ chối (Python · sh · thông dịch · Node)",
         ok and "✗" not in o, o[-300:])
+    ok, o = chạy("ky_kep", ["kiem_ky_kep.py"], "KÝ KÉP")
+    mục("GĐ2 ký kép ML-DSA-65 + Ed25519: vector NIST ACVP + RFC 8032 khớp; sổ niêm phong phát hiện sửa/gỡ/ký lại",
+        ok and "✗" not in o, o[-300:])
     ok, o = chạy("moi_gioi", ["kiem_moi_gioi.py"], "MÔI GIỚI LƯỢNG TỬ")
     mục("môi giới lượng tử: chạy khô → cần_người_duyệt, thiếu token → từ chối, không niêm phong treo",
         ok and "✗" not in o, o[-300:])

@@ -5,6 +5,36 @@ Nền học thuyết: Nguyễn Trường An (DFCT / NNL-NTHT / CDFL).
 
 ---
 
+## v0.40.0 — GĐ2 bắt đầu: ký kép ML-DSA-65 + Ed25519 cho sổ niêm phong (2026-09-30)
+
+### Mã mật mã — vendor nguyên văn, dựng bằng wasi-sdk, ghim SHA-256
+- **ML-DSA-65** từ **PQClean @ 0586a82** (FIPS 204 bản cuối, có ngữ cảnh; `ben_ngoai/pqclean`).
+  ⚠ PQClean đã **lưu trữ (archived) ngày 2026-08-04**; dự án khuyên dùng **mldsa-native** (PQ Code
+  Package). Dùng ở đây theo yêu cầu; chuyển sang mldsa-native là việc nên làm tiếp.
+- **Ed25519** từ **Monocypher 4.0.3** (`ben_ngoai/monocypher`, RFC 8032).
+- Keo nối `wasm/ky_lenh.c` → `wasm/ky_lenh.wasm` (`sh wasm/dung_ky.sh`), ghim `wasm/ky.sha256`, tái lập
+  được. Module không tự lấy ngẫu nhiên: ξ, hạt và rnd do bên gọi lấy từ HĐH rồi truyền vào; đòi nhiều hơn
+  số đã nạp ⇒ dừng máy. Ngăn xếp 1 MiB (ký ML-DSA-65 tràn ngăn xếp mặc định 64 KiB của wasm-ld — bẫy
+  bộ nhớ ở lần dựng đầu).
+
+### Kiểm bằng vector CHÍNH THỨC (`kiem_ky_kep.py`, 17/17)
+- ML-DSA-65, **NIST ACVP**: keyGen **25/25** (pk và sk trùng từng byte); sigGen tất định, external/pure,
+  có ngữ cảnh **15/15** (chữ ký trùng từng byte); sigVer **15/15** (3 hợp lệ, 12 từ chối đúng lý do).
+- Ed25519: **RFC 8032 §7.1** 5/5 (khoá công khai + chữ ký trùng từng byte, trích tự động từ văn bản
+  RFC); NIST ACVP EDDSA sigVer ED-25519 5/5 (lưu ý: tệp ACVP này là bản mẫu `isSample`).
+
+### Sổ niêm phong ký kép (`niem_phong.py`)
+- Mỗi mục mới ký kép trên `băm` (đã nối cả chuỗi). Chỉ HỢP LỆ khi CẢ HAI chữ ký đúng. Khoá sinh từ
+  `os.urandom` lần đầu, ở `.khoa/niem_phong/` (gitignore). Mục cũ chưa ký vẫn hợp lệ; từ mục ký đầu tiên,
+  mục thiếu chữ ký là lỗi; `bắt_buộc_ký=True` cho sổ mới.
+- Phát hiện: sửa nội dung + dựng lại cả chuỗi băm · hỏng riêng Ed25519 · hỏng riêng ML-DSA · gỡ chữ ký ·
+  ký lại bằng khoá khác · (với `bắt_buộc_ký`) gỡ sạch mọi chữ ký.
+- **Giới hạn:** vân tay khoá tin cậy đang đọc từ `.khoa/niem_phong/cong_khai.json` cạnh sổ — kẻ ghi được
+  CẢ thư mục khoá thì thay được khoá. Nên ghi vân tay ra chỗ độc lập (commit, in ra giấy, hoặc ký chéo).
+- `kiem_ghim_argon2.py` 8/8 (thêm: `ky_lenh.wasm` bị tráo ⇒ từ chối).
+
+---
+
 ## v0.39.0 — Luật trôi "thuần thế giới" (C) · ghim SHA-256 cho Argon2 (2026-09-30)
 
 ### Luật `trôi` — lựa chọn (C)
