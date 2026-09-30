@@ -153,7 +153,23 @@ hàm xác_thực(máy, tid_gốc, tên, mật_khẩu) {
     # đi qua đây, kẻo lại lộ "tài khoản này có thật, đang bị khoá".
     nếu loại(bóng) == "ẩn" { khớp_mk(mật_khẩu, BÓNG_GIẢ)  trả ẩn }
     nếu bóng == "*" { khớp_mk(mật_khẩu, BÓNG_GIẢ)  trả tối }
-    trả khớp_mk(mật_khẩu, bóng)
+    đặt kq = khớp_mk(mật_khẩu, bóng)
+    # BĂM LẠI KHI ĐĂNG NHẬP ĐÚNG: muối yếu (bản muối_mới cũ chỉ có 16 muối) hoặc định dạng cũ ⇒ băm
+    # lại bằng muối từ HĐH. Đây là lúc DUY NHẤT hệ có mật khẩu gốc; không đăng nhập thì xem
+    # `bóng_yếu` để buộc đặt lại.
+    nếu kq == sáng { nếu bóng_cần_băm_lại(bóng) == sáng { đặt_mk(máy, tid_gốc, tên, mật_khẩu, ẩn) } }
+    trả kq
+}
+
+hàm bóng_yếu(máy, tid_gốc) {
+    "→ danh sách TÊN có bóng cần băm lại (muối yếu / định dạng cũ). ẩn nếu không đọc nổi sổ bóng."
+    đặt b = _nạp_bóng(máy, tid_gốc)
+    nếu loại(b) == "ẩn" { trả ẩn }
+    đặt ra = []
+    lặp tên trong khoá(b) {
+        nếu bóng_cần_băm_lại(lấy_khoá(b, tên)) == sáng { gom(ra, tên) }
+    }
+    trả ra
 }
 
 hàm đặt_mk(máy, tid_gốc, tên, mk_mới, hạt) {

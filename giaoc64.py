@@ -45,7 +45,7 @@ for id_, names in [
     (44, "m_lấy"), (45, "m_gán"), (46, "m_sao"), (47, "m_sang_ds"), (48, "m_chọn"), (49, "m_đặt_chọn"),
     (50, "m_tổ_hợp"), (51, "m_nhân_số"), (52, "m_biến_đổi_cặp"), (53, "m_nhân_chọn"), (54, "m_đổi_chọn"),
     (55, "m_tổng_mô2_chọn"), (56, "m_tổng_mô2"), (57, "m_mô2_ds"), (58, "m_tích_trong"), (59, "m_rút"),
-    (63, "m_biến_đổi_bốn")]:
+    (63, "m_biến_đổi_bốn"), (64, "ngẫu_hệ ngau_he")]:
     for nm in names.split(): BUILTIN[nm] = id_
 
 class LỗiBiênDịch(Exception): pass
@@ -347,7 +347,8 @@ def main():
     except LỗiBiênDịch as e:
         print(f"[GIAOC64] {e}", file=sys.stderr); sys.exit(1)
     with open(ra, "wb") as f: f.write(dữ_liệu)
-    print(f"{vào} → {ra} ({len(dữ_liệu):,} byte)")
+    try: print(f"{vào} → {ra} ({len(dữ_liệu):,} byte)")
+    except UnicodeEncodeError: print(f"{vào!a} -> {ra!a} ({len(dữ_liệu)} byte)")   # bàn điều khiển cp1252
 
 if __name__ == "__main__":
     main()

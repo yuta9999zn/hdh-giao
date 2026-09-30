@@ -22,7 +22,7 @@ import os, sys, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from giao import tokenize, Parser, Runtime, nạp_chuẩn, GiaoError, GiaoLimit, GiaoSyntax
+from giao import tokenize, Parser, Runtime, nạp_chuẩn, GiaoError, GiaoLimit, GiaoSyntax, AN
 
 def _thoát_chuỗi(s):
     "Bọc một dòng người gõ thành hằng chuỗi GIAO an toàn (không cho chèn mã)."
@@ -140,7 +140,8 @@ class Máy:
 
     def đổi_mk(self, cũ, mới, hạt):
         "Đổi mật khẩu của CHÍNH người đang đăng nhập; phải biết mật khẩu cũ."
-        self.rt.glob["__cũ"] = cũ; self.rt.glob["__mới"] = mới; self.rt.glob["__hạt"] = hạt
+        self.rt.glob["__cũ"] = cũ; self.rt.glob["__mới"] = mới
+        self.rt.glob["__hạt"] = AN if hạt is None else hạt       # None ⇒ ẩn ⇒ muối từ HĐH
         self._chạy_giao(
             'đặt __r = gọi(M, V, GH_AI, [])\n'
             'đặt __t = __r[1]\n'
@@ -268,8 +269,8 @@ def lệnh_đổi_mk(máy):
         print("[đổi_mk] hai lần gõ không khớp — chưa đổi gì."); return
     if len(mới) < 4:
         print("[đổi_mk] mật khẩu quá ngắn (cần ≥ 4 ký tự) — chưa đổi gì."); return
-    hạt = (int(time.time() * 1000) ^ (os.getpid() << 13)) & 0x7FFFFFFF   # muối cho mỗi lần đổi
-    if máy.đổi_mk(cũ, mới, hạt):
+    # Muối lấy từ nguồn ngẫu nhiên của HĐH bên trong GIAO (ngẫu_hệ) — KHÔNG từ đồng hồ/pid (đoán được).
+    if máy.đổi_mk(cũ, mới, None):
         print(f"[đổi_mk] xong — mật khẩu của {máy.tên_hiện()} đã đổi.")
     else:
         print("[đổi_mk] mật khẩu hiện tại không đúng — chưa đổi gì.")

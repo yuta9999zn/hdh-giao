@@ -1,0 +1,66 @@
+# kiem_muoi_he.giao — nghiệm thu MUỐI TỪ HĐH + BĂM LẠI bóng muối yếu khi đăng nhập đúng
+#   python giao.py kiem_muoi_he.giao --bước 200000000
+# Bối cảnh: `muối_mới` bản cũ (trước 2026-09-30) lấy 4 bit THẤP của LCG ⇒ chỉ có ĐÚNG 16 muối cho
+# mọi hạt, và hạt lại là hằng số trong mã / đồng hồ ⇒ muối đoán được. Nay:
+#   ① muối thật lấy từ `ngẫu_hệ` (os.urandom / WASI random_get) — không đoán được;
+#   ② nhận diện được bóng mang muối yếu (16 xoay vòng của MK_VÒNG_CŨ);
+#   ③ đăng nhập ĐÚNG ⇒ bóng yếu tự BĂM LẠI bằng muối HĐH; `bóng_yếu` liệt kê ai còn phải đặt lại.
+# Mọi dòng in ra đều TẤT ĐỊNH (không in muối) — đối chiếu được giữa thông dịch và GVM-64.
+nhập "lib_người_dùng.giao"
+
+rọi "── muối từ HĐH ──"
+đặt a = muối_hệ()
+đặt b = muối_hệ()
+nếu dài(a) == 16 { nếu a != b { rọi "muối_hệ: 16 hex, hai lần gọi khác nhau" } }
+đặt hợp_lệ = sáng
+lặp c trong a { nếu loại(vị_trí(MK_HEX, c)) == "ẩn" { đặt hợp_lệ = tối } }
+nếu hợp_lệ == sáng { rọi "muối_hệ: chỉ gồm chữ hex" }
+nếu muối_yếu(a) == tối { rọi "muối_hệ không rơi vào 16 muối yếu" }
+
+rọi "── nhận diện muối yếu của bản cũ ──"
+# tái dựng muối_mới CŨ (bit thấp) để chắc rằng MỌI muối nó sinh ra đều bị bắt
+hàm _muối_cũ(hạt) {
+    đặt s = ""  đặt v = hạt
+    lặp 16 { đặt v = ngẫu(v)  đặt i = dư(v, 16)  đặt s = s + lát_chuỗi(MK_HEX, i, i + 1) }
+    trả s
+}
+đặt số_bắt = 0
+lặp h trong [7, 4242, 20260729, 19981000, 1, 2147483647, 123456789, 99] {
+    nếu muối_yếu(_muối_cũ(h)) == sáng { đặt số_bắt = số_bắt + 1 }
+}
+rọi "muối cũ bị nhận là yếu: " + số_bắt + "/8"
+nếu muối_yếu(muối_mới(4242)) == tối { rọi "muối_mới (bit cao) không bị nhận nhầm là yếu" }
+
+rọi "── bóng_mới(mk, ẩn) dùng muối HĐH ──"
+đặt b1 = bóng_mới("sen vàng", ẩn)
+đặt b2 = bóng_mới("sen vàng", ẩn)
+nếu b1 != b2 { rọi "cùng mật khẩu, hạt ẩn ⇒ hai bóng khác nhau" }
+nếu khớp_mk("sen vàng", b1) == sáng { nếu khớp_mk("sen vàng!", b1) == tối { rọi "bóng muối HĐH: đúng → sáng · sai → tối" } }
+nếu bóng_cần_băm_lại(b1) == tối { rọi "bóng mới đạt chuẩn: không cần băm lại" }
+đặt yếu = dựng_bóng3("sen vàng", _muối_cũ(4242), MK_N3)
+nếu bóng_cần_băm_lại(yếu) == sáng { rọi "bóng muối cũ: cần băm lại" }
+nếu bóng_cần_băm_lại(bóng_mới_g1("sen vàng", 5)) == sáng { rọi "bóng g1: cần băm lại" }
+nếu bóng_cần_băm_lại("*") == tối { rọi "tài khoản khoá (*): không đụng" }
+
+rọi "── đăng nhập đúng ⇒ tự băm lại ──"
+đặt M = khởi_máy()
+thêm_người(M, 0, "gốc")  thêm_người(M, 1000, "an")  thêm_người(M, 1001, "bình")
+đặt K = sinh_tt(M, "khởi", 0, 0, "/")
+gọi(M, K, GH_TẠO_THƯ, ["/hệ", 755])
+gọi(M, K, GH_TẠO, ["/hệ/người_dùng", 644, "gốc:0:/\nan:1000:/nhà/an\nbình:1001:/nhà/bình"])
+gọi(M, K, GH_TẠO, ["/hệ/mật_khẩu", 600, ""])
+đặt_mk(M, K, "gốc", "gốc-mới", ẩn)
+# giả lập sổ bóng CŨ: an và bình mang muối yếu (như băm bằng bản trước 2026-09-30)
+đặt sổ = _nạp_bóng(M, K)
+đặt_khoá(sổ, "an", dựng_bóng3("an-mk", _muối_cũ(19981000), MK_N3))
+đặt_khoá(sổ, "bình", dựng_bóng3("bình-mk", _muối_cũ(20260729), MK_N3))
+_ghi_bóng(M, K, sổ)
+rọi "trước: cần đặt lại = " + bóng_yếu(M, K)
+nếu xác_thực(M, K, "an", "sai-bét") == tối { rọi "an gõ SAI → tối, KHÔNG băm lại" }
+rọi "sau lần sai: cần đặt lại = " + bóng_yếu(M, K)
+nếu xác_thực(M, K, "an", "an-mk") == sáng { rọi "an gõ đúng → sáng" }
+rọi "sau khi an đăng nhập đúng: cần đặt lại = " + bóng_yếu(M, K)
+đặt p = tách_giữ(lấy_khoá(_nạp_bóng(M, K), "an"), "$")
+nếu muối_yếu(p[3]) == tối { rọi "bóng của an giờ mang muối HĐH" }
+nếu xác_thực(M, K, "an", "an-mk") == sáng { nếu xác_thực(M, K, "an", "an-mk?") == tối { rọi "an vẫn đăng nhập được bằng mật khẩu cũ; sai vẫn tối" } }
+rọi "XONG kiem_muoi_he"

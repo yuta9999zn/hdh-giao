@@ -410,7 +410,7 @@ print("\n[★ GVM-64 — máy tính toán của GIAO (WASM/WASI, không Python l
 _wt = shutil.which("wasmtime") or (r"D:\wasmtime\wasmtime.exe" if os.path.exists(r"D:\wasmtime\wasmtime.exe") else None)
 if _wt:
     _ds = ["lượng_tử_bell.giao", "lượng_tử_grover.giao", "lượng_tử_dịch_chuyển.giao", "lượng_tử_hilbert.giao",
-           "lượng_tử_xeb.giao", "kiem_lib_sha256.giao", "kiem_lib_mật_khẩu.giao", "kiem_lib_bit.giao",
+           "lượng_tử_xeb.giao", "kiem_lib_sha256.giao", "kiem_lib_mật_khẩu.giao", "kiem_muoi_he.giao", "kiem_lib_bit.giao",
            "kiem_lib_thập_phân.giao", "kiem_lib_chuoi.giao", "kiem_lib_bản.giao", "kiem_lib_duyet.giao"]
     ok, o = chạy("kiem_gvm64", ["kiem_gvm64.py"] + _ds, "KẾT QUẢ")
     _kq = [d for d in o.splitlines() if d.startswith("KẾT QUẢ")]

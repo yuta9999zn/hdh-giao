@@ -28,8 +28,8 @@ hàm dựng_nền(im_lặng) {
     # ~ /etc/passwd (644, ai đọc cũng được) và ~ /etc/shadow (600, CHỈ gốc-quyền đọc)
     gọi(M, khởi, GH_TẠO, ["/hệ/người_dùng", 644, "gốc:0:/\nan:1000:/nhà/an"])
     gọi(M, khởi, GH_TẠO, ["/hệ/mật_khẩu", 600, ""])
-    đặt_mk(M, khởi, "gốc", "gốc", 20260729)      # mật khẩu ĐẦU — đổi ngay bằng `đổi_mk`
-    đặt_mk(M, khởi, "an", "an", 19981000)
+    đặt_mk(M, khởi, "gốc", "gốc", ẩn)            # mật khẩu ĐẦU — đổi ngay bằng `đổi_mk`
+    đặt_mk(M, khởi, "an", "an", ẩn)              # hạt ẩn ⇒ muối từ HĐH (hằng số trong mã = đoán được)
     # ~ /etc/group (644) và ~ /etc/sudoers (440, CHỈ gốc-quyền đọc)
     gọi(M, khởi, GH_TẠO, ["/hệ/nhóm", 644, "văn:100:gốc,an"])
     gọi(M, khởi, GH_TẠO, ["/hệ/sudo", 440, "an: xem liệt soi xoá"])   # an sudo được 4 lệnh — KHÔNG phải *

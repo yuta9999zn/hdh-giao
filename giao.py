@@ -985,11 +985,16 @@ class Runtime:
             g=max(-1.0,min(1.0,float(g)))
             if g==0: return Tri(AN,None,"ẩn")
             return Tri(v,g,SANG if g>0 else TOI)
+        def b_ngau_he(a):                                 # ngẫu_hệ() → số nguyên 0..2^31−1 từ NGUỒN NGẪU NHIÊN CỦA HĐH
+            need(a,0,"ngẫu_hệ")                           # (os.urandom — không đoán được; dùng cho MUỐI mật khẩu,
+            import secrets                                #  KHÔNG dùng LCG/đồng hồ). Không mở tệp/mạng nên không
+            return secrets.randbits(31)                   #  cần cờ năng lực. Trên GVM-64: WASI random_get.
         def b_gamma_cua(a):                               # γ_của(tri) → γ ; không phải tri / tri ẩn → ẩn
             need(a,1,"γ_của"); v=a[0]
             return v.gamma if isinstance(v,Tri) and v.gamma is not None else AN
         reg={"dài":b_dai,"dai":b_dai, "đầu":b_dau,"dau":b_dau, "đuôi":b_duoi,"duoi":b_duoi,
              "tạo_tri":b_tao_tri,"tao_tri":b_tao_tri, "γ_của":b_gamma_cua,"gamma_cua":b_gamma_cua,
+             "ngẫu_hệ":b_ngau_he,"ngau_he":b_ngau_he,
              "thêm":b_them,"them":b_them, "ghép":b_ghep,"ghep":b_ghep,
              "gom":b_gom, "đảo":b_dao,"dao":b_dao, "nối":b_noi,"noi":b_noi, "tách":b_tach,"tach":b_tach,
              "là_ds":b_la_ds,"la_ds":b_la_ds, "là_số":b_la_so,"la_so":b_la_so,

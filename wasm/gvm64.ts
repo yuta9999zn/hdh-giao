@@ -21,6 +21,8 @@
 @external("wasi_snapshot_preview1", "args_get")       declare function wasi_args_get(argv: usize, buf: usize): u16;
 @external("wasi_snapshot_preview1", "clock_time_get") declare function wasi_clock_time_get(id: u32, prec: u64, t: usize): u16;
 @external("wasi_snapshot_preview1", "proc_exit")      declare function wasi_proc_exit(code: u32): void;
+// random_get: byte ngẫu nhiên từ HĐH (getrandom/BCryptGenRandom qua wasmtime). Không mở tệp/mạng.
+@external("wasi_snapshot_preview1", "random_get")     declare function wasi_random_get(buf: usize, len: usize): u16;
 
 const IOV = new StaticArray<u32>(4); const NW = new StaticArray<u32>(2); const TBUF = new StaticArray<u64>(1);
 function ghiFd(fd: u32, ptr: usize, len: usize): void {
@@ -32,6 +34,11 @@ function ghiFd(fd: u32, ptr: usize, len: usize): void {
 }
 function ghiChuoi(fd: u32, s: string): void {                      // UTF-16 → UTF-8
   let b = String.UTF8.encode(s, false); ghiFd(fd, changetype<usize>(b), <usize>b.byteLength);
+}
+const RBUF = new StaticArray<u32>(1);
+function host_ngau_he(): i64 {                                     // 31 bit; lỗi ⇒ bẫy (KHÔNG lặng lẽ trả số đoán được)
+  if (wasi_random_get(changetype<usize>(RBUF), 4) != 0) unreachable();
+  return <i64>(RBUF[0] & 0x7FFFFFFF);
 }
 function host_gio_he(): f64 { wasi_clock_time_get(0, 1000, changetype<usize>(TBUF)); return <f64>TBUF[0] / 1.0e9; }
 // Lỗi nội bộ của runtime AssemblyScript (không bao giờ xảy ra nếu máy đúng) = bẫy WASM 'unreachable':
@@ -1037,6 +1044,9 @@ function builtin(id: i32, b: i32, n: i32): void {
       if (!need(n, 1, "bỏ_dấu")) return;
       if (sk[b] != K_STR) { err("bỏ_dấu cần chuỗi, gặp " + loai(sk[b], so[b])); return; }
       RS(boDau((<SObj>so[b]).s)); return;
+    }
+    case 64: { // ngẫu_hệ() — nguồn ngẫu nhiên của HĐH (WASI random_get)
+      if (!need(n, 0, "ngẫu_hệ")) return; RI(host_ngau_he()); return;
     }
     case 60: case 61: case 62: { // tim / nhúng / nhịp_tim — cần LLM qua MẠNG
       err("'" + (id == 60 ? "tim" : (id == 61 ? "nhúng" : "nhịp_tim")) + "' cần năng lực LLM qua mạng — GVM-64 chạy trong hộp cát WASI không có mạng (chạy bằng giao.py)");

@@ -449,6 +449,17 @@ ca("★★★ TRẦN CÔNG: bản ghi khai N/vòng vô lý bị chặn TỨC TH�
    "sổ là treo máy ngay tại màn đăng nhập, không cần biết mật khẩu",
    "★ ba bản ghi vô lý bị chặn TỨC THÌ" in o and "trần không chặn nhầm bản ghi thật" in o)
 
+mã, o = chạy(["giao.py", "kiem_muoi_he.giao", "--bước", "200000000"])
+ca("chạy sạch (muối từ HĐH + băm lại)", mã == 0, o[-300:])
+ca("★★★ muối lấy từ NGUỒN NGẪU NHIÊN CỦA HĐH (ngẫu_hệ), không từ hạt hằng số/đồng hồ",
+   "muối_hệ: 16 hex, hai lần gọi khác nhau" in o and "cùng mật khẩu, hạt ẩn ⇒ hai bóng khác nhau" in o)
+ca("★★ nhận diện ĐỦ muối yếu của bản cũ (16 muối cho mọi hạt) và không nhận nhầm muối mới",
+   "muối cũ bị nhận là yếu: 8/8" in o and "không bị nhận nhầm là yếu" in o)
+ca("★★★ đăng nhập ĐÚNG ⇒ bóng muối yếu tự BĂM LẠI; gõ sai không đụng; bóng_yếu liệt kê người còn phải đặt lại",
+   "trước: cần đặt lại = [an, bình]" in o and "sau lần sai: cần đặt lại = [an, bình]" in o
+   and "sau khi an đăng nhập đúng: cần đặt lại = [bình]" in o and "bóng của an giờ mang muối HĐH" in o
+   and "an vẫn đăng nhập được bằng mật khẩu cũ; sai vẫn tối" in o)
+
 def _phiên(gõ):
     "Chạy một phiên TƯƠNG TÁC qua đường ống (kể cả các dòng mật khẩu)."
     r = subprocess.run([PY, os.path.join(P, "chay_hdh_giao.py")], input="\n".join(gõ) + "\n",

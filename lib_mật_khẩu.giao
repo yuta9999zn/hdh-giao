@@ -87,6 +87,36 @@ hàm muối_mới(hạt) {
     trả s
 }
 
+# MUỐI THẬT: lấy từ NGUỒN NGẪU NHIÊN CỦA HĐH (`ngẫu_hệ` = os.urandom ở thông dịch, WASI random_get
+# ở GVM-64). `muối_mới(hạt)` là TẤT ĐỊNH theo hạt — chỉ để kiểm thử: nếu hạt là hằng số trong mã
+# nguồn hay lấy từ đồng hồ/pid thì kẻ tấn công ĐOÁN ĐƯỢC muối và tính sẵn bảng. 16 chữ hex = 64 bit;
+# mỗi chữ lấy 4 bit cao của một lần gọi (nguồn HĐH không có điểm yếu bit thấp, nhưng lấy bit cao
+# cho đồng nhất với `muối_mới`).
+hàm muối_hệ() {
+    đặt s = ""
+    lặp 16 {
+        đặt i = ngẫu_hệ() // 134217728              # 2^31 / 16
+        đặt s = s + lát_chuỗi(MK_HEX, i, i + 1)
+    }
+    trả s
+}
+
+# MUỐI YẾU của bản `muối_mới` CŨ (trước 2026-09-30): lấy 4 bit THẤP của LCG ⇒ MỌI hạt cho ra một
+# trong ĐÚNG 16 chuỗi, đều là xoay vòng của MK_VÒNG_CŨ (đã kiểm: 20 000 hạt ngẫu nhiên → 16 muối).
+# Bóng mang muối này coi như KHÔNG có muối (bảng tính sẵn 16 lần là đủ) ⇒ phải băm lại.
+đặt MK_VÒNG_CŨ = "09efc5ab81674d23"
+hàm muối_yếu(muối) {
+    nếu loại(muối) != "chuỗi" { trả sáng }
+    nếu dài(muối) != 16 { trả tối }
+    đặt đôi = MK_VÒNG_CŨ + MK_VÒNG_CŨ
+    đặt k = 0
+    lặp 16 {
+        nếu lát_chuỗi(đôi, k, k + 16) == muối { trả sáng }
+        đặt k = k + 1
+    }
+    trả tối
+}
+
 # ---------------- $g2$: SHA-256 xích (C1) ----------------
 đặt MK_VÒNG2 = 128                           # ~0.8s/lần kiểm ở thông dịch (6.3ms/vòng sau khi
                                              # inline vòng nóng lib_sha256) — nâng nữa khi có đường máy
@@ -190,7 +220,26 @@ hàm dựng_bóng3(mật_khẩu, muối, N) {
     trả "$g3$" + N + "$" + muối + "$" + băm_mk3(mật_khẩu, muối, N)
 }
 
-hàm bóng_mới(mật_khẩu, hạt) { trả dựng_bóng3(mật_khẩu, muối_mới(hạt), MK_N3) }      # BẢN MỚI = $g3$
+# BẢN MỚI = $g3$. `hạt` = ẩn ⇒ muối từ HĐH (MỌI chỗ đặt mật khẩu thật PHẢI truyền ẩn). `hạt` là số
+# ⇒ muối tất định — CHỈ dành cho kiểm thử cần kết quả lặp lại được.
+hàm bóng_mới(mật_khẩu, hạt) {
+    nếu loại(hạt) == "ẩn" { trả dựng_bóng3(mật_khẩu, muối_hệ(), MK_N3) }
+    trả dựng_bóng3(mật_khẩu, muối_mới(hạt), MK_N3)
+}
+
+# Bóng này có nên BĂM LẠI (khi người dùng đăng nhập đúng — lúc duy nhất ta có mật khẩu gốc)?
+#   sáng: muối yếu (bản cũ, 16 giá trị) · định dạng cũ g1/g2 · g3 nhưng N nhỏ hơn mức hiện hành
+#   tối : đã đạt chuẩn hiện hành
+hàm bóng_cần_băm_lại(bóng) {
+    đặt p = tách_giữ(bóng, "$")
+    nếu dài(p) < 5 { trả tối }                   # không phải bóng (vd "*" = khoá) — không đụng
+    nếu muối_yếu(p[3]) == sáng { trả sáng }
+    nếu p[1] != "g3" { trả sáng }
+    đặt N = số_chuỗi(p[2])
+    nếu loại(N) == "ẩn" { trả tối }
+    nếu N < MK_N3 { trả sáng }
+    trả tối
+}
 hàm bóng_mới_g2(mật_khẩu, hạt) { trả dựng_bóng2(mật_khẩu, muối_mới(hạt), MK_VÒNG2) } # chỉ để kiểm cũ
 hàm bóng_mới_g1(mật_khẩu, hạt) { trả dựng_bóng(mật_khẩu, muối_mới(hạt), MK_VÒNG) }  # chỉ để kiểm cũ
 
