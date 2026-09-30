@@ -125,9 +125,12 @@ hàm or_tập_thể(tác_tử, ρ) {
 # tích < 2^53 nên 'dư' (chia số thực) vẫn chính xác.
 # ============================================================
 hàm ngẫu(seed) { trả dư(seed * 1103515245 + 12345, 2147483648) }  # LCG 31-bit (chuẩn glibc) — nhờ // chính xác
-hàm ngẫu_mod(seed, n) {                                    # [giá_trị trong 0..n-1, seed_mới]
+# [giá_trị trong 0..n-1, seed_mới] — lấy BIT CAO: ⌊s·n / 2^31⌋ (số nguyên chính xác nhờ //).
+# KHÔNG dùng dư(s, n): LCG modulo 2^31 có bit thấp chu kỳ cực ngắn (bit thứ k lặp sau 2^(k+1) bước),
+# nên dư(s, 2^k) chỉ lặp một vòng 2^k giá trị và dư(s, n) với n chẵn thiên lệch. (Sửa 2026-09-30.)
+hàm ngẫu_mod(seed, n) {
     đặt s = ngẫu(seed)
-    trả [dư(s, n), s]
+    trả [s * n // 2147483648, s]
 }
 hàm taylor_e(x, tổng, hạng, n) {                           # e^x ≈ Σ x^k/k! (8 số hạng, x NHỎ)
     nếu n > 8 { trả tổng }

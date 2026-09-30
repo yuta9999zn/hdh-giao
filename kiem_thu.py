@@ -274,6 +274,40 @@ from giao import GiaoSyntax
 out, e = chạy('rọi 1 @ 2')
 kiểm("cú pháp mang dòng+cột", isinstance(e, GiaoSyntax) and e.line==1 and e.col==7, f"e={getattr(e,'line',None)}:{getattr(e,'col',None)}")
 
+# ---------- 15. tạo_tri / γ_của (dùng cho phép đo lượng tử) ----------
+print("\n[15] tạo_tri(giá_trị, γ) · γ_của")
+out, e = chạy('rọi tạo_tri(1, 0.5)\nrọi tạo_tri(0, -2)\nrọi tạo_tri(1, 0)\nrọi γ_của(tạo_tri(1, 0.25))\nrọi γ_của(3)\nrọi tạo_tri(1, 0.5) == 1')
+kiểm("γ>0 sáng · γ kẹp [-1,1] · γ=0 ẩn · γ_của · so sánh lấy giá trị",
+     e is None and out.split("\n")[:6] == ["tri(1, γ=+0.50, sáng)", "tri(0, γ=-1.00, tối)", "tri(ẩn — chưa giao thoa, γ=∅)", "0.25", "ẩn", "sáng"], f"out={out!r} e={e}")
+out, e = chạy('rọi tạo_tri(1, "x")')
+kiểm("tạo_tri γ không phải số → lỗi sạch", isinstance(e, GiaoError), f"e={e}")
+
+# ---------- 15b. cam_kết — F.11-N: TRUNG BÌNH theo chiều (bất biến số chiều D) ----------
+print("\n[15b] cam_kết (F.11-N): bất biến theo số chiều")
+out, e = chạy('rọi cam_kết([0.3])\nrọi cam_kết([0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3])\n'
+              'rọi cam_kết([1])\nrọi cam_kết([])\nrọi cam_kết([0.1, 0.05])')
+d = out.split("\n")
+kiểm("cùng độ sắc ⇒ cùng e dù D=1 hay D=10 · std=std0 ⇒ e=0 · rỗng ⇒ 0 · [0.1,0.05] ⇒ 0.726 (bản tổng cũ: 0.8412)",
+     e is None and d[0] == d[1] and d[2] == "0" and d[3] == "0" and d[4] == "0.726", f"out={out!r} e={e}")
+
+# ---------- 15c. ngẫu_mod lấy BIT CAO (bit thấp của LCG 2^31 có chu kỳ 2^k) ----------
+print("\n[15c] ngẫu_mod: không lặp theo chu kỳ bit thấp")
+out, e = chạy('đặt a = []  đặt s = 1\nlặp 32 { đặt r = ngẫu_mod(s, 4)  gom(a, r[0])  đặt s = r[1] }\nrọi a', chuẩn=True)
+ds = [int(x) for x in out.strip().strip("[]").split(", ")] if e is None else []
+kiểm("32 lần ngẫu_mod(·,4): trong 0..3, đủ 4 giá trị, KHÔNG lặp chu kỳ 4 (bản cũ: 2,3,0,1,2,3,0,1…)",
+     len(ds) == 32 and set(ds) == {0, 1, 2, 3} and ds[4:] != ds[:-4], f"out={out!r} e={e}")
+
+# ---------- 16. mảng (vector phức, phép trên cả mảng — giao_mang.py) ----------
+print("\n[16] mảng: phép trên cả mảng + lỗi sạch")
+out, e = chạy('đặt v = mảng_từ([1, 2, 3, 4], [0, 0, 0, 0])\nrọi m_lấy(m_tổ_hợp(m_chọn(v, 1, 0), m_chọn(v, 1, 1), [1, 0], [0, 1]), 1)\n'
+              'rọi m_tổng_mô2(v)\nrọi m_rút(v, [0.5, 4.9, 29])')
+kiểm("m_chọn · m_tổ_hợp · m_tổng_mô2 · m_rút", e is None and out.split("\n")[:3] == ["[3, 4]", "30", "[0, 1, 3]"], f"out={out!r} e={e}")
+for src, tên in [('m_lấy(mảng_không(4), 9)', "chỉ số ngoài phạm vi"), ('m_chọn(mảng_không(6), 1, 0)', "độ dài không phải 2^n"),
+                 ('m_chọn(mảng_không(4), 1, 2)', "mẫu ⊄ sel"), ('m_tổ_hợp(mảng_không(2), mảng_không(4), [1,0], [1,0])', "khác độ dài"),
+                 ('m_lấy([1, 2], 0)', "không phải mảng")]:
+    out, e = chạy(f"rọi {src}")
+    kiểm(f"mảng: {tên} → lỗi sạch", isinstance(e, GiaoError), f"e={e!r}")
+
 print("\n" + "="*64)
 print(f"KẾT QUẢ: {TỔNG - RỚT}/{TỔNG} đạt" + ("" if RỚT == 0 else f"  — {RỚT} RỚT"))
 print("="*64)

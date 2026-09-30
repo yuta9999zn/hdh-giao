@@ -406,11 +406,16 @@ def skill_gamma(R_belief, R_baseline=GAMMA_BASELINE):
     return max(-1.0, min(1.0, (a - b) / (a + b)))
 
 def commitment_e(stds, std0=STD0):
-    """e cam kết (F.11) = S/(1+S), S = Σ ln(std0/std_i) ≥ 0. Niềm tin càng SẮC → càng cam kết."""
-    S = 0.0
-    for s in stds: S += _math.log(std0 / max(float(s), 1e-9))
-    S = max(S, 0.0)
-    return S / (1.0 + S)
+    """e cam kết (F.11, HIỆU CHỈNH F.11-N 2026-08-07) = s/(1+s), s = (1/D)·Σ ln(std0/std_i) ≥ 0.
+    TRUNG BÌNH theo chiều, không phải TỔNG: bản tổng làm e phụ thuộc SỐ CHIỀU D (D=30 ⇒ e≈0.98 gần
+    như mọi lúc — trục e bão hoà). Bản trung bình bất biến theo D; hai đầu mút giữ nguyên (std=std0 ⇒
+    e=0; std→0 ⇒ e→1). Ngưỡng e ≥ 0.5 nay nghĩa là: trung bình hình học của độ tán ≤ std0/ℯ ≈ 0.37·std0,
+    với MỌI D. Re-baseline công khai: CHANGELOG v0.32.0. Niềm tin càng SẮC → càng cam kết."""
+    if not stds: return 0.0
+    s = 0.0
+    for x in stds: s += _math.log(std0 / max(float(x), 1e-9))
+    s = max(s / len(stds), 0.0)
+    return s / (1.0 + s)
 
 class Runtime:
     def __init__(self):
@@ -1183,7 +1188,11 @@ class Runtime:
                     self.err(f"ổ_nghe: cổng {a[0]} NGOÀI phạm vi được cấp {_cổng_cho}")
                 try:
                     s = _sk.socket(_sk.AF_INET, _sk.SOCK_STREAM)
-                    s.setsockopt(_sk.SOL_SOCKET, _sk.SO_REUSEADDR, 1)
+                    # Windows: SO_REUSEADDR cho tiến-trình KHÁC bind CHUNG cổng (chiếm cổng + kết nối
+                    # rơi ngẫu nhiên — một nguồn test chập chờn) ⇒ dùng SO_EXCLUSIVEADDRUSE. Nơi khác
+                    # SO_REUSEADDR chỉ cho dùng lại cổng đang TIME_WAIT — an toàn, giữ nguyên.
+                    if hasattr(_sk, "SO_EXCLUSIVEADDRUSE"): s.setsockopt(_sk.SOL_SOCKET, _sk.SO_EXCLUSIVEADDRUSE, 1)
+                    else: s.setsockopt(_sk.SOL_SOCKET, _sk.SO_REUSEADDR, 1)
                     s.bind((_máy_cho[0], a[0])); s.listen(8); s.setblocking(False)
                     return _tay_mới(s)
                 except OSError: return AN

@@ -26,9 +26,10 @@ def res(σ, r):                       # γ kỹ-năng (F.4): γ<0 = niềm tin T
     b = -math.log(max(_R(σ, r), 1e-12))              # S(ρ‖σ)
     return max(-1.0, min(1.0, (a - b) / (a + b)))
 
-def cam_kết(stds, std0=STD0):        # e (F.11) = S/(1+S), S=Σ ln(std0/std) ≥ 0 — niềm tin càng SẮC càng cam kết
-    S = max(sum(math.log(std0/max(s,1e-9)) for s in stds), 0.0)
-    return S/(1.0+S)
+def cam_kết(stds, std0=STD0):        # e (F.11-N) = s/(1+s), s=(1/D)·Σ ln(std0/std) ≥ 0 — TRUNG BÌNH theo chiều (bất biến D)
+    if not stds: return 0.0
+    s = max(sum(math.log(std0/max(x,1e-9)) for x in stds) / len(stds), 0.0)
+    return s/(1.0+s)
 
 def tứ_tượng(e, γ):                  # (e,γ) → Tứ Tượng: cam kết × kỹ năng (thang Dịch)
     if e >= 0.5 and γ >= 0: return "Lão Dương (cam kết + đúng)"

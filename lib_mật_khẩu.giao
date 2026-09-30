@@ -73,12 +73,15 @@ hàm muối_mã(muối, h) {
 }
 
 # ---------------- muối ngẫu nhiên ----------------
+# Mỗi chữ hex lấy 4 BIT CAO của LCG: ⌊v·16 / 2^31⌋. (Bản trước lấy 4 bit THẤP, v mod 16 — mà bit thấp
+# của LCG modulo 2^31 lặp chu kỳ 16, nên MỌI hạt chỉ cho 16 muối, đều là xoay vòng của cùng một chuỗi.
+# Sửa 2026-09-30; bóng cũ vẫn kiểm được vì muối nằm sẵn trong chuỗi bóng.)
 hàm muối_mới(hạt) {
     đặt s = ""
     đặt v = hạt
     lặp 16 {
         đặt v = ngẫu(v)
-        đặt i = v - v // 16 * 16
+        đặt i = v * 16 // 2147483648
         đặt s = s + lát_chuỗi(MK_HEX, i, i + 1)
     }
     trả s

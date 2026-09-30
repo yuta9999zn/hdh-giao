@@ -107,7 +107,10 @@ def main():
         print("  [kho xa] chưa dựng — đang dựng…"); dựng()
     kể = "--im" not in sys.argv
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):                # Windows: KHÔNG cho tiến-trình khác chiếm chung cổng
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+    else:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     s.bind(("127.0.0.1", cổng)); s.listen(8)
     print(f"[kho xa] đang phục vụ {KHO} trên 127.0.0.1:{cổng}", flush=True)
     try:

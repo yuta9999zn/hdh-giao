@@ -30,6 +30,7 @@ from giao import GiaoError, GiaoLimit, GiaoSyntax, AN, Ban
 from chay_hdh_giao import Máy
 
 KHOÁ = secrets.token_urlsafe(18)
+THÂN_TỐI_ĐA = 1 << 20                  # thân yêu cầu tối đa 1 MB (đọc hết trước khi trả lời, có giới hạn)
 _ổ = threading.Lock()          # nhân GIAO là MỘT trạng thái — mỗi lúc chỉ một lời gọi đi vào
 
 
@@ -200,13 +201,23 @@ class Tay(BaseHTTPRequestHandler):
         self._gửi(404, "404", "text/plain; charset=utf-8")
 
     def do_POST(self):
+        # ĐỌC HẾT THÂN TRƯỚC khi trả lời BẤT KỲ gì (kể cả 404/403). Trên Windows, đóng socket khi còn
+        # byte chưa đọc ⇒ gửi RST ⇒ client nhận WinError 10053 thay vì câu trả lời — đo được ~10%
+        # yêu cầu sai khoá bị huỷ kiểu này: gốc của mục kiểm "bàn làm việc" CHẬP CHỜN (2026-09-30).
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            n = -1
+        if n < 0 or n > THÂN_TỐI_ĐA:
+            self.close_connection = True
+            return self._gửi(413 if n > THÂN_TỐI_ĐA else 400, json.dumps({"lỗi": "độ dài thân yêu cầu không hợp lệ"}))
+        thân = self.rfile.read(n)
         if self.path.split("?", 1)[0] != "/api":
             return self._gửi(404, json.dumps({"lỗi": "đường lạ"}))
         if self.headers.get("X-Giao-Khoa") != KHOÁ:
             return self._gửi(403, json.dumps({"lỗi": "sai khoá phiên"}))
         try:
-            n = int(self.headers.get("Content-Length") or 0)
-            yc = json.loads(self.rfile.read(n).decode("utf-8") or "{}")
+            yc = json.loads(thân.decode("utf-8") or "{}")
         except (ValueError, UnicodeDecodeError):
             return self._gửi(400, json.dumps({"lỗi": "thân yêu cầu hỏng"}))
         việc = yc.get("việc")

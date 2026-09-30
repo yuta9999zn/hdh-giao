@@ -12,18 +12,35 @@ PY = sys.executable
 # Ví dụ chỉ chạy ở MÁY (idiom `l==0`/cần cờ) — KHÔNG kỳ vọng chạy trên thông dịch trần:
 CHỈ_MÁY = {"8_tong_ds_gvm", "11_chiso_sosanh_gvm", "io_quyen", "hdh_preempt", "hdh_fault", "driver_mmio"}
 
+# NHẬT KÝ RỚT: mỗi mục rớt ghi TOÀN BỘ đầu ra của lần chạy gần nhất (để bắt mục CHẬP CHỜN)
+import time as _time, json as _json
+NHẬT_KÝ_RỚT = os.path.join(P, "__pycache__", "kiem_rot.log")
+_lần_chạy = {"args": None, "mã": None, "giây": None, "out": ""}
+
 def chạy(mô_tả, args, kỳ_vọng=None, cwd=P):
+    t0 = _time.perf_counter()
     r = subprocess.run([PY]+args if args[0].endswith(".py") else args, capture_output=True,
                        text=True, env=ENV, cwd=cwd, encoding="utf-8")
     out = (r.stdout or "") + (r.stderr or "")
     ok = r.returncode == 0 and (kỳ_vọng is None or kỳ_vọng in out)
+    _lần_chạy.update(args=args, mã=r.returncode, giây=round(_time.perf_counter() - t0, 2), out=out)
     return ok, out
 
 tổng = rớt = 0
+KẾT_QUẢ_MỤC = []                       # (tên, đạt) — lap_kiem.py đọc để thống kê
 def mục(tên, ok, ct=""):
     global tổng, rớt; tổng += 1
     print(f"  {'✓' if ok else '✗'} {tên}" + ("" if ok else f"   {ct}"))
-    if not ok: rớt += 1
+    KẾT_QUẢ_MỤC.append((tên, bool(ok)))
+    if not ok:
+        rớt += 1
+        try:
+            os.makedirs(os.path.dirname(NHẬT_KÝ_RỚT), exist_ok=True)
+            with open(NHẬT_KÝ_RỚT, "a", encoding="utf-8") as f:
+                f.write("=" * 78 + f"\n{_time.strftime('%Y-%m-%d %H:%M:%S')} · RỚT: {tên}\nchi tiết: {ct}\n"
+                        f"lệnh gần nhất: {_lần_chạy['args']} · mã thoát {_lần_chạy['mã']} · {_lần_chạy['giây']} s\n"
+                        f"--- đầu ra ---\n{_lần_chạy['out']}\n")
+        except OSError: pass
 
 print("="*64); print("KIỂM TRA TOÀN BỘ GIAO"); print("="*64)
 
@@ -395,4 +412,8 @@ else:
 print("\n" + "="*64)
 print(f"TOÀN BỘ: {tổng-rớt}/{tổng} hạng mục đạt" + ("" if rớt==0 else f"  — {rớt} RỚT"))
 print("="*64)
+try:
+    with open(os.path.join(P, "__pycache__", "kiem_muc.json"), "w", encoding="utf-8") as _f:
+        _json.dump(KẾT_QUẢ_MỤC, _f, ensure_ascii=False)
+except OSError: pass
 sys.exit(1 if rớt else 0)
