@@ -10,8 +10,10 @@
 #     khi viên_mãn e { … }     → nếu __cdfl_viên_mãn(e) { … }
 # Ngữ nghĩa bám từng dòng Runtime của giao.py (Decl, learn, resonance, TroiReg/TroiTick, KhiVienMan,
 # de_cau_truc/dark_existence); kiem_gvm64.py đối chiếu đầu ra từng ký tự.
-# Khác biệt DUY NHẤT đã biết: biểu thức luật trôi ở giao.py được tính trong môi trường LÚC NHỊP trôi,
-# ở đây là môi trường LÚC ĐĂNG KÝ (bao đóng). Chỉ lệch khi luật trôi đọc biến cục bộ bị đổi giữa hai lúc.
+# Luật trôi (lựa chọn C, v0.39): chỉ đọc `vật`, hằng số và tên TOÀN CỤC — kiểm LÚC ĐỌC MÃ (giao.py
+# kiểm_luật_trôi / giaoc64.giao). Nên bao đóng ở đây không bắt biến cục bộ nào: mọi tên đều tra ở
+# toàn cục TẠI NHỊP trôi, đúng như giao.py (đánh giá luật trong môi trường toàn cục). Hai máy khớp:
+# kiem_troi_c.py.
 # Tên bắt đầu bằng __cdfl_ để không va với tên của chương trình.
 
 đặt __cdfl_TÂM = bản()          # tên → giá trị (thứ tự chèn = thứ tự dict của giao.py)

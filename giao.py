@@ -216,6 +216,84 @@ class Nhap(Node):                      # nhập "tệp.giao" — nạp module (i
     def __init__(s,path): s.path=path
 
 # ============================================================
+# 2b. LUẬT TRÔI "THUẦN THẾ GIỚI" (lựa chọn C, v0.39) — kiểm LÚC ĐỌC MÃ
+# ============================================================
+# `trôi x = e`: e chỉ được đọc `vật …`, hằng số và tên TOÀN CỤC (gồm hàm/builtin toàn cục). Tên toàn cục
+# được đọc GIÁ TRỊ TẠI MỖI NHỊP trôi. Cấm: biến CỤC BỘ của hàm bao quanh (tham số, `đặt`, biến lặp, tên
+# bắt, hàm lồng — cả các hàm bao ngoài), `tâm …`, `de`, hàm vô danh. Lý do: thế giới có động học riêng,
+# luật của nó không được phụ thuộc chỗ ai đó bấm nhịp (bản động cũ: cùng một luật cho +100 rồi +7).
+# giaoc64.giao có bản chép 1-1 của hàm này (cùng thông điệp).
+def _tên_cục_bộ(stmts):
+    "Tên được TẠO trong thân hàm (như gom_cục_bộ của giaoc64): đặt · biến lặp · tên bắt · hàm lồng."
+    ra=set()
+    def đi(ss):
+        for s in ss:
+            T=type(s)
+            if T is Dat: ra.add(s.name)
+            elif T is HamDef: ra.add(s.name)
+            elif T is LapTrong: ra.add(s.var); đi(s.body)
+            elif T in (Lap, Mai): đi(s.body)
+            elif T is Neu:
+                đi(s.then)
+                if s.ngo: đi(s.ngo)
+                if s.khac: đi(s.khac)
+            elif T is ThuBat:
+                đi(s.thu)
+                if s.tên: ra.add(s.tên)
+                đi(s.bat)
+    đi(stmts); return ra
+
+LUẬT_TRÔI_CHỈ = "luật trôi chỉ được đọc vật, hằng số và biến toàn cục"
+def _kiểm_biểu_thức_trôi(e, cục, reg):
+    T=type(e)
+    def lỗi(msg): raise GiaoSyntax(f"luật trôi '{reg.name}' {msg} — {LUẬT_TRÔI_CHỈ}", reg.line, reg.col)
+    if T is VarRef:
+        if e.name in cục: lỗi(f"đọc biến CỤC BỘ '{e.name}'")
+    elif T is FieldRef:
+        if e.field=="tâm": lỗi(f"đọc tâm '{e.name}' (niềm tin, không phải thế giới)")
+    elif T is DeQuery: lỗi("đọc de")
+    elif T is Lam: lỗi("chứa hàm vô danh")
+    elif T is Bin: _kiểm_biểu_thức_trôi(e.l,cục,reg); _kiểm_biểu_thức_trôi(e.r,cục,reg)
+    elif T is Unary: _kiểm_biểu_thức_trôi(e.e,cục,reg)
+    elif T is Index: _kiểm_biểu_thức_trôi(e.coll,cục,reg); _kiểm_biểu_thức_trôi(e.idx,cục,reg)
+    elif T is Goi:
+        _kiểm_biểu_thức_trôi(e.callee,cục,reg)
+        for a in e.args: _kiểm_biểu_thức_trôi(a,cục,reg)
+    elif T is ListLit:
+        for a in e.elems: _kiểm_biểu_thức_trôi(a,cục,reg)
+
+def kiểm_luật_trôi(stmts, cục=frozenset()):
+    "Duyệt MỌI câu (kể cả trong hàm/hàm vô danh lồng nhau); mỗi `trôi x = e` phải thuần thế giới."
+    def bt(e, cục):                                   # tìm hàm vô danh trong biểu thức → phạm vi mới
+        T=type(e)
+        if T is Lam: kiểm_luật_trôi(e.body, cục | set(e.params) | _tên_cục_bộ(e.body))
+        elif T is Bin: bt(e.l,cục); bt(e.r,cục)
+        elif T is Unary: bt(e.e,cục)
+        elif T is Index: bt(e.coll,cục); bt(e.idx,cục)
+        elif T is Goi:
+            bt(e.callee,cục)
+            for a in e.args: bt(a,cục)
+        elif T is ListLit:
+            for a in e.elems: bt(a,cục)
+    for s in stmts:
+        T=type(s)
+        if T is TroiReg: _kiểm_biểu_thức_trôi(s.expr, cục, s)
+        elif T is HamDef: kiểm_luật_trôi(s.body, cục | set(s.params) | _tên_cục_bộ(s.body))
+        elif T in (Dat, Tra, Roi, ExprStmt, Decl): bt(s.expr, cục)
+        elif T is DatIndex:
+            for k in s.idxs: bt(k, cục)
+            bt(s.expr, cục)
+        elif T is Lap: bt(s.count, cục); kiểm_luật_trôi(s.body, cục)
+        elif T is LapTrong: bt(s.iterable, cục); kiểm_luật_trôi(s.body, cục)
+        elif T is Mai: kiểm_luật_trôi(s.body, cục)
+        elif T is Neu:
+            bt(s.cond, cục); kiểm_luật_trôi(s.then, cục)
+            if s.ngo: kiểm_luật_trôi(s.ngo, cục)
+            if s.khac: kiểm_luật_trôi(s.khac, cục)
+        elif T is KhiVienMan: bt(s.expr, cục); kiểm_luật_trôi(s.body, cục)
+        elif T is ThuBat: kiểm_luật_trôi(s.thu, cục); kiểm_luật_trôi(s.bat, cục)
+
+# ============================================================
 # 3. PARSER
 # ============================================================
 class Parser:
@@ -236,6 +314,7 @@ class Parser:
         stmts=[]; self.skip_nl()
         while not self.at("EOF"):
             stmts.append(self.statement()); self.skip_nl()
+        kiểm_luật_trôi(stmts)
         return stmts
 
     def block(self):
@@ -749,9 +828,12 @@ class Runtime:
             self.drifts[node.name]=node.expr; return
         if T is TroiTick:                              # một nhịp thời gian: thế giới tự dịch
             if not self.drifts: self.err("trôi: chưa có luật trôi nào được đăng ký")
-            for name,expr in self.drifts.items():
-                self.vat[name]=self.eval(expr)
-                self.vat_version[name]=self.vat_version.get(name,0)+1
+            saved=self.env; self.env=None               # (C): luật đọc tên TOÀN CỤC tại nhịp này, không phải
+            try:                                        #  biến của chỗ bấm nhịp (kiểm_luật_trôi đã cấm cục bộ)
+                for name,expr in self.drifts.items():
+                    self.vat[name]=self.eval(expr)
+                    self.vat_version[name]=self.vat_version.get(name,0)+1
+            finally: self.env=saved
             return
         if T is KhiVienMan:
             v=self.eval(node.expr); g=v.gamma if isinstance(v,Tri) and v.gamma is not None else None
@@ -1008,8 +1090,17 @@ class Runtime:
             if not (0<=t<=1000000 and 0<=m<=1073741824 and 0<=p<=1000 and 0<=dài<=100000): self.err("argon2: lỗi mã -1000 (vượt trần tham số)")
             import struct as _st, subprocess as _sp, shutil as _sh
             wt=os.environ.get("GIAO_WASMTIME") or _sh.which("wasmtime") or (r"D:\wasmtime\wasmtime.exe" if os.path.exists(r"D:\wasmtime\wasmtime.exe") else None)
-            mod=os.path.join(os.path.dirname(os.path.abspath(__file__)),"wasm","argon2_lenh.wasm")
+            mod=os.environ.get("GIAO_ARGON2_LENH") or os.path.join(os.path.dirname(os.path.abspath(__file__)),"wasm","argon2_lenh.wasm")
             if wt is None or not os.path.exists(mod): self.err("argon2 cần wasmtime và wasm/argon2_lenh.wasm (sh wasm/dung_argon2.sh)")
+            if not getattr(self, "_argon2_đã_ghim", False):   # kiểm GHIM SHA-256 (wasm/argon2.sha256) một lần mỗi tiến trình
+                import hashlib as _hl
+                ghim = os.path.join(os.path.dirname(os.path.abspath(__file__)), "wasm", "argon2.sha256"); kỳ = None   # ghim LUÔN lấy từ cây mã, không theo tệp được trỏ tới
+                if os.path.exists(ghim):
+                    for d in open(ghim, encoding="utf-8"):
+                        if d.strip().endswith("argon2_lenh.wasm"): kỳ = d.split()[0].lower()
+                thật = _hl.sha256(open(mod, "rb").read()).hexdigest()
+                if kỳ != thật: self.err(f"argon2: {os.path.basename(mod)} có SHA-256 {thật[:16]}… KHÁC ghim — từ chối chạy")
+                self._argon2_đã_ghim = True
             vào=_st.pack("<9I",kiểu&0xFFFFFFFF,*(len(l) for l in ds),t,m,p,dài)+b"".join(bytes(l) for l in ds)
             r=_sp.run([wt,"run",mod],input=vào,capture_output=True,timeout=600)
             ra=r.stdout.decode("utf-8","replace").strip()

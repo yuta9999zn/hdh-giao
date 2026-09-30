@@ -1,0 +1,31 @@
+# kiem_troi_c.giao — luật trôi "THUẦN THẾ GIỚI" (lựa chọn C): chỉ đọc vật, hằng số, tên TOÀN CỤC;
+# tên toàn cục đọc GIÁ TRỊ TẠI MỖI NHỊP. Chạy giống hệt trên trình thông dịch và GVM-64 (kiem_troi_c.py).
+vật x = 0
+vật y = 1
+vật z = [0, 0]
+đặt bước = 5
+đặt BẢNG = [10, 20, 30]
+hàm nhân_đôi(v) { trả v * 2 }
+
+hàm đăng_ký() {                                  # đăng ký TRONG hàm — chỉ đọc tên toàn cục
+    trôi x = vật x + bước
+    trôi y = nhân_đôi(vật y) + BẢNG[1]
+}
+đăng_ký()
+trôi z = [vật x, vật y]                           # đọc vật ĐÃ trôi ở nhịp này (thứ tự đăng ký)
+trôi
+rọi "nhịp 1: x=" + vật x + " y=" + vật y + " z=" + vật z
+
+đặt bước = 100                                    # đổi toàn cục ⇒ nhịp sau thấy giá trị MỚI
+hàm nhịp_trong_hàm() {
+    đặt bước = 7                                  # biến cục bộ ở chỗ bấm nhịp KHÔNG ảnh hưởng luật
+    trôi
+}
+nhịp_trong_hàm()
+rọi "nhịp 2: x=" + vật x + " y=" + vật y + " z=" + vật z
+
+lặp k trong [1, 2] { trôi }                       # biến lặp toàn cục 'k' không có trong luật — vô hại
+rọi "nhịp 4: x=" + vật x
+đặt BẢNG = [0, 0, 0]
+trôi
+rọi "nhịp 5: y=" + vật y

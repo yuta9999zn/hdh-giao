@@ -288,7 +288,59 @@ hàm phân_tích(toks) {
     đặt p = PS(toks)  đặt ds = []
     ps_bỏ_nl(p)
     mãi { nếu ps_là(p, "EOF", ẩn) { dừng }  gom(ds, câu(p))  ps_bỏ_nl(p) }
+    kiểm_luật_trôi(ds, [])
     trả ds
+}
+
+# ---- LUẬT TRÔI "THUẦN THẾ GIỚI" (lựa chọn C) — bản chép 1-1 của kiểm_luật_trôi trong giao.py ----
+đặt LUẬT_TRÔI_CHỈ = "luật trôi chỉ được đọc vật, hằng số và biến toàn cục"
+hàm _lỗi_trôi(reg, msg) {
+    lỗi("cú pháp: luật trôi '" + lấy_khoá(reg, "name") + "' " + msg + " — " + LUẬT_TRÔI_CHỈ + " — dòng " + lấy_khoá(reg, "d") + ", cột " + lấy_khoá(reg, "c"))
+}
+hàm _kiểm_bt_trôi(e, cục, reg) {
+    đặt t = lấy_khoá(e, "t")
+    nếu t == "VarRef" { nếu chứa(cục, lấy_khoá(e, "name")) { _lỗi_trôi(reg, "đọc biến CỤC BỘ '" + lấy_khoá(e, "name") + "'") }  trả ẩn }
+    nếu t == "FieldRef" { nếu lấy_khoá(e, "field") == "tâm" { _lỗi_trôi(reg, "đọc tâm '" + lấy_khoá(e, "name") + "' (niềm tin, không phải thế giới)") }  trả ẩn }
+    nếu t == "DeQuery" { _lỗi_trôi(reg, "đọc de") }
+    nếu t == "Lam" { _lỗi_trôi(reg, "chứa hàm vô danh") }
+    nếu t == "Bin" { _kiểm_bt_trôi(lấy_khoá(e, "l"), cục, reg)  _kiểm_bt_trôi(lấy_khoá(e, "r"), cục, reg)  trả ẩn }
+    nếu t == "Unary" { _kiểm_bt_trôi(lấy_khoá(e, "e"), cục, reg)  trả ẩn }
+    nếu t == "Index" { _kiểm_bt_trôi(lấy_khoá(e, "coll"), cục, reg)  _kiểm_bt_trôi(lấy_khoá(e, "idx"), cục, reg)  trả ẩn }
+    nếu t == "Goi" {
+        _kiểm_bt_trôi(lấy_khoá(e, "callee"), cục, reg)
+        lặp a trong lấy_khoá(e, "args") { _kiểm_bt_trôi(a, cục, reg) }
+        trả ẩn
+    }
+    nếu t == "ListLit" { lặp a trong lấy_khoá(e, "elems") { _kiểm_bt_trôi(a, cục, reg) } }
+}
+hàm _phạm_vi_mới(cục, params, body) { trả ghép(ghép(cục, params), gom_cục_bộ(body)) }
+hàm _trôi_bt(e, cục) {                             # tìm hàm vô danh trong biểu thức → phạm vi mới
+    đặt t = lấy_khoá(e, "t")
+    nếu t == "Lam" { kiểm_luật_trôi(lấy_khoá(e, "body"), _phạm_vi_mới(cục, lấy_khoá(e, "params"), lấy_khoá(e, "body")))  trả ẩn }
+    nếu t == "Bin" { _trôi_bt(lấy_khoá(e, "l"), cục)  _trôi_bt(lấy_khoá(e, "r"), cục)  trả ẩn }
+    nếu t == "Unary" { _trôi_bt(lấy_khoá(e, "e"), cục)  trả ẩn }
+    nếu t == "Index" { _trôi_bt(lấy_khoá(e, "coll"), cục)  _trôi_bt(lấy_khoá(e, "idx"), cục)  trả ẩn }
+    nếu t == "Goi" { _trôi_bt(lấy_khoá(e, "callee"), cục)  lặp a trong lấy_khoá(e, "args") { _trôi_bt(a, cục) }  trả ẩn }
+    nếu t == "ListLit" { lặp a trong lấy_khoá(e, "elems") { _trôi_bt(a, cục) } }
+}
+hàm kiểm_luật_trôi(ds, cục) {
+    lặp s trong ds {
+        đặt t = lấy_khoá(s, "t")
+        nếu t == "TroiReg" { _kiểm_bt_trôi(lấy_khoá(s, "expr"), cục, s) }
+        nếu t == "HamDef" { kiểm_luật_trôi(lấy_khoá(s, "body"), _phạm_vi_mới(cục, lấy_khoá(s, "params"), lấy_khoá(s, "body"))) }
+        nếu chứa(["Dat", "Tra", "Roi", "ExprStmt", "Decl"], t) { _trôi_bt(lấy_khoá(s, "expr"), cục) }
+        nếu t == "DatIndex" { lặp k trong lấy_khoá(s, "idxs") { _trôi_bt(k, cục) }  _trôi_bt(lấy_khoá(s, "expr"), cục) }
+        nếu t == "Lap" { _trôi_bt(lấy_khoá(s, "count"), cục)  kiểm_luật_trôi(lấy_khoá(s, "body"), cục) }
+        nếu t == "LapTrong" { _trôi_bt(lấy_khoá(s, "iterable"), cục)  kiểm_luật_trôi(lấy_khoá(s, "body"), cục) }
+        nếu t == "Mai" { kiểm_luật_trôi(lấy_khoá(s, "body"), cục) }
+        nếu t == "Neu" {
+            _trôi_bt(lấy_khoá(s, "cond"), cục)  kiểm_luật_trôi(lấy_khoá(s, "then"), cục)
+            nếu loại(lấy_khoá(s, "ngo")) != "ẩn" { kiểm_luật_trôi(lấy_khoá(s, "ngo"), cục) }
+            nếu loại(lấy_khoá(s, "khac")) != "ẩn" { kiểm_luật_trôi(lấy_khoá(s, "khac"), cục) }
+        }
+        nếu t == "KhiVienMan" { _trôi_bt(lấy_khoá(s, "expr"), cục)  kiểm_luật_trôi(lấy_khoá(s, "body"), cục) }
+        nếu t == "ThuBat" { kiểm_luật_trôi(lấy_khoá(s, "thu"), cục)  kiểm_luật_trôi(lấy_khoá(s, "bat"), cục) }
+    }
 }
 hàm khối(p) {
     ps_ăn(p, "OP", "{")  ps_bỏ_nl(p)  đặt ds = []
@@ -361,7 +413,8 @@ hàm câu(p) {
             ps_tới(p)
             nếu ps_là(p, "ID", ẩn) {
                 đặt tên = lấy_khoá(ps_ăn(p, "ID", ẩn), "v")  ps_ăn(p, "OP", "=")
-                trả nút3("TroiReg", "name", tên, "expr", bt(p))
+                đặt x = nút3("TroiReg", "name", tên, "expr", bt(p))
+                đặt_khoá(x, "d", lấy_khoá(t, "d"))  đặt_khoá(x, "c", lấy_khoá(t, "c"))  trả x
             }
             trả nút("TroiTick")
         }
