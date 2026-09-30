@@ -1,2 +1,4 @@
 # script sh phải giữ LF (CRLF làm sh hỏng: $'')
 *.sh text eol=lf
+# tệp ghim hash phải giữ LF (grep/sha256sum -c đọc từng dòng)
+*.sha256 text eol=lf
