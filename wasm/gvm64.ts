@@ -23,6 +23,12 @@
 @external("wasi_snapshot_preview1", "proc_exit")      declare function wasi_proc_exit(code: u32): void;
 // random_get: byte ngẫu nhiên từ HĐH (getrandom/BCryptGenRandom qua wasmtime). Không mở tệp/mạng.
 @external("wasi_snapshot_preview1", "random_get")     declare function wasi_random_get(buf: usize, len: usize): u16;
+// Argon2 THAM CHIẾU (C, ben_ngoai/argon2) — module RIÊNG wasm/argon2.wasm, nạp bằng
+//   wasmtime run --preload argon2=wasm/argon2.wasm wasm/gvm64.wasm …
+// Không phải hàm của host: module ấy cũng chỉ là WASM trong hộp cát, không import gì.
+@external("argon2", "a2_dat")  declare function a2_dat(i: i32, b: i32): i32;
+@external("argon2", "a2_lay")  declare function a2_lay(i: i32): i32;
+@external("argon2", "a2_chay") declare function a2_chay(kieu: i32, lpwd: i32, lsalt: i32, lsec: i32, lad: i32, t: i32, m: i32, p: i32, ltag: i32): i32;
 
 const IOV = new StaticArray<u32>(4); const NW = new StaticArray<u32>(2); const TBUF = new StaticArray<u64>(1);
 function ghiFd(fd: u32, ptr: usize, len: usize): void {
@@ -1119,6 +1125,27 @@ function builtin(id: i32, b: i32, n: i32): void {
     }
     case 65: { // __ném(thông_điệp) — CHỈ cho thư viện hạ tầng (_cdfl.giao): lỗi runtime như self.err của giao.py
       if (!need(n, 1, "__ném")) return; err(render(sk[b], sv[b], so[b])); return;
+    }
+    case 68: { // argon2(kiểu, mk, muối, bí_mật, kèm, t, m_kib, p, dài) — kiểu 0 d · 1 i · 2 id; các đầu vào là DANH SÁCH BYTE
+      if (!need(n, 9, "argon2")) return;
+      let kieu = iarg(b, "argon2"); if (loi) return;
+      let dsIn = [listOf(b + 1), listOf(b + 2), listOf(b + 3), listOf(b + 4)];
+      let dai = new Array<i32>(4); let pos = 0;
+      for (let q = 0; q < 4; q++) {
+        let l = dsIn[q]; if (l === null) { err("argon2: đối " + (q + 2).toString() + " phải là danh sách byte"); return; }
+        if (pos + l.length > 65536) { err("argon2: đầu vào quá dài (> 65536 byte)"); return; }
+        for (let r = 0; r < l.length; r++) {
+          if (l.k[r] != K_INT || l.v[r] < 0 || l.v[r] > 255) { err("argon2: phần tử không phải byte 0..255"); return; }
+          a2_dat(pos + r, <i32>l.v[r]);
+        }
+        dai[q] = l.length; pos += l.length;
+      }
+      let t = iarg(b + 5, "argon2"), mk = iarg(b + 6, "argon2"), p = iarg(b + 7, "argon2"), lt = iarg(b + 8, "argon2"); if (loi) return;
+      if (t < 0 || t > 1000000 || mk < 0 || mk > 1073741824 || p < 0 || p > 1000 || lt < 0 || lt > 100000) { err("argon2: lỗi mã -1000 (vượt trần tham số)"); return; }
+      let rc = a2_chay(<i32>kieu, dai[0], dai[1], dai[2], dai[3], <i32>t, <i32>mk, <i32>p, <i32>lt);
+      if (rc != 0) { err("argon2: lỗi mã " + rc.toString() + (rc == -1000 ? " (vượt trần tham số)" : "")); return; }
+      let ra = new LObj(); for (let q = 0; q < <i32>lt; q++) ra.push(K_INT, <i64>a2_lay(q), null);
+      RO(K_LIST, ra); return;
     }
     case 66: { // vào_còn() — PHẦN CÒN LẠI của stdin sau chương trình .g64, giải UTF-8 (một lần; lần sau "")
       // Không mở năng lực mới: stdin vốn là đường vào duy nhất của máy. Dùng cho giaoc64.giao (tự biên dịch).

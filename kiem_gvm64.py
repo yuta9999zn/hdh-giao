@@ -19,7 +19,7 @@ WASMTIME = shutil.which("wasmtime") or next((x for x in (r"D:\wasmtime\wasmtime.
 def chạy_vm(tệp_g64, cờ=()):
     if WASMTIME:
         with open(tệp_g64, "rb") as f:
-            r = subprocess.run([WASMTIME, "run", os.path.join(P, "wasm", "gvm64.wasm"), "--", *cờ],
+            r = subprocess.run([WASMTIME, "run", "--preload", "argon2=" + os.path.join(P, "wasm", "argon2.wasm"), os.path.join(P, "wasm", "gvm64.wasm"), "--", *cờ],
                                stdin=f, capture_output=True, timeout=600)
     else:
         r = subprocess.run(["node", "--no-warnings", os.path.join(P, "wasm", "giao64.mjs"), tệp_g64, *cờ],

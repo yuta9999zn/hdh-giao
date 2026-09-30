@@ -1,0 +1,62 @@
+# kiem_argon2.giao — nghiệm thu ARGON2 (mã tham chiếu C → WASM) + định dạng $argon2id$ của mật khẩu
+#   python giao.py kiem_argon2.giao --bước 200000000        (GVM-64: kiem_gvm64.py — cùng đầu ra)
+# ① ba vector kiểm của RFC 9106 §5 (Argon2d / Argon2i / Argon2id) — nếu builtin sai một bit là rớt;
+# ② chuỗi PHC $argon2id$v=19$m=65536,t=3,p=4$…$… đọc lại được, đúng → sáng, sai → tối;
+# ③ bóng cũ $g3$ (tự thiết kế) vẫn kiểm được nhưng BỊ ĐÒI băm lại; $argon2id$ đạt chuẩn thì không;
+# ④ bản ghi khai tham số vô lý (m = 4 GiB, t = 1000) bị từ chối NGAY, không chạy;
+# ⑤ muối từ HĐH: hai lần đặt cùng mật khẩu ra hai bóng khác nhau.
+nhập "lib_người_dùng.giao"
+
+hàm lặp_byte(b, n) { đặt r = []  lặp n { gom(r, b) }  trả r }
+hàm hex(ds) {
+    đặt s = ""
+    lặp x trong ds { đặt s = s + MK_HEX[x // 16] + MK_HEX[dư(x, 16)] }
+    trả s
+}
+
+rọi "── ① RFC 9106 §5 (t=3, m=32 KiB, p=4, mk 32×01, muối 16×02, bí mật 8×03, kèm 12×04) ──"
+đặt PW = lặp_byte(1, 32)  đặt SA = lặp_byte(2, 16)  đặt SE = lặp_byte(3, 8)  đặt AD = lặp_byte(4, 12)
+đặt KỲ = [["Argon2d", 0, "512b391b6f1162975371d30919734294f868e3be3984f3c1a13a4db9fabe4acb"],
+          ["Argon2i", 1, "c814d9d1dc7f37aa13f0d77f2494bda1c8de6b016dd388d29952a4c4672b6ce8"],
+          ["Argon2id", 2, "0d640df58d78766c08c037a34a8b53c9d01ef0452d75b65eb52520e96b01e659"]]
+lặp v trong KỲ {
+    đặt ra = hex(argon2(v[1], PW, SA, SE, AD, 3, 32, 4, 32))
+    nếu ra == v[2] { rọi v[0] + ": KHỚP vector RFC 9106" } khác { rọi v[0] + ": RỚT — " + ra }
+}
+# đổi MỘT byte mật khẩu ⇒ thẻ khác hẳn (không phải kiểm hình thức)
+đặt PW2 = lặp_byte(1, 32)  đặt PW2[31] = 2
+nếu hex(argon2(2, PW2, SA, SE, AD, 3, 32, 4, 32)) != KỲ[2][2] { rọi "đổi một byte mật khẩu ⇒ thẻ khác" }
+thử { argon2(2, PW, SA, SE, AD, 3, 16, 4, 32) } bắt (e) { rọi "m = 16 KiB < 8·p bị chính Argon2 từ chối: " + e }
+
+rọi "── ② chuỗi PHC $argon2id$ ──"
+đặt b = bóng_mới("cửa-mở-ra-biển", 4242)
+đặt p = tách_giữ(b, "$")
+nếu dài(p) == 6 { nếu p[1] == "argon2id" { nếu p[2] == "v=19" { nếu p[3] == "m=65536,t=3,p=4" { rọi "định dạng: $argon2id$v=19$m=65536,t=3,p=4$<muối>$<thẻ>" } } } }
+nếu dài(_b64_giải_không_đệm(p[4])) == 16 { nếu dài(_b64_giải_không_đệm(p[5])) == 32 { rọi "muối 16 byte · thẻ 32 byte" } }
+nếu b == bóng_mới("cửa-mở-ra-biển", 4242) { rọi "cùng hạt kiểm thử ⇒ cùng bóng (tất định)" }
+nếu khớp_mk("cửa-mở-ra-biển", b) == sáng { rọi "đúng → sáng" }
+nếu khớp_mk("cửa-mở-ra-biến", b) == tối { rọi "sai → tối" }
+nếu khớp_mk("", b) == tối { rọi "rỗng → tối" }
+đặt hỏng = "$argon2id$v=19$m=65536,t=3,p=4$" + p[4] + "$" + "A" + lát_chuỗi(p[5], 1, dài(p[5]))
+nếu khớp_mk("cửa-mở-ra-biển", hỏng) == tối { rọi "sửa thẻ → tối" }
+
+rọi "── ③ băm lại khi đăng nhập ──"
+nếu bóng_cần_băm_lại(b) == tối { rọi "$argon2id$ đạt chuẩn: không cần băm lại" }
+đặt c3 = bóng_mới_g3("cửa-mở-ra-biển", 4242)
+nếu khớp_mk("cửa-mở-ra-biển", c3) == sáng { rọi "$g3$ cũ vẫn kiểm được" }
+nếu bóng_cần_băm_lại(c3) == sáng { rọi "$g3$ cũ: cần băm lại" }
+nếu bóng_cần_băm_lại("$argon2id$v=19$m=4096,t=3,p=4$" + p[4] + "$" + p[5]) == sáng { rọi "$argon2id$ m thấp: cần băm lại" }
+
+rọi "── ④ tham số vô lý bị chặn tức thì ──"
+đặt t0 = giờ_hệ()
+nếu khớp_mk("x", "$argon2id$v=19$m=4194304,t=3,p=4$" + p[4] + "$" + p[5]) == tối { rọi "m = 4 GiB → tối" }
+nếu khớp_mk("x", "$argon2id$v=19$m=65536,t=1000,p=4$" + p[4] + "$" + p[5]) == tối { rọi "t = 1000 → tối" }
+nếu khớp_mk("x", "$argon2id$v=18$m=65536,t=3,p=4$" + p[4] + "$" + p[5]) == tối { rọi "phiên bản lạ → tối" }
+nếu khớp_mk("x", "$argon2id$v=19$m=65536,t=3,p=4$%%%$" + p[5]) == tối { rọi "muối không phải base64 → tối" }
+nếu giờ_hệ() - t0 <= 1 { rọi "★ bốn bản ghi vô lý bị chặn TỨC THÌ" }
+
+rọi "── ⑤ muối từ HĐH ──"
+đặt h1 = bóng_mới("sen vàng", ẩn)  đặt h2 = bóng_mới("sen vàng", ẩn)
+nếu h1 != h2 { rọi "hạt ẩn ⇒ hai bóng khác nhau" }
+nếu khớp_mk("sen vàng", h1) == sáng { nếu khớp_mk("sen vàng", h2) == sáng { rọi "cả hai đều kiểm đúng" } }
+rọi "XONG kiem_argon2"

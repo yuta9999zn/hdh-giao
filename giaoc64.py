@@ -3,7 +3,7 @@
 GIAOC64 — BIÊN DỊCH GIAO → BYTECODE GVM-64 (máy tính toán của GIAO, chạy trên WASM/WASI)
 ==========================================================================================
     python giaoc64.py tệp.giao [-o tệp.g64]
-    wasmtime run wasm/gvm64.wasm -- [--bước N] [--trần-ds N] [--cho-giờ] < tệp.g64
+    wasmtime run --preload argon2=wasm/argon2.wasm wasm/gvm64.wasm -- [--bước N] [--trần-ds N] [--cho-giờ] < tệp.g64
     (dự phòng) node --permission … --allow-wasi wasm/giao64.mjs tệp.g64 [cờ…]
 
 Trình biên dịch chạy LÚC DỰNG (build); CHƯƠNG TRÌNH thì chạy trên gvm64.wasm — không Python.
@@ -45,7 +45,7 @@ for id_, names in [
     (44, "m_lấy"), (45, "m_gán"), (46, "m_sao"), (47, "m_sang_ds"), (48, "m_chọn"), (49, "m_đặt_chọn"),
     (50, "m_tổ_hợp"), (51, "m_nhân_số"), (52, "m_biến_đổi_cặp"), (53, "m_nhân_chọn"), (54, "m_đổi_chọn"),
     (55, "m_tổng_mô2_chọn"), (56, "m_tổng_mô2"), (57, "m_mô2_ds"), (58, "m_tích_trong"), (59, "m_rút"),
-    (63, "m_biến_đổi_bốn"), (64, "ngẫu_hệ ngau_he"), (65, "__ném"), (66, "vào_còn vao_con"), (67, "ra_byte")]:
+    (63, "m_biến_đổi_bốn"), (64, "ngẫu_hệ ngau_he"), (65, "__ném"), (66, "vào_còn vao_con"), (67, "ra_byte"), (68, "argon2")]:
     for nm in names.split(): BUILTIN[nm] = id_
 
 class LỗiBiênDịch(Exception): pass

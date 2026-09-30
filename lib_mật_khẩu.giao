@@ -220,24 +220,106 @@ hàm dựng_bóng3(mật_khẩu, muối, N) {
     trả "$g3$" + N + "$" + muối + "$" + băm_mk3(mật_khẩu, muối, N)
 }
 
-# BẢN MỚI = $g3$. `hạt` = ẩn ⇒ muối từ HĐH (MỌI chỗ đặt mật khẩu thật PHẢI truyền ẩn). `hạt` là số
-# ⇒ muối tất định — CHỈ dành cho kiểm thử cần kết quả lặp lại được.
-hàm bóng_mới(mật_khẩu, hạt) {
-    nếu loại(hạt) == "ẩn" { trả dựng_bóng3(mật_khẩu, muối_hệ(), MK_N3) }
-    trả dựng_bóng3(mật_khẩu, muối_mới(hạt), MK_N3)
+# ---------------- $argon2id$: Argon2id THẬT (RFC 9106) — BẢN MỚI từ 2026-09-30 ----------------
+# KHÔNG tự viết: builtin `argon2` chạy ĐÚNG mã tham chiếu C (ben_ngoai/argon2, phc-winner-argon2) dựng
+# thành WASM bằng wasi-sdk — GVM-64 nạp bằng --preload, trình thông dịch gọi qua wasmtime. Kiểm bằng ba
+# vector của RFC 9106 §5 (kiem_argon2.giao). $g1$/$g2$/$g3$ (tự thiết kế, chưa thẩm định) vẫn KIỂM được
+# nhưng bị BĂM LẠI thành $argon2id$ ở lần đăng nhập đúng kế tiếp (xác_thực trong lib_người_dùng).
+# Tham số = "lựa chọn khuyến nghị thứ hai" của RFC 9106 §4: t = 3, m = 64 MiB, p = 4, muối 16 byte,
+# thẻ 32 byte. Định dạng chuỗi PHC chuẩn (dùng chung được với libargon2/argon2-cffi):
+#   $argon2id$v=19$m=65536,t=3,p=4$<muối base64 không đệm>$<thẻ base64 không đệm>
+nhập "lib_base64.giao"
+đặt MK_A2_M   = 65536                        # KiB (64 MiB)
+đặt MK_A2_T   = 3
+đặt MK_A2_P   = 4
+đặt MK_A2_DÀI = 32
+# TRẦN (cùng lý do như MK_TRẦN_N): bản ghi tự khai tham số, không được để một dòng bậy treo máy ở màn
+# đăng nhập. Dư xa mức đang dùng; keo nối C còn trần cứng riêng (m ≤ 1 GiB, t ≤ 64, p ≤ 16).
+đặt MK_A2_TRẦN_M = 262144                    # 256 MiB
+đặt MK_A2_TRẦN_T = 10
+đặt MK_A2_TRẦN_P = 16
+
+hàm _b64_không_đệm(bytes) {
+    đặt s = mã_hoá_b64(bytes)  đặt ra = []
+    lặp c trong s { nếu c != "=" { gom(ra, c) } }
+    trả nối(ra, "")
+}
+hàm _b64_giải_không_đệm(s) {                  # chuỗi lạ ⇒ ẩn (không nổ)
+    lặp c trong s { nếu loại(chỉ_số(_B64, c)) == "ẩn" { trả ẩn } }
+    nếu dư(dài(s), 4) == 1 { trả ẩn }
+    đặt đệm = s
+    lặp dư(4 - dư(dài(s), 4), 4) { đặt đệm = đệm + "=" }
+    trả giải_b64(đệm)
+}
+hàm muối_a2_hệ() {                            # 16 byte từ nguồn ngẫu nhiên HĐH (ngẫu_hệ = random_get)
+    đặt m = []
+    lặp 16 { gom(m, ngẫu_hệ() // 8388608) }  # 2^31 / 256
+    trả m
+}
+hàm muối_a2_tất_định(hạt) {                   # CHỈ cho kiểm thử: 16 byte từ bit CAO của LCG
+    đặt m = []  đặt v = hạt
+    lặp 16 { đặt v = ngẫu(v)  gom(m, v * 256 // 2147483648) }
+    trả m
+}
+hàm băm_argon2id(mật_khẩu, muối, t, m, p) {
+    trả argon2(2, utf8_mã(mật_khẩu), muối, [], [], t, m, p, MK_A2_DÀI)
+}
+hàm dựng_bóng_a2(mật_khẩu, muối, t, m, p) {
+    trả "$argon2id$v=19$m=" + m + ",t=" + t + ",p=" + p + "$" + _b64_không_đệm(muối) + "$" + _b64_không_đệm(băm_argon2id(mật_khẩu, muối, t, m, p))
+}
+# "m=65536,t=3,p=4" → [m, t, p] (thiếu/lạ ⇒ ẩn)
+hàm _a2_tham_số(s) {
+    đặt m = ẩn  đặt t = ẩn  đặt p = ẩn
+    lặp mục trong tách(s, ",") {
+        đặt kv = tách(mục, "=")
+        nếu dài(kv) == 2 {
+            nếu kv[0] == "m" { đặt m = số_chuỗi(kv[1]) }
+            nếu kv[0] == "t" { đặt t = số_chuỗi(kv[1]) }
+            nếu kv[0] == "p" { đặt p = số_chuỗi(kv[1]) }
+        }
+    }
+    nếu loại(m) == "ẩn" { trả ẩn }  nếu loại(t) == "ẩn" { trả ẩn }  nếu loại(p) == "ẩn" { trả ẩn }
+    trả [m, t, p]
+}
+hàm _khớp_a2(mật_khẩu, p) {                   # p = tách_giữ(bóng, "$") = ["", "argon2id", "v=19", tham_số, muối, thẻ]
+    nếu dài(p) != 6 { trả tối }
+    nếu p[2] != "v=19" { trả tối }
+    đặt ts = _a2_tham_số(p[3])
+    nếu loại(ts) == "ẩn" { trả tối }
+    nếu ts[0] < 8 * ts[2] { trả tối }  nếu ts[0] > MK_A2_TRẦN_M { trả tối }
+    nếu ts[1] < 1 { trả tối }  nếu ts[1] > MK_A2_TRẦN_T { trả tối }
+    nếu ts[2] < 1 { trả tối }  nếu ts[2] > MK_A2_TRẦN_P { trả tối }
+    đặt muối = _b64_giải_không_đệm(p[4])  đặt thẻ = _b64_giải_không_đệm(p[5])
+    nếu loại(muối) == "ẩn" { trả tối }  nếu loại(thẻ) == "ẩn" { trả tối }
+    nếu dài(muối) < 8 { trả tối }  nếu dài(thẻ) != MK_A2_DÀI { trả tối }
+    nếu băm_argon2id(mật_khẩu, muối, ts[1], ts[0], ts[2]) == thẻ { trả sáng }
+    trả tối
 }
 
+# BẢN MỚI = $argon2id$. `hạt` = ẩn ⇒ muối 16 byte từ HĐH (MỌI chỗ đặt mật khẩu thật PHẢI truyền ẩn).
+# `hạt` là số ⇒ muối tất định — CHỈ dành cho kiểm thử cần kết quả lặp lại được.
+hàm bóng_mới(mật_khẩu, hạt) {
+    nếu loại(hạt) == "ẩn" { trả dựng_bóng_a2(mật_khẩu, muối_a2_hệ(), MK_A2_T, MK_A2_M, MK_A2_P) }
+    trả dựng_bóng_a2(mật_khẩu, muối_a2_tất_định(hạt), MK_A2_T, MK_A2_M, MK_A2_P)
+}
+hàm bóng_mới_g3(mật_khẩu, hạt) { trả dựng_bóng3(mật_khẩu, muối_mới(hạt), MK_N3) }   # chỉ để kiểm cũ
+
 # Bóng này có nên BĂM LẠI (khi người dùng đăng nhập đúng — lúc duy nhất ta có mật khẩu gốc)?
-#   sáng: muối yếu (bản cũ, 16 giá trị) · định dạng cũ g1/g2 · g3 nhưng N nhỏ hơn mức hiện hành
-#   tối : đã đạt chuẩn hiện hành
+#   sáng: mọi định dạng tự thiết kế cũ ($g1$/$g2$/$g3$ — kể cả muối yếu 16 giá trị) · $argon2id$ có
+#         m hoặc t thấp hơn mức hiện hành
+#   tối : $argon2id$ đạt chuẩn hiện hành · không phải bóng (vd "*" = tài khoản khoá)
 hàm bóng_cần_băm_lại(bóng) {
     đặt p = tách_giữ(bóng, "$")
-    nếu dài(p) < 5 { trả tối }                   # không phải bóng (vd "*" = khoá) — không đụng
-    nếu muối_yếu(p[3]) == sáng { trả sáng }
-    nếu p[1] != "g3" { trả sáng }
-    đặt N = số_chuỗi(p[2])
-    nếu loại(N) == "ẩn" { trả tối }
-    nếu N < MK_N3 { trả sáng }
+    nếu dài(p) < 5 { trả tối }                   # không phải bóng — không đụng
+    nếu p[1] == "argon2id" {
+        nếu dài(p) != 6 { trả tối }
+        đặt ts = _a2_tham_số(p[3])
+        nếu loại(ts) == "ẩn" { trả tối }
+        nếu ts[0] < MK_A2_M { trả sáng }
+        nếu ts[1] < MK_A2_T { trả sáng }
+        trả tối
+    }
+    nếu p[1] == "g1" { trả sáng }  nếu p[1] == "g2" { trả sáng }  nếu p[1] == "g3" { trả sáng }
     trả tối
 }
 hàm bóng_mới_g2(mật_khẩu, hạt) { trả dựng_bóng2(mật_khẩu, muối_mới(hạt), MK_VÒNG2) } # chỉ để kiểm cũ
@@ -254,8 +336,9 @@ hàm bóng_mới_g1(mật_khẩu, hạt) { trả dựng_bóng(mật_khẩu, mu�
 # được ngay mà không phá bản ghi nào đang dùng (mức đang dùng là 64).
 
 hàm khớp_mk(mật_khẩu, bóng) {
-    đặt p = tách_giữ(bóng, "$")                  # ["", "g1|g2|g3", vòng|N, muối, băm]
+    đặt p = tách_giữ(bóng, "$")                  # ["", "g1|g2|g3", vòng|N, muối, băm] · argon2id: 6 phần
     nếu dài(p) < 5 { trả tối }
+    nếu p[1] == "argon2id" { trả _khớp_a2(mật_khẩu, p) }
     đặt vòng = số_chuỗi(p[2])
     nếu loại(vòng) == "ẩn" { trả tối }
     nếu vòng < 1 { trả tối }                     # 0 vòng = không tốn công gì — từ chối thẳng

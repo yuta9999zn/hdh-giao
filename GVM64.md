@@ -6,7 +6,7 @@ bytecode đó dưới **wasmtime**.
 
 ```
 python giaoc64.py chương_trình.giao                   # → chương_trình.g64 (lúc dựng)
-wasmtime run wasm/gvm64.wasm -- [--bước N] [--trần-ds N] [--cho-giờ] < chương_trình.g64
+wasmtime run --preload argon2=wasm/argon2.wasm wasm/gvm64.wasm -- [--bước N] [--trần-ds N] [--cho-giờ] < chương_trình.g64
 sh wasm/dung_gvm64.sh                                  # dựng lại gvm64.wasm (cần Node để chạy asc)
 python kiem_gvm64.py [tệp.giao…]                       # đối chiếu với trình thông dịch, từng ký tự
 python bench_gvm64.py --cỡ 20 24 26 [--qiskit <py>]    # đo sức mô phỏng lượng tử
@@ -40,6 +40,13 @@ bản tham chiếu, nên kết quả khớp từng bit.
 
 Máy không thấy thư mục nào, không có mạng, không chạy được tiến trình. Kiểm lại bằng
 `WebAssembly.Module.imports`.
+
+**Module thứ hai: `argon2.wasm`** (v0.38). Builtin `argon2` gọi 3 hàm (`a2_dat`, `a2_chay`, `a2_lay`)
+của một module WASM riêng, dựng từ **mã tham chiếu C của Argon2** (`ben_ngoai/argon2`, không sửa) bằng
+wasi-sdk (`sh wasm/dung_argon2.sh`). Module ấy **không import gì cả**, nên nó không thêm quyền nào; nó
+chỉ là mã chạy trong cùng hộp cát. Vì vậy mọi lệnh chạy máy giờ có thêm
+`--preload argon2=wasm/argon2.wasm`. Trình thông dịch gọi đúng mã ấy qua `wasm/argon2_lenh.wasm` dưới
+wasmtime (không cấp thư mục), nên hai máy dùng **một** bản Argon2, không có bản Python nào.
 
 - **wasmtime** (Rust, Bytecode Alliance) là vỏ chính. Hộp cát mặc định chặt: không cấp thư mục thì
   không có tệp nào.

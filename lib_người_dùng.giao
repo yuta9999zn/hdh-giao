@@ -137,7 +137,8 @@ hàm _ghi_bóng(máy, tid_gốc, b) {
 # ---------------- xác thực ----------------
 # BẢN GHI GIẢ để băm CHO ĐỦ THỜI GIAN khi không có người ấy / tài khoản bị khoá.
 # Dựng từ MK_N3 nên nâng N thì bản giả tự theo — không có chuyện quên đồng bộ.
-đặt BÓNG_GIẢ = "$g3$" + MK_N3 + "$0123456789abcdef$0000000000000000000000000000000000000000000000000000000000000000"
+# bản ghi giả CÙNG THAM SỐ với bóng thật ($argon2id$ m=64 MiB, t=3, p=4) ⇒ người không có tốn đúng ngần ấy công
+đặt BÓNG_GIẢ = "$argon2id$v=19$m=" + MK_A2_M + ",t=" + MK_A2_T + ",p=" + MK_A2_P + "$" + "AAAAAAAAAAAAAAAAAAAAAA" + "$" + "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 
 hàm xác_thực(máy, tid_gốc, tên, mật_khẩu) {
     "sáng = đúng · tối = sai mật khẩu · ẩn = không có người ấy (hoặc không đọc nổi sổ bóng)"

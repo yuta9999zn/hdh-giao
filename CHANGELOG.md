@@ -5,6 +5,49 @@ Nền học thuyết: Nguyễn Trường An (DFCT / NNL-NTHT / CDFL).
 
 ---
 
+## v0.38.0 — Mật khẩu chuyển sang Argon2id THẬT (mã tham chiếu C → WASM) · lộ trình lượng tử (2026-09-30)
+
+### Argon2id — không tự viết mật mã
+- Cài **wasi-sdk 34** (clang 23, `D:\wasi-sdk`). Vendor nguyên văn mã tham chiếu **phc-winner-argon2 @
+  f57e61e** (CC0/Apache-2.0) vào `ben_ngoai/argon2/` — chỉ bản `ref.c` không luồng. Keo nối nhỏ
+  `wasm/argon2_gvm.c` / `argon2_lenh.c`; `sh wasm/dung_argon2.sh` dựng:
+  - `wasm/argon2.wasm` (reactor, **0 import**) — GVM-64 nạp bằng `--preload argon2=…`, builtin id 68;
+  - `wasm/argon2_lenh.wasm` — trình thông dịch gọi qua wasmtime (không cấp thư mục). Hai máy chạy
+    **cùng một** mã Argon2.
+- **Ba vector kiểm RFC 9106 §5 (Argon2d, Argon2i, Argon2id) khớp từng byte** trên cả hai máy
+  (`kiem_argon2.giao`, trong `kiem_hdh_giao.py` và đối chiếu GVM-64).
+- Mật khẩu mới: chuỗi PHC chuẩn `$argon2id$v=19$m=65536,t=3,p=4$<muối 16 byte>$<thẻ 32 byte>` — tham số
+  "lựa chọn khuyến nghị thứ hai" của RFC 9106 (64 MiB). Đo: **0.13 s/lần** trên GVM-64. Muối 16 byte từ
+  `random_get`. Trần chống bản ghi bậy: m ≤ 256 MiB, t ≤ 10, p ≤ 16 (keo nối C còn trần cứng riêng).
+- **Chuyển đổi:** `$g1$/$g2$/$g3$` (tự thiết kế, chưa thẩm định) vẫn kiểm được, và bị **băm lại thành
+  `$argon2id$` ở lần đăng nhập đúng kế tiếp**; `bóng_yếu()` liệt kê ai chưa đăng nhập lại. Bản ghi giả
+  (người không tồn tại) cũng là `$argon2id$` cùng tham số, để không lộ qua thời gian.
+- Bộ kiểm cấu hình `/hệ/mật_khẩu` (H6) nhận thêm `$argon2id$` (6 phần). Lần chạy CI đầu RỚT đúng ở đây:
+  bộ kiểm từ chối định dạng lạ, nên `đặt_mk` không ghi được — đúng thiết kế.
+
+### Lộ trình lượng tử — `LO_TRINH_LUONG_TU.md`
+- Bốn giai đoạn (nền an toàn · mật mã hậu lượng tử · tác vụ lượng tử trong HĐH · máy thật), mỗi việc
+  có trạng thái. Xong: `random_get`, băm lại, Argon2id, môi giới + người duyệt + niêm phong. Chưa: ký
+  ML-DSA/Ed25519, TLS lai ML-KEM, cú pháp `lượng_tử { }`, chạy IBM thật (cần token).
+
+### kaori-train (Kaori System) — chạy test thật
+- `test_cdfl_gate.py` (wikitext-2 + gpt2, CPU) sau khi thêm `dims`: độ tinh khiết 63.4% → **96.7%**,
+  recall tài liệu tốt **91.2%**, loại rác **94.7%** — trùng từng số với README ⇒ không đổi hành vi.
+
+### Luật `trôi` — ĐỀ XUẤT, chờ quyết định
+Thí nghiệm (luật đăng ký trong hàm với biến cục bộ `bước = 5`; toàn cục có `bước = 100`; nhịp thứ hai gọi
+trong hàm có `bước = 7`): **giao.py cho +100 rồi +7; GVM-64 cho +5 rồi +5.** Ba lựa chọn:
+- (A) **Từ vựng** (GVM-64 hiện tại): luật là bao đóng, tên tự do lấy ở nơi ĐĂNG KÝ — như `hàm(){…}`.
+- (B) **Động** (giao.py hiện tại): tên tra ở nơi GỌI `trôi`. Cùng một luật cho kết quả khác nhau tuỳ ai
+  bấm nhịp; có thể lỗi "chưa định nghĩa" hoặc bị một biến cục bộ trùng tên "cướp".
+- (C) **Thuần thế giới:** luật chỉ được đọc `vật …`, hằng số và tên toàn cục; dùng biến cục bộ ⇒ lỗi
+  lúc phân tích. Dưới (C), (A) và (B) trùng nhau nên hai máy tự khớp. Cả 4 luật trôi trong dự án đã
+  thoả (C).
+Khuyến nghị: **(C)** — "thế giới có động học riêng" thì luật không nên phụ thuộc người quan sát; nếu cần
+mềm hơn thì (A). (B) nên bỏ.
+
+---
+
 ## v0.37.0 — Tự thân hoá trình biên dịch · môi giới máy lượng tử thật (2026-09-30)
 
 ### `giaoc64.giao` — GIAO biên dịch GIAO, chạy trên GVM-64

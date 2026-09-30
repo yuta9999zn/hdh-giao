@@ -989,6 +989,34 @@ class Runtime:
             need(a,0,"ngẫu_hệ")                           # (os.urandom — không đoán được; dùng cho MUỐI mật khẩu,
             import secrets                                #  KHÔNG dùng LCG/đồng hồ). Không mở tệp/mạng nên không
             return secrets.randbits(31)                   #  cần cờ năng lực. Trên GVM-64: WASI random_get.
+        def b_argon2(a):                                  # argon2(kiểu, mk, muối, bí_mật, kèm, t, m_kib, p, dài) → ds byte
+            # KHÔNG có Argon2 viết bằng Python: gọi ĐÚNG mã tham chiếu C (ben_ngoai/argon2) đã dựng thành
+            # wasm/argon2_lenh.wasm, chạy dưới wasmtime KHÔNG cấp thư mục — cùng mã với GVM-64 (--preload).
+            need(a,9,"argon2")
+            def _nguyên(x):
+                if not isinstance(x,int) or isinstance(x,bool): self.err(f"argon2 cần số nguyên, gặp {self._loai(x)}")
+                return x
+            kiểu=_nguyên(a[0]); ds=[]
+            for q in range(4):
+                l=a[1+q]
+                if not isinstance(l,list): self.err(f"argon2: đối {q+2} phải là danh sách byte")
+                for x in l:
+                    if not isinstance(x,int) or isinstance(x,bool) or x<0 or x>255: self.err("argon2: phần tử không phải byte 0..255")
+                ds.append(l)
+            if sum(len(l) for l in ds)>65536: self.err("argon2: đầu vào quá dài (> 65536 byte)")
+            t,m,p,dài=(_nguyên(x) for x in a[5:9])
+            if not (0<=t<=1000000 and 0<=m<=1073741824 and 0<=p<=1000 and 0<=dài<=100000): self.err("argon2: lỗi mã -1000 (vượt trần tham số)")
+            import struct as _st, subprocess as _sp, shutil as _sh
+            wt=os.environ.get("GIAO_WASMTIME") or _sh.which("wasmtime") or (r"D:\wasmtime\wasmtime.exe" if os.path.exists(r"D:\wasmtime\wasmtime.exe") else None)
+            mod=os.path.join(os.path.dirname(os.path.abspath(__file__)),"wasm","argon2_lenh.wasm")
+            if wt is None or not os.path.exists(mod): self.err("argon2 cần wasmtime và wasm/argon2_lenh.wasm (sh wasm/dung_argon2.sh)")
+            vào=_st.pack("<9I",kiểu&0xFFFFFFFF,*(len(l) for l in ds),t,m,p,dài)+b"".join(bytes(l) for l in ds)
+            r=_sp.run([wt,"run",mod],input=vào,capture_output=True,timeout=600)
+            ra=r.stdout.decode("utf-8","replace").strip()
+            if r.returncode!=0 or ra.startswith("LOI"):
+                mã=ra.split()[1] if ra.startswith("LOI") and len(ra.split())>1 else "?"
+                self.err(f"argon2: lỗi mã {mã}" + (" (vượt trần tham số)" if mã=="-1000" else ""))
+            return list(bytes.fromhex(ra))
         def b_vao_con(a):                                 # vào_còn() → phần còn lại của stdin (UTF-8). Như GVM-64:
             need(a,0,"vào_còn")                           # stdin là đường vào sẵn có, không phải năng lực mới.
             try: return sys.stdin.buffer.read().decode("utf-8", "replace")
@@ -1005,7 +1033,7 @@ class Runtime:
         reg={"dài":b_dai,"dai":b_dai, "đầu":b_dau,"dau":b_dau, "đuôi":b_duoi,"duoi":b_duoi,
              "tạo_tri":b_tao_tri,"tao_tri":b_tao_tri, "γ_của":b_gamma_cua,"gamma_cua":b_gamma_cua,
              "ngẫu_hệ":b_ngau_he,"ngau_he":b_ngau_he,
-             "vào_còn":b_vao_con,"vao_con":b_vao_con, "ra_byte":b_ra_byte,
+             "vào_còn":b_vao_con,"vao_con":b_vao_con, "ra_byte":b_ra_byte, "argon2":b_argon2,
              "thêm":b_them,"them":b_them, "ghép":b_ghep,"ghep":b_ghep,
              "gom":b_gom, "đảo":b_dao,"dao":b_dao, "nối":b_noi,"noi":b_noi, "tách":b_tach,"tach":b_tach,
              "là_ds":b_la_ds,"la_ds":b_la_ds, "là_số":b_la_so,"la_so":b_la_so,

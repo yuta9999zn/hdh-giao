@@ -433,7 +433,7 @@ ca("chạy sạch (thư viện băm mật khẩu)", mã == 0, o[-300:])
 ca("★ cùng mật khẩu + KHÁC MUỐI ⇒ khác bản băm (bảng cầu vồng vô dụng)", "muối khác → băm khác" in o)
 ca("★ đúng mật khẩu → sáng · sai một ký tự → tối", "đúng → sáng" in o and "sai → tối" in o)
 ca("bản băm KHÔNG chứa mật khẩu gốc", "không lộ mật khẩu" in o)
-ca("định dạng $g3$<N>$<muối>$<băm64> (memory-hard) đọc lại được", "đọc lại bản ghi: sáng" in o)
+ca("định dạng PHC $argon2id$v=19$m=…,t=…,p=…$<muối>$<thẻ> đọc lại được", "đọc lại bản ghi: sáng" in o)
 ca("★ bản ghi $g1$ CŨ vẫn khớp được (hai định dạng song song — C1)",
    "bản ghi g1 cũ: vẫn sáng" in o and "bản ghi g1 cũ: sai → tối" in o)
 ca("★ $g2$ có hiệu ứng thác đổ của SHA-256", "g2 thác đổ: khác hẳn" in o)
@@ -448,6 +448,16 @@ ca("★★★ chỉ số truy cập bảng TẢN THẬT (phụ thuộc trạng t
 ca("★★★ TRẦN CÔNG: bản ghi khai N/vòng vô lý bị chặn TỨC THÌ — một dòng '$g3$999999999$…' trong "
    "sổ là treo máy ngay tại màn đăng nhập, không cần biết mật khẩu",
    "★ ba bản ghi vô lý bị chặn TỨC THÌ" in o and "trần không chặn nhầm bản ghi thật" in o)
+
+mã, o = chạy(["giao.py", "kiem_argon2.giao", "--bước", "200000000", "--cho-giờ"])
+ca("chạy sạch (Argon2 tham chiếu C → WASM)", mã == 0, o[-300:])
+ca("★★★ ba vector kiểm RFC 9106 §5 (Argon2d / Argon2i / Argon2id) khớp từng byte",
+   "Argon2d: KHỚP vector RFC 9106" in o and "Argon2i: KHỚP vector RFC 9106" in o and "Argon2id: KHỚP vector RFC 9106" in o)
+ca("★★ mật khẩu mới là chuỗi PHC $argon2id$v=19$m=65536,t=3,p=4$… (đúng → sáng, sai/sửa thẻ → tối)",
+   "định dạng: $argon2id$v=19$m=65536,t=3,p=4" in o and "đúng → sáng" in o and "sửa thẻ → tối" in o)
+ca("★★ $g3$ tự thiết kế vẫn kiểm được nhưng bị đòi BĂM LẠI thành $argon2id$",
+   "$g3$ cũ vẫn kiểm được" in o and "$g3$ cũ: cần băm lại" in o and "$argon2id$ đạt chuẩn: không cần băm lại" in o)
+ca("★★ bản ghi khai m/t vô lý bị chặn TỨC THÌ (không treo màn đăng nhập)", "★ bốn bản ghi vô lý bị chặn TỨC THÌ" in o)
 
 mã, o = chạy(["giao.py", "kiem_muoi_he.giao", "--bước", "200000000"])
 ca("chạy sạch (muối từ HĐH + băm lại)", mã == 0, o[-300:])
@@ -486,7 +496,7 @@ ca("★ `thành` (su) đổi người NGAY TRONG phiên, có hỏi mật khẩu"
    "mật khẩu của gốc:" in o and "nay bạn là gốc" in o)
 ca("★ dấu nhắc đổi theo quyền (an$ → gốc#)", "gốc:/#" in o)
 ca("★★ GỐC-QUYỀN thì ĐỌC ĐƯỢC /hệ/mật_khẩu — và thấy BĂM, không thấy mật khẩu",
-   "$g3$64$" in o and "gốc:gốc" not in o)
+   "$argon2id$v=19$m=65536,t=3,p=4$" in o and "gốc:gốc" not in o)
 ca("★ `đổi_mk` (passwd) đổi được mật khẩu", "mật khẩu của gốc đã đổi." in o)
 ca("★★ mật khẩu MỚI dùng đăng nhập lại được thật", o.count("Xin chào gốc.") >= 1)
 
@@ -533,7 +543,7 @@ mã, o = _phiên(["an", "an", "nhóm", "sudo xem /hệ/mật_khẩu", "an",
 ca("chạy sạch (phiên sudo tương tác)", mã == 0, o[-300:])
 ca("★ lệnh `nhóm` (~getent group) chạy trong vỏ", "văn\t100\tgốc,an" in o)
 ca("★★ sudo hỏi mật khẩu CỦA MÌNH rồi cấp gốc-quyền cho MỘT lệnh",
-   "[sudo] mật khẩu của an:" in o and "$g3$64$" in o)
+   "[sudo] mật khẩu của an:" in o and "$argon2id$v=19$m=65536,t=3,p=4$" in o)
 ca("★★ sổ /hệ/sudo CHẶN lệnh không được cấp", "sổ /hệ/sudo không cấp cho an lệnh 'tt'" in o)
 ca("★★★ sudo KHÔNG thay duyệt: lệnh bất-khả-hồi qua sudo VẪN chờ phê duyệt",
    "CẦN PHÊ DUYỆT — xoá(/tạm/rác1)" in o and "✔ đã phê duyệt và thực hiện" in o)

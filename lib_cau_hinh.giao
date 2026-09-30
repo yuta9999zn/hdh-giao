@@ -131,7 +131,7 @@ hàm kiểm_định_dạng(nội) {
     trả sáng
 }
 
-# ---- /hệ/mật_khẩu — "tên:$g1$…" hoặc "tên:$g2$…" hoặc "tên:*" (khoá) ----
+# ---- /hệ/mật_khẩu — "tên:$argon2id$…" (mới) · "tên:$g1$/$g2$/$g3$…" (cũ, băm lại khi đăng nhập) · "tên:*" (khoá) ----
 hàm kiểm_mật_khẩu(nội) {
     đặt ds = _ch_dòng_sạch(nội)
     đặt i = 0
@@ -140,15 +140,18 @@ hàm kiểm_mật_khẩu(nội) {
         đặt v = vị_trí(ds[i], ":")
         nếu loại(v) == "ẩn" { trả _lỗi_dòng(i, "thiếu dấu ':'") }
         đặt bóng = lát_chuỗi(ds[i], v + 1, dài(ds[i]))
-        nếu bóng == "*" { } khác {
+        nếu bóng == "*" { } khác { nếu bắt_đầu(bóng, "$argon2id$") {
+            # chuỗi PHC: $argon2id$v=19$m=…,t=…,p=…$<muối>$<thẻ> — đúng 6 phần
+            nếu dài(tách_giữ(bóng, "$")) == 6 { } khác { trả _lỗi_dòng(i, "bản băm $argon2id$ phải có dạng $argon2id$v=19$m=…,t=…,p=…$muối$thẻ") }
+        } khác {
             nếu bắt_đầu(bóng, "$g1$") { } khác {
             nếu bắt_đầu(bóng, "$g2$") { } khác {
             nếu bắt_đầu(bóng, "$g3$") { } khác {
-                trả _lỗi_dòng(i, "bản băm phải là $g1$…, $g2$… hoặc $g3$… (ghi mật khẩu THÔ vào đây là lộ hết)")
+                trả _lỗi_dòng(i, "bản băm phải là $argon2id$…, $g1$…, $g2$… hoặc $g3$… (ghi mật khẩu THÔ vào đây là lộ hết)")
             } } }
             đặt p = tách_giữ(bóng, "$")
             nếu dài(p) >= 5 { } khác { trả _lỗi_dòng(i, "bản băm thiếu phần (cần $kiểu$vòng$muối$băm)") }
-        }
+        } }
         đặt i = i + 1
     }
     trả sáng

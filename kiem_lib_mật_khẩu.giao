@@ -15,7 +15,7 @@ khác { rọi "SAI: hai lần gọi muối_mới ra cùng một muối" }
 nếu băm_mk("sen vàng", m1, 512) == h1 { rọi "cùng muối → băm ổn định" }
 khác { rọi "SAI: băm không ổn định" }
 
-# 3. đúng/sai — bản MỚI mặc định là $g3$ (KHÓ VỀ BỘ NHỚ, học yescrypt của Kali)
+# 3. đúng/sai — bản MỚI mặc định là $argon2id$ (Argon2id THẬT, RFC 9106 — mã tham chiếu C qua WASM)
 đặt b = bóng_mới("cửa-mở-ra-biển", 4242)
 nếu khớp_mk("cửa-mở-ra-biển", b) == sáng { rọi "đúng → sáng" } khác { rọi "SAI: đúng mật khẩu mà không nhận" }
 nếu khớp_mk("cửa-mở-ra-biến", b) == tối  { rọi "sai → tối" }  khác { rọi "SAI: sai mật khẩu mà vẫn nhận" }
@@ -25,9 +25,12 @@ nếu khớp_mk("", b) == tối { rọi "rỗng → tối" } khác { rọi "SAI:
 nếu loại(vị_trí(b, "cửa-mở-ra-biển")) == "ẩn" { rọi "không lộ mật khẩu" }
 khác { rọi "SAI: bản băm có chứa nguyên mật khẩu" }
 
-# 5. định dạng $g3$<N>$<muối>$<băm64hex>
+# 5. định dạng PHC $argon2id$v=19$m=<KiB>,t=<lần>,p=<làn>$<muối b64>$<thẻ b64>
 đặt p = tách_giữ(b, "$")
-nếu dài(p) == 5 { nếu p[1] == "g3" { nếu số_chuỗi(p[2]) == MK_N3 { nếu dài(p[4]) == 64 { rọi "đọc lại bản ghi: sáng" } } } }
+nếu dài(p) == 6 { nếu p[1] == "argon2id" { nếu p[3] == "m=" + MK_A2_M + ",t=" + MK_A2_T + ",p=" + MK_A2_P { nếu dài(_b64_giải_không_đệm(p[5])) == 32 { rọi "đọc lại bản ghi: sáng" } } } }
+# 5a. bản ghi $g3$ (tự thiết kế, bản mặc định trước 2026-09-30) vẫn khớp được
+đặt b3 = bóng_mới_g3("cửa-mở-ra-biển", 4242)
+nếu khớp_mk("cửa-mở-ra-biển", b3) == sáng { nếu khớp_mk("cửa-mở-ra-biến", b3) == tối { rọi "bản ghi g3 cũ: vẫn sáng, sai → tối" } }
 
 # 5b. bản ghi $g1$ và $g2$ CŨ vẫn khớp được (không bắt ai đổi mật khẩu) — BA định dạng SONG SONG
 đặt b1 = bóng_mới_g1("cửa-mở-ra-biển", 4242)

@@ -29,4 +29,4 @@ done
   for f in $DS; do printf '\000%s %s\n' "$(wc -c < "$GOC/$f" | tr -d ' ')" "$f"; cat "$GOC/$f"; done
   printf '\000%s @chuẩn.giao\n' "$(wc -c < "$GIAO/chuẩn.giao" | tr -d ' ')"; cat "$GIAO/chuẩn.giao"
   printf '\000%s @_cdfl.giao\n' "$(wc -c < "$GIAO/_cdfl.giao" | tr -d ' ')"; cat "$GIAO/_cdfl.giao"
-} | "$WT" run "$GIAO/wasm/gvm64.wasm" -- --bước 4000000000 --trần-ds 200000000
+} | "$WT" run --preload "argon2=$GIAO/wasm/argon2.wasm" "$GIAO/wasm/gvm64.wasm" -- --bước 4000000000 --trần-ds 200000000

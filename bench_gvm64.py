@@ -36,7 +36,7 @@ def chạy(loại, n):
     with open(g, "wb") as f: f.write(dữ)
     với = open(g, "rb"); t0 = time.perf_counter()
     fo, fe = open(g + ".out", "wb"), open(g + ".err", "wb")          # tệp, KHÔNG pipe (pipe Windows nhỏ → nghẽn)
-    pr = psutil.Popen([WASMTIME, "run", os.path.join(P, "wasm", "gvm64.wasm"), "--", "--cho-giờ"] + CỜ_MÁY,
+    pr = psutil.Popen([WASMTIME, "run", "--preload", "argon2=" + os.path.join(P, "wasm", "argon2.wasm"), os.path.join(P, "wasm", "gvm64.wasm"), "--", "--cho-giờ"] + CỜ_MÁY,
                       stdin=với, stdout=fo, stderr=fe)
     đỉnh = 0
     while pr.poll() is None:

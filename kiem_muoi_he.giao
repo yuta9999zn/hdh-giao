@@ -61,6 +61,6 @@ rọi "sau lần sai: cần đặt lại = " + bóng_yếu(M, K)
 nếu xác_thực(M, K, "an", "an-mk") == sáng { rọi "an gõ đúng → sáng" }
 rọi "sau khi an đăng nhập đúng: cần đặt lại = " + bóng_yếu(M, K)
 đặt p = tách_giữ(lấy_khoá(_nạp_bóng(M, K), "an"), "$")
-nếu muối_yếu(p[3]) == tối { rọi "bóng của an giờ mang muối HĐH" }
+nếu p[1] == "argon2id" { nếu dài(_b64_giải_không_đệm(p[4])) == 16 { rọi "bóng của an giờ mang muối HĐH" } }
 nếu xác_thực(M, K, "an", "an-mk") == sáng { nếu xác_thực(M, K, "an", "an-mk?") == tối { rọi "an vẫn đăng nhập được bằng mật khẩu cũ; sai vẫn tối" } }
 rọi "XONG kiem_muoi_he"

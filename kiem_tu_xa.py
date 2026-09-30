@@ -88,7 +88,7 @@ try:
 
     o = phiên("gốc", "gốc", "tôi", "xem /hệ/mật_khẩu", "thoát")
     ca("★★ gốc-quyền từ xa thì ĐỌC ĐƯỢC sổ bóng — và thấy BĂM, không thấy mật khẩu",
-       "gốc (uid 0)" in o and "$g3$" in o and "gốc:gốc" not in o)
+       "gốc (uid 0)" in o and "$argon2id$v=19$" in o and "gốc:gốc" not in o)
 
     o = phiên("an", "an", "nhật_ký 40", "thoát")
     ca("★★ audit ghi cả việc làm TỪ XA (không có đường tắt nào không bị ghi)",
