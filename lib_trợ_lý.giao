@@ -11,6 +11,8 @@
 #      (Đúng cổng-phủ "học-1-hiểu-10": thà từ chối còn hơn ảo tưởng — đốm tối.)
 #   3. CỔNG BẤT-KHẢ-HỒI — kỹ năng phá huỷ (xoá, định dạng ổ) KHÔNG được tự chạy: trợ lý chỉ
 #      TRÌNH BÀY dự định rồi chờ NGƯỜI gõ `duyệt`. Tầng gọi-hệ chặn lần hai (phòng thủ kép).
+#      Khả-hồi xét TỪ CHÍNH DÒNG LỆNH (lệnh_phá), KHÔNG tin nhãn kỹ năng tự khai, KHÔNG tin γ:
+#      γ đo "hiểu đúng lời nhờ", không đo "an toàn" (con-thuyền KIAI, 2026-09: γ không phải cổng).
 # Trái tim = tim_llm (Ollama nếu có, không thì bản dự-phòng tất-định) qua builtin nhúng/tim.
 # Nạp: nhập "lib_trợ_lý.giao".
 # ============================================================
@@ -22,6 +24,13 @@ hàm kho_rỗng() { trả [] }
 hàm thêm_kỹ_năng(kho, tên, mô_tả, lệnh, khả_hồi) {
     gom(kho, [tên, mô_tả, lệnh, khả_hồi])
     trả kho
+}
+
+# khả hồi THẬT = nhãn khai là khả hồi VÀ không dòng lệnh nào phá huỷ (lệnh_phá xét chính câu lệnh)
+hàm _khả_hồi_thật(kn) {
+    nếu kn[3] == sáng { } khác { trả tối }
+    lặp l trong kn[2] { nếu lệnh_phá(l) == sáng { trả tối } }
+    trả sáng
 }
 
 # ---------------- NGƯỠNG γ tự chỉnh theo TRÁI TIM đang dùng ----------------
@@ -99,7 +108,9 @@ hàm trợ_lý_làm(máy, tid, lời) {
     }
 
     # --- CỔNG 2: việc BẤT KHẢ HỒI → chỉ trình bày, chờ người duyệt ---
-    nếu kn[3] == sáng { } khác {
+    # Xét TỪNG DÒNG LỆNH, không tin nhãn kn[3]: kỹ năng khai 'khả hồi' mà chứa `xoá` vẫn bị giữ lại.
+    nếu _khả_hồi_thật(kn) == sáng { } khác {
+        nếu kn[3] == sáng { gom(báo, "   ⚠ kỹ năng \"" + kn[0] + "\" tự khai là HOÀN TÁC ĐƯỢC, nhưng dòng lệnh có việc phá huỷ — tôi tin dòng lệnh, không tin nhãn.") }
         gom(báo, "   ⛔ việc \"" + kn[0] + "\" là BẤT KHẢ HỒI — tôi KHÔNG tự làm.")
         gom(báo, "   Dự định của tôi (bạn tự quyết định):")
         lặp l trong kn[2] { gom(báo, "      $ " + l) }

@@ -28,7 +28,7 @@ def γ(niềm_tin, thực_tại):                 # cộng hưởng CDFL (chính
     return float(G(f"cộng_hưởng({niềm_tin}, {thực_tại})"))
 def phê_duyệt(g, bất_khả_hồi, ngưỡng=0.6):  # cổng an toàn ba-trị (viết bằng GIAO)
     kq = G(f"phê_duyệt({g!r}, {SANG if bất_khả_hồi else TOI}, {ngưỡng!r})")
-    return {SANG: "cho_phép", TOI: "chặn"}.get(kq, "cân_nhắc")
+    return {SANG: "cho_phép", TOI: "chặn"}.get(kq, "cần_người_duyệt" if bất_khả_hồi else "cân_nhắc")
 
 # ---------------- GIÁC QUAN: cảm nhận LINUX thật qua /proc ----------------
 def cảm_nhận():

@@ -331,6 +331,15 @@ ok,o = chạy("tu_sua", ["kiem_tu_sua.py"], "TỰ-SỬA THÀNH CÔNG")
 mục("vòng TỰ-SỬA Stage1-3 (gieo lỗi→tự vá→sáng, cổng CDFL)", ok)
 ok,o = chạy("tu_sua_loc", ["kiem_tu_sua_localize.py"], "ĐỊNH-VỊ đúng")
 mục("vòng TỰ-SỬA Stage4 (định-vị tệp lỗi qua suite→vá)", ok)
+ok,o = chạy("tu_sua_du_manh", ["kiem_tu_sua_du_manh.py"], "CỔNG ĐỦ-MẠNH: 3/3")
+mục("vòng TỰ-SỬA: CỔNG ĐỦ-MẠNH (test yếu → ẨN + hoàn-tác · test mạnh → SÁNG)", ok, o[-300:])
+ok,o = chạy("niem_phong", ["kiem_niem_phong.py"], "SỔ NIÊM PHONG: 8/8")
+mục("SỔ NIÊM PHONG dự đoán (chuỗi băm: phát hiện sửa/xoá/đổi thứ tự; không chấm lại)", ok, o[-300:])
+ok,o = chạy("tu_sua_niem", ["kiem_tu_sua_niem_phong.py"], "NIÊM PHONG TỰ-SỬA: 5/5")
+mục("vòng TỰ-SỬA: đề xuất LLM được NIÊM PHONG trước, CHẤM sau (đúng→trúng · sai→trượt)", ok, o[-300:])
+ok,o = chạy("tro_ly_nhan", ["giao.py", "kiem_tro_ly_nhan.giao"], "khai bất khả hồi → tối")
+mục("trợ lý HĐH không tin nhãn 'khả hồi' tự khai, không tin γ (kỹ năng chứa xoá → giữ lại)",
+    ok and "tôi tin dòng lệnh, không tin nhãn" in o and "khai sai → tối" in o and "\nrác2" in o, o[-300:])
 
 print("\n[Ví dụ máy (giaoc)]")
 MÁY = ["7_danh_sach_gvm","8_tong_ds_gvm","9_chuoi_gvm","10_nhieu_thamso_gvm","11_chiso_sosanh_gvm",

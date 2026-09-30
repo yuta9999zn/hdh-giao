@@ -100,6 +100,7 @@ class CầuNối:
             ng = req.get("ngưỡng", 0.5)
             kq = self._eval(f"phê_duyệt({repr(float(γ))}, {SANG if bkh else TOI}, {repr(float(ng))})")
             phán = {"sáng": "cho_phép", "tối": "chặn", None: "cân_nhắc"}[kq]
+            if kq is None and bkh: phán = "cần_người_duyệt"      # bất khả hồi: γ cao không đủ thẩm quyền
             return {"phán": phán, "ba_trị": kq if kq else "ẩn", "γ": γ, "ngưỡng": ng, "bất_khả_hồi": bkh}
         if op == "trạng_thái":
             return {"tâm": {k: self._py(v) for k, v in self.rt.tam.items()},

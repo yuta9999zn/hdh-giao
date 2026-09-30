@@ -28,6 +28,7 @@ Tự kiểm thử (không cần host MCP — pipe JSON-RPC vào):
 import sys, os, json
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # chạy được dù host MCP cwd khác
 from giao_cau_noi import CầuNối
+from niem_phong import SổNiêmPhong
 
 SERVER_INFO = {"name": "giao-cdfl", "version": "0.3"}
 DEFAULT_PROTOCOL = "2025-06-18"
@@ -75,9 +76,10 @@ TOOLS = [
     },
     {
         "name": "giao_phe_duyet",
-        "description": ("CỔNG PHÊ DUYỆT an toàn (ba-trị). γ≥ngưỡng → 'cho_phép'; γ<ngưỡng và "
-                        "bat_kha_hoi=true → 'chặn' (không đủ tin mà không hoàn tác được); còn lại → "
-                        "'cân_nhắc'. Gọi TRƯỚC mọi hành động bất khả hồi (deploy, xoá, gửi tiền…)."),
+        "description": ("CỔNG PHÊ DUYỆT an toàn (ba-trị). Việc HOÀN TÁC ĐƯỢC: γ≥ngưỡng → 'cho_phép', "
+                        "ngược lại 'cân_nhắc'. Việc BẤT KHẢ HỒI (deploy, xoá, gửi tiền…): γ KHÔNG đủ thẩm "
+                        "quyền — γ≥ngưỡng → 'cần_người_duyệt', γ<ngưỡng → 'chặn'. Nên niêm phong dự đoán "
+                        "(giao_niem_phong) TRƯỚC khi làm, rồi chấm (giao_cham) sau."),
         "inputSchema": {"type": "object", "properties": {
             "gamma": {"type": "number", "description": "cộng hưởng của hành động (lấy từ giao_cong_huong/giao_chon)"},
             "bat_kha_hoi": {"type": "boolean", "description": "hành động có KHÔNG thể hoàn tác?"},
@@ -107,6 +109,33 @@ TOOLS = [
             "doi": {"type": "array", "description": "đối số (vd ['status'])", "items": {}}},
             "required": ["lenh"]},
     },
+    {
+        "name": "giao_niem_phong",
+        "description": ("NIÊM PHONG một DỰ ĐOÁN trước khi làm một việc (sổ chỉ-ghi-thêm, chuỗi băm SHA-256). "
+                        "Mọi đề xuất hành động của AI nên niêm phong trước: dự đoán = bản {khoá: giá trị} "
+                        "mình tin sẽ xảy ra (vd {\"test_đạt\": true, \"số_tệp_đổi\": 1}). Trả băm để chấm sau. "
+                        "Không thể đoán lại sau khi đã biết kết quả."),
+        "inputSchema": {"type": "object", "properties": {
+            "viec": {"type": "string", "description": "mô tả việc sắp làm"},
+            "du_doan": {"type": "object", "description": "dự đoán kết quả, {khoá: giá trị}"},
+            "ai": {"type": "string", "description": "ai đề xuất (mặc định 'mcp')"}},
+            "required": ["viec", "du_doan"]},
+    },
+    {
+        "name": "giao_cham",
+        "description": ("CHẤM một niêm phong bằng KẾT QUẢ THẬT (chỉ một lần). trúng = mọi khoá đã dự đoán đều "
+                        "khớp. Trả trúng/lệch; điểm cộng dồn vào thống kê so với ĐƯỜNG NỀN."),
+        "inputSchema": {"type": "object", "properties": {
+            "bam": {"type": "string", "description": "băm niêm phong (từ giao_niem_phong)"},
+            "ket_qua": {"type": "object", "description": "kết quả thật, {khoá: giá trị}"}},
+            "required": ["bam", "ket_qua"]},
+    },
+    {
+        "name": "giao_so_niem_phong",
+        "description": ("KIỂM TOÀN VẸN sổ niêm phong (chuỗi băm) + THỐNG KÊ theo từng người đề xuất: tỉ lệ "
+                        "trúng so với đường nền. Dùng để biết một AI có thật sự đoán giỏi hơn đoán mò."),
+        "inputSchema": {"type": "object", "properties": {}},
+    }
 ]
 
 # ── ÁNH XẠ tool → yêu cầu CầuNối (lớp đã có; ngữ nghĩa nằm trong runtime GIAO) ──
@@ -135,6 +164,13 @@ def gọi_tool(cn, name, args):
         return cn.xử_lý({"op": "đọc_tệp", "đường_dẫn": args["duong_dan"]})
     if name == "giao_chay":
         return cn.xử_lý({"op": "chạy", "lệnh": args["lenh"], "đối": args.get("doi", [])})
+    if name == "giao_niem_phong":
+        return {"băm": SổNiêmPhong().niêm_phong(args.get("ai") or "mcp", args["viec"], args["du_doan"])}
+    if name == "giao_cham":
+        return SổNiêmPhong().chấm(args["bam"], args["ket_qua"])
+    if name == "giao_so_niem_phong":
+        sổ = SổNiêmPhong(); ok, lý = sổ.kiểm_chuỗi()
+        return {"toàn_vẹn": ok, "lý_do": lý, "thống_kê": sổ.thống_kê()}
     raise ValueError(f"tool không có: {name}")
 
 # ── JSON-RPC 2.0 trên stdio (MCP stdio transport) ──
@@ -162,7 +198,8 @@ def main():
                           "capabilities": {"tools": {"listChanged": False}},
                           "serverInfo": SERVER_INFO,
                           "instructions": "Lương tâm CDFL: quan sát thực tại → đo γ → soi DE → "
-                                          "phê duyệt (chặn việc bất khả hồi khi γ thấp). I/O (giao_doc_tep/"
+                                          "phê duyệt (việc bất khả hồi: γ không đủ thẩm quyền — cần người duyệt) → niêm phong dự đoán "
+                                          "trước khi làm, chấm sau. I/O (giao_doc_tep/"
                                           "giao_chay) CHỈ hoạt động nếu host cấp env GIAO_CHO_DOC/GIAO_CHO_CHAY."})
         elif method == "notifications/initialized" or is_notif:
             continue                                  # thông báo: không hồi đáp

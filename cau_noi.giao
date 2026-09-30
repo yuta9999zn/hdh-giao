@@ -12,10 +12,17 @@
 # γ            : cộng hưởng của hành động (host đo qua cộng_hưởng(σ_dự_đoán, ρ_thực))
 # bất_khả_hồi  : sáng nếu hành động KHÔNG thể hoàn tác (xoá đĩa, gửi tiền, deploy...)
 # ngưỡng       : mức cộng hưởng tối thiểu để dám làm
+# γ KHÔNG PHẢI CỔNG cho việc BẤT KHẢ HỒI (đo được ở D:\KIAI\con-thuyen, 2026-09): γ là thước HIỆU
+# CHỈNH SAU SỰ VIỆC, không phải tín hiệu an toàn — dự báo 60 mà thực tế 100 vẫn cho γ≈0.72, tức "cho qua".
+# Nên với việc KHÔNG hoàn tác được, γ cao chỉ đưa lên ẨN (cần NGƯỜI duyệt / năng lực riêng), γ thấp vẫn
+# CHẶN. γ chỉ tự quyết (sáng) cho việc HOÀN TÁC ĐƯỢC. (Trước 2026-09-30: γ ≥ ngưỡng ⇒ sáng bất kể.)
 hàm phê_duyệt(γ, bất_khả_hồi, ngưỡng) {
-    nếu γ >= ngưỡng { trả sáng }          # đủ cộng hưởng → CHO PHÉP
-    nếu bất_khả_hồi { trả tối }           # chưa đủ tin + không hồi được → CHẶN
-    trả ẩn                                # chưa đủ tin nhưng hồi được → CÂN NHẮC (thận trọng)
+    nếu bất_khả_hồi {
+        nếu γ >= ngưỡng { trả ẩn }        # đủ cộng hưởng nhưng KHÔNG hồi được → CẦN NGƯỜI DUYỆT
+        trả tối                           # chưa đủ tin + không hồi được → CHẶN
+    }
+    nếu γ >= ngưỡng { trả sáng }          # hoàn tác được + đủ cộng hưởng → CHO PHÉP
+    trả ẩn                                # hoàn tác được nhưng chưa đủ tin → CÂN NHẮC
 }
 
 # --- XẾP HẠNG hành động theo OR thật (mở rộng cộng hưởng lớn nhất) ---

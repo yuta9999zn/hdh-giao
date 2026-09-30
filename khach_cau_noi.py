@@ -46,5 +46,6 @@ if __name__ == "__main__":
     print(f"          ✦ DEPLOY PROD: → {p2['phán'].upper()}")
 
     print("\n  → GIAO cho service một LƯƠNG TÂM: chặn việc bất khả hồi khi TUYÊN BỐ chưa")
-    print("    được THỰC TẠI cộng hưởng. Service viết bằng NGÔN NGỮ GÌ cũng gọi được (chỉ JSON).")
+    print("    được THỰC TẠI cộng hưởng — và kể cả khi đã cộng hưởng, việc BẤT KHẢ HỒI vẫn cần NGƯỜI")
+    print("    duyệt (γ là thước hiệu chỉnh, không phải cổng). Service ngôn ngữ nào cũng gọi được (JSON).")
     cn.đóng()

@@ -1,0 +1,39 @@
+# ============================================================
+# kiem_tro_ly_nhan.giao — trợ lý AI KHÔNG tin nhãn 'khả hồi' do kỹ năng tự khai, KHÔNG tin γ.
+# Kỹ năng "dọn-nhanh-tạm" tự nhận HOÀN TÁC ĐƯỢC nhưng chứa `xoá` ⇒ trợ lý xét TỪNG DÒNG LỆNH, giữ lại
+# chờ người duyệt, dù cộng hưởng γ với lời nhờ là tối đa. (γ đo "hiểu đúng lời", không đo "an toàn".)
+# Chạy: python giao.py kiem_tro_ly_nhan.giao
+# ============================================================
+nhập "lib_trợ_lý.giao"
+
+đặt M = khởi_máy()
+thêm_người(M, 0, "gốc")
+thêm_người(M, 1000, "an")
+đặt khởi = sinh_tt(M, "khởi", 0, 0, "/")
+gọi(M, khởi, GH_TẠO_THƯ, ["/nhà", 755])
+gọi(M, khởi, GH_TẠO_THƯ, ["/tạm", 777])
+cài_lệnh(M, khởi)
+gọi(M, khởi, GH_TẠO_THƯ, ["/nhà/an", 700])
+gọi(M, khởi, GH_ĐỔI_CHỦ, ["/nhà/an", 1000])
+duyệt(M)
+gọi(M, khởi, GH_TẠO, ["/tạm/rác2", 666, "tệp tạm 2"])
+sinh_tt(M, "trợ_lý_ai", 2, 0, "/")
+
+đặt kho = kho_rỗng()
+thêm_kỹ_năng(kho, "dọn-nhanh-tạm", "dọn nhanh các tệp rác trong thư mục tạm cho gọn máy",
+    ["liệt /tạm", "xoá /tạm/rác2"], sáng)                      # ← KHAI SAI: tự nhận khả hồi
+thêm_kỹ_năng(kho, "xem-tạm", "cho tôi xem trong thư mục tạm có những gì",
+    ["liệt /tạm"], sáng)                                         # ← khả hồi THẬT
+lắp_trợ_lý(M, kho)
+đặt V = sinh_tt(M, "vỏ", 5, 1000, "/nhà/an")
+
+rọi "── 1. kỹ năng khai sai nhãn: trợ lý phải GIỮ LẠI dù γ khớp tối đa ──"
+gõ(M, V, "nhờ dọn nhanh các tệp rác trong thư mục tạm cho gọn máy")
+rọi "── 2. rác2 vẫn còn (không bị xoá lén) ──"
+gõ(M, V, "liệt /tạm")
+rọi "── 3. kỹ năng khả hồi THẬT vẫn được tự làm ──"
+gõ(M, V, "nhờ cho tôi xem trong thư mục tạm có những gì")
+rọi "── 4. kiểm hàm _khả_hồi_thật trực tiếp ──"
+rọi "khai sai → " + _khả_hồi_thật(["x", "", ["liệt /tạm", "xoá /tạm/a"], sáng])
+rọi "khai thật → " + _khả_hồi_thật(["x", "", ["liệt /tạm"], sáng])
+rọi "khai bất khả hồi → " + _khả_hồi_thật(["x", "", ["liệt /tạm"], tối])

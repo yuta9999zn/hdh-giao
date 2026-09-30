@@ -11,6 +11,9 @@ class MCP:
         env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
         for k in ("GIAO_CHO_DOC", "GIAO_CHO_CHAY", "GIAO_CHO_GHI"):
             env.pop(k, None)                          # test hermetic: mặc định KHÔNG quyền I/O
+        import tempfile
+        self.sổ = os.path.join(tempfile.mkdtemp(), "so.jsonl")
+        env["GIAO_SO_NIEM_PHONG"] = self.sổ           # sổ niêm phong RIÊNG cho lần kiểm
         self.p = subprocess.Popen([sys.executable, os.path.join(gốc, "giao_mcp.py")],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True,
             encoding="utf-8", bufsize=1, env=env, cwd=gốc)
@@ -50,8 +53,8 @@ print("\n[2] tools/list")
 r = m.yêu_cầu("tools/list"); tools = r["result"]["tools"]
 tên_tool = {t["name"] for t in tools}
 mong = {"giao_quan_sat","giao_cong_huong","giao_hoc","giao_vung_toi","giao_chon","giao_phe_duyet",
-        "giao_trang_thai","giao_doc_tep","giao_chay"}
-kiểm("đủ 9 tool (7 suy luận + 2 I/O capability)", tên_tool==mong, tên_tool ^ mong)
+        "giao_trang_thai","giao_doc_tep","giao_chay","giao_niem_phong","giao_cham","giao_so_niem_phong"}
+kiểm("đủ 12 tool (7 suy luận + 2 I/O capability + 3 niêm phong)", tên_tool==mong, tên_tool ^ mong)
 kiểm("mọi tool có inputSchema kiểu object", all(t["inputSchema"]["type"]=="object" for t in tools))
 
 print("\n[3] Kịch bản quyết định CDFL")
@@ -65,7 +68,10 @@ kiểm("DEPLOY bất khả hồi, γ thấp → CHẶN", p["phán"]=="chặn", p
 m.tool("giao_quan_sat", ten="sẵn_sàng", thuc_tai=96)        # thực tại được sửa lên
 g2,_ = m.tool("giao_cong_huong", ten="sẵn_sàng")
 p2,_ = m.tool("giao_phe_duyet", gamma=g2["gamma"], bat_kha_hoi=True, nguong=0.8)
-kiểm("thực tại sửa lên 96 (γ cao) → CHO PHÉP", p2["phán"]=="cho_phép", (g2,p2))
+kiểm("thực tại sửa lên 96 (γ cao) nhưng BẤT KHẢ HỒI → CẦN NGƯỜI DUYỆT (γ không phải cổng)",
+      p2["phán"]=="cần_người_duyệt", (g2,p2))
+p3,_ = m.tool("giao_phe_duyet", gamma=g2["gamma"], bat_kha_hoi=False, nguong=0.8)
+kiểm("cùng γ cao, việc HOÀN TÁC ĐƯỢC → CHO PHÉP", p3["phán"]=="cho_phép", p3)
 
 ch,_ = m.tool("giao_chon", hanh_dong=[["A",40,100],["B",90,100],["C",20,100]])
 kiểm("chọn hành động OR lớn nhất = B", ch["chọn"][0]=="B", ch)
@@ -83,6 +89,21 @@ kiểm("server vẫn phục vụ sau lỗi", g3["gamma"]==g2["gamma"], g3)
 print("\n[5] I/O capability — chưa cấp env ⇒ từ chối sạch (ocap)")
 io, err = m.tool("giao_doc_tep", duong_dan="chuẩn.giao")
 kiểm("giao_doc_tep chưa cấp → isError (không lộ tệp)", err is True and "chưa định nghĩa" in str(io), io)
+
+print("\n[6] Niêm phong dự đoán TRƯỚC khi làm, chấm SAU (sổ chuỗi băm)")
+n1,_ = m.tool("giao_niem_phong", viec="deploy bản 2.1", du_doan={"test_đạt": True, "lỗi_mới": 0}, ai="claude")
+kiểm("niêm phong trả băm SHA-256", isinstance(n1, dict) and len(n1.get("băm","")) == 64, n1)
+c1,_ = m.tool("giao_cham", bam=n1["băm"], ket_qua={"test_đạt": True, "lỗi_mới": 0})
+kiểm("chấm đúng dự đoán → trúng", c1.get("trúng") is True, c1)
+n2,_ = m.tool("giao_niem_phong", viec="xoá bộ nhớ đệm", du_doan={"test_đạt": True}, ai="claude")
+c2,_ = m.tool("giao_cham", bam=n2["băm"], ket_qua={"test_đạt": False})
+kiểm("chấm sai dự đoán → trượt, nêu rõ khoá lệch", c2.get("trúng") is False and "test_đạt" in c2.get("lệch", {}), c2)
+c3, err = m.tool("giao_cham", bam=n2["băm"], ket_qua={"test_đạt": True})
+kiểm("không cho CHẤM LẠI (chống sửa điểm)", err is True and "ĐÃ được chấm" in str(c3), c3)
+st,_ = m.tool("giao_so_niem_phong")
+tk = st.get("thống_kê", {}).get("claude", {})
+kiểm("sổ toàn vẹn + thống kê theo người đề xuất (2 chấm, 1 trúng, có đường nền)",
+     st.get("toàn_vẹn") is True and tk.get("đã_chấm") == 2 and tk.get("trúng") == 1 and "đường_nền" in tk, st)
 
 m.đóng()
 print("\n" + "="*60)
