@@ -293,6 +293,19 @@ def kiểm_luật_trôi(stmts, cục=frozenset()):
         elif T is KhiVienMan: bt(s.expr, cục); kiểm_luật_trôi(s.body, cục)
         elif T is ThuBat: kiểm_luật_trôi(s.thu, cục); kiểm_luật_trôi(s.bat, cục)
 
+def _chèn_mạch(stmts, tên):
+    "Khối lượng_tử: mỗi câu là LỜI GọI HÀM TRỰC TIẾP f(…) ⇒ f(tên, …); đi vào lặp/nếu/thử/khi lồng, KHÔNG vào hàm lồng."
+    for s in stmts:
+        T=type(s)
+        if T is ExprStmt and type(s.expr) is Goi and type(s.expr.callee) is VarRef:
+            s.expr.args=[VarRef(tên)]+s.expr.args
+        elif T in (Lap, LapTrong, Mai, KhiVienMan): _chèn_mạch(s.body, tên)
+        elif T is Neu:
+            _chèn_mạch(s.then, tên)
+            if s.ngo: _chèn_mạch(s.ngo, tên)
+            if s.khac: _chèn_mạch(s.khac, tên)
+        elif T is ThuBat: _chèn_mạch(s.thu, tên); _chèn_mạch(s.bat, tên)
+
 # ============================================================
 # 3. PARSER
 # ============================================================
@@ -389,6 +402,16 @@ class Parser:
             return Neu(cond,then,ngo,khac)
         if t.kind=="KW" and t.val=="khi":
             self.next(); self.eat("KW","viên_mãn"); expr=self.expr(); return KhiVienMan(expr,self.block())
+        # `lượng_tử` là từ khoá NGỮ CẢNH (như `trong`): CHỈ khi câu có dạng `lượng_tử <tên> (`. Không phải từ
+        # khoá thật vì "lượng tử" còn nghĩa LÁT THỜI GIAN của bộ lập lịch (lib_trienkhai: hàm lượng_tử(xung_mhz)).
+        if (t.kind=="ID" and t.val in ("lượng_tử","luong_tu") and self.peek(1).kind=="ID"
+                and self.peek(2).kind=="OP" and self.peek(2).val=="("):
+            # lượng_tử m (n) { H(0)  CX(0, 1)  ĐO_HẾT() }  — HẠ NGAY lúc phân tích (không thêm nút mới):
+            #   đặt m = (hàm(m) { <khối, mỗi câu gọi hàm TRỰC TIẾP được chèn m làm đối số đầu>  trả m })(mạch(n))
+            # Khối có PHẠM VI RIÊNG (như thân hàm). Cần `nhập "lib_lượng_tử.giao"` để có mạch/H/CX/…
+            self.next(); tên=self.eat("ID").val; self.eat("OP","("); self.skip_nl(); n=self.expr(); self.skip_nl(); self.eat("OP",")")
+            thân=self.block(); _chèn_mạch(thân, tên)
+            return Dat(tên, Goi(Lam([tên], thân+[Tra(VarRef(tên))]), [Goi(VarRef("mạch"), [n])]))
         if t.kind=="KW" and t.val=="thử":
             self.next(); thu=self.block(); self.skip_nl()
             self.eat("KW","bắt"); tên=None

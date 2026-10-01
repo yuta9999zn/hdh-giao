@@ -1027,3 +1027,47 @@ hàm _qasm(m, bản3) {
 }
 hàm sang_qasm(m)  { trả _qasm(m, tối) }                   # OpenQASM 2.0 (IBM Quantum / Qiskit)
 hàm sang_qasm3(m) { trả _qasm(m, sáng) }                  # OpenQASM 3.0 (Qiskit qasm3, AWS Braket)
+
+# ============================================================
+# TÁC VỤ LƯỢNG TỬ + CHỌN NƠI CHẠY (v0.42, lộ trình GĐ3)
+# ============================================================
+# Một tác vụ = {mạch, số_lần, nơi, trạng_thái, kết_quả, đếm, qasm}. Kết quả là tri(XEB, γ) — CHƯA chạy thì
+# kết_quả là ẨN (đúng ngữ nghĩa ba trị: chưa đo thì chưa biết). Quy tắc nơi chạy:
+#   ≤ LT_TRẦN_CỤC_BỘ qubit ⇒ "cục_bộ": mô phỏng ngay trên máy (GVM-64 khớp Aer tới 1e-16);
+#   lớn hơn               ⇒ "đám_mây": HĐH chuẩn bị OpenQASM, trạng thái "chờ_môi_giới" — GVM-64 KHÔNG có
+#                            mạng; việc gửi là của moi_gioi_luong_tu.py (người duyệt + niêm phong + TLS lai).
+# 26 = trần bộ nhớ thực tế của wasm32 (2^26 biên độ × 16 byte ≈ 1 GB; 2^27 chạm trần 4 GB khi cộng phần khác).
+đặt LT_TRẦN_CỤC_BỘ = 26
+hàm nơi_chạy(m) {
+    nếu m["n"] <= LT_TRẦN_CỤC_BỘ { trả "cục_bộ" }
+    trả "đám_mây"
+}
+hàm tác_vụ_lượng_tử(m, số_lần) {
+    đặt tv = bản()
+    đặt tv["mạch"] = m  đặt tv["số_lần"] = số_lần  đặt tv["nơi"] = nơi_chạy(m)
+    đặt tv["trạng_thái"] = "chờ"  đặt tv["kết_quả"] = ẩn  đặt tv["đếm"] = ẩn  đặt tv["qasm"] = ẩn
+    trả tv
+}
+# hạt = ẩn ⇒ lấy mẫu bằng hạt từ HĐH; hạt là số ⇒ tất định (kiểm thử)
+hàm chạy_tác_vụ(tv, hạt) {
+    nếu tv["nơi"] == "cục_bộ" {
+        đặt h = hạt
+        nếu loại(h) == "ẩn" { đặt h = ngẫu_hệ() }
+        đặt tv["trạng_thái"] = "đang_chạy"
+        đặt đếm = lấy_mẫu(tv["mạch"], tv["số_lần"], h)
+        đặt tv["đếm"] = đếm
+        đặt tv["kết_quả"] = chấm_mẫu(đếm, trạng_thái_cuối(tv["mạch"]), 0.01)["tri"]
+        đặt tv["trạng_thái"] = "xong"
+        trả tv
+    }
+    đặt tv["qasm"] = sang_qasm(tv["mạch"])
+    đặt tv["trạng_thái"] = "chờ_môi_giới"          # kết_quả vẫn ẩn
+    trả tv
+}
+# kết quả đo từ máy thật (môi giới đưa về). Mạch ≤ trần cục bộ ⇒ chấm γ/XEB so với mô phỏng lý tưởng;
+# lớn hơn ⇒ không mô phỏng nổi ψ lý tưởng ⇒ có đếm nhưng kết_quả (độ tin) vẫn ẨN — nói thật là chưa biết.
+hàm nhận_kết_quả(tv, đếm) {
+    đặt tv["đếm"] = đếm  đặt tv["trạng_thái"] = "xong"
+    nếu tv["mạch"]["n"] <= LT_TRẦN_CỤC_BỘ { đặt tv["kết_quả"] = chấm_mẫu(đếm, trạng_thái_cuối(tv["mạch"]), 0.01)["tri"] }
+    trả tv
+}

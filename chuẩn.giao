@@ -132,6 +132,14 @@ hàm ngẫu_mod(seed, n) {
     đặt s = ngẫu(seed)
     trả [s * n // 2147483648, s]
 }
+# n BYTE (0..255) từ NGUỒN NGẪU NHIÊN CỦA HĐH — ngẫu_hệ (os.urandom / WASI random_get). Dùng cho MUỐI,
+# KHOÁ, mọi thứ cần KHÔNG ĐOÁN ĐƯỢC. KHÁC hẳn `ngẫu`/`ngẫu_mod` (LCG tất định — chỉ cho mô phỏng/kiểm thử).
+# Mỗi byte = 8 bit CAO của một lần gọi (31 bit đều ⇒ 0..255 đều).
+hàm ngẫu_nhiên_an_toàn(n) {
+    đặt r = []
+    lặp n { gom(r, ngẫu_hệ() // 8388608) }
+    trả r
+}
 hàm taylor_e(x, tổng, hạng, n) {                           # e^x ≈ Σ x^k/k! (8 số hạng, x NHỎ)
     nếu n > 8 { trả tổng }
     đặt h = hạng * x / n

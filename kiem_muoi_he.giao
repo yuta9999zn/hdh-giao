@@ -64,3 +64,15 @@ rọi "sau khi an đăng nhập đúng: cần đặt lại = " + bóng_yếu(M, 
 nếu p[1] == "argon2id" { nếu dài(_b64_giải_không_đệm(p[4])) == 16 { rọi "bóng của an giờ mang muối HĐH" } }
 nếu xác_thực(M, K, "an", "an-mk") == sáng { nếu xác_thực(M, K, "an", "an-mk?") == tối { rọi "an vẫn đăng nhập được bằng mật khẩu cũ; sai vẫn tối" } }
 rọi "XONG kiem_muoi_he"
+
+rọi "── ngẫu_nhiên_an_toàn(n): n byte từ nguồn ngẫu nhiên HĐH ──"
+đặt nb = ngẫu_nhiên_an_toàn(64)
+đặt hợp = sáng
+lặp x trong nb { nếu x < 0 { đặt hợp = tối }  nếu x > 255 { đặt hợp = tối } }
+nếu dài(nb) == 64 { nếu hợp == sáng { rọi "ngẫu_nhiên_an_toàn(64): 64 byte, mọi byte trong 0..255" } }
+nếu nb != ngẫu_nhiên_an_toàn(64) { rọi "hai lần gọi ra hai dãy khác nhau" }
+nếu dài(ngẫu_nhiên_an_toàn(0)) == 0 { rọi "n = 0 ⇒ danh sách rỗng" }
+# 4096 byte: đủ 256 giá trị không phải bằng chứng ngẫu nhiên — nhưng THIẾU giá trị là dấu hiệu lỗi rõ ràng
+đặt thấy = bản()
+lặp x trong ngẫu_nhiên_an_toàn(4096) { đặt_khoá(thấy, x, sáng) }
+rọi "4096 byte phủ " + dài(thấy) + "/256 giá trị"

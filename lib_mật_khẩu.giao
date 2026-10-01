@@ -251,11 +251,7 @@ hàm _b64_giải_không_đệm(s) {                  # chuỗi lạ ⇒ ẩn (kh
     lặp dư(4 - dư(dài(s), 4), 4) { đặt đệm = đệm + "=" }
     trả giải_b64(đệm)
 }
-hàm muối_a2_hệ() {                            # 16 byte từ nguồn ngẫu nhiên HĐH (ngẫu_hệ = random_get)
-    đặt m = []
-    lặp 16 { gom(m, ngẫu_hệ() // 8388608) }  # 2^31 / 256
-    trả m
-}
+hàm muối_a2_hệ() { trả ngẫu_nhiên_an_toàn(16) }  # 16 byte từ nguồn ngẫu nhiên HĐH (chuẩn.giao)
 hàm muối_a2_tất_định(hạt) {                   # CHỈ cho kiểm thử: 16 byte từ bit CAO của LCG
     đặt m = []  đặt v = hạt
     lặp 16 { đặt v = ngẫu(v)  gom(m, v * 256 // 2147483648) }

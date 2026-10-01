@@ -358,6 +358,10 @@ hàm tham_số(p) {
 
 hàm câu(p) {
     đặt t = ps_xem(p, 0)  đặt k = lấy_khoá(t, "k")  đặt v = lấy_khoá(t, "v")
+    nếu k == "ID" { nếu chứa(["lượng_tử", "luong_tu"], v) { nếu lấy_khoá(ps_xem(p, 1), "k") == "ID" {
+        đặt t2 = ps_xem(p, 2)
+        nếu lấy_khoá(t2, "k") == "OP" { nếu lấy_khoá(t2, "v") == "(" { trả _khối_lượng_tử(p) } }
+    } } }
     nếu k == "KW" {
         nếu v == "vật" { trả _khai(p, v) }
         nếu v == "tâm" { trả _khai(p, v) }
@@ -436,6 +440,32 @@ hàm câu(p) {
         }
     }
     trả nút2("ExprStmt", "expr", bt(p))
+}
+# khối `lượng_tử m (n) { … }` — từ khoá NGỮ CẢNH, hạ NGAY (bản chép 1-1 của giao.py)
+hàm _khối_lượng_tử(p) {
+    ps_tới(p)  đặt tên = lấy_khoá(ps_ăn(p, "ID", ẩn), "v")  ps_ăn(p, "OP", "(")  ps_bỏ_nl(p)
+    đặt nq = bt(p)  ps_bỏ_nl(p)  ps_ăn(p, "OP", ")")
+    đặt thân = khối(p)  _chèn_mạch(thân, tên)
+    đặt lam = nút3("Lam", "params", [tên], "body", ghép(thân, [nút2("Tra", "expr", nút2("VarRef", "name", tên))]))
+    trả nút3("Dat", "name", tên, "expr", nút3("Goi", "callee", lam, "args", [nút3("Goi", "callee", nút2("VarRef", "name", "mạch"), "args", [nq])]))
+}
+hàm _chèn_mạch(ds, tên) {
+    lặp s trong ds {
+        đặt t = lấy_khoá(s, "t")
+        nếu t == "ExprStmt" {
+            đặt e = lấy_khoá(s, "expr")
+            nếu lấy_khoá(e, "t") == "Goi" { nếu lấy_khoá(lấy_khoá(e, "callee"), "t") == "VarRef" {
+                đặt_khoá(e, "args", ghép([nút2("VarRef", "name", tên)], lấy_khoá(e, "args")))
+            } }
+        }
+        nếu chứa(["Lap", "LapTrong", "Mai", "KhiVienMan"], t) { _chèn_mạch(lấy_khoá(s, "body"), tên) }
+        nếu t == "Neu" {
+            _chèn_mạch(lấy_khoá(s, "then"), tên)
+            nếu loại(lấy_khoá(s, "ngo")) != "ẩn" { _chèn_mạch(lấy_khoá(s, "ngo"), tên) }
+            nếu loại(lấy_khoá(s, "khac")) != "ẩn" { _chèn_mạch(lấy_khoá(s, "khac"), tên) }
+        }
+        nếu t == "ThuBat" { _chèn_mạch(lấy_khoá(s, "thu"), tên)  _chèn_mạch(lấy_khoá(s, "bat"), tên) }
+    }
 }
 hàm _khai(p, trường) {
     ps_tới(p)  đặt tên = lấy_khoá(ps_ăn(p, "ID", ẩn), "v")  ps_ăn(p, "OP", "=")

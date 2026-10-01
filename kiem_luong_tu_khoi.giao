@@ -1,0 +1,58 @@
+# kiem_luong_tu_khoi.giao — khối `lượng_tử` + tác vụ lượng tử + chọn nơi chạy (lộ trình GĐ3)
+#   python giao.py kiem_luong_tu_khoi.giao       (GVM-64: kiem_gvm64.py — cùng đầu ra; hai trình biên dịch
+#   phải ra .g64 trùng từng byte: kiem_tu_bien_dich.py)
+nhập "lib_lượng_tử.giao"
+nhập "lib_chuoi.giao"
+
+rọi "── ① khối lượng_tử ≡ viết tay ──"
+lượng_tử bell (2) {
+    H(0)
+    CX(0, 1)
+    ĐO_HẾT()
+}
+đặt tay = mạch(2)
+H(tay, 0)  CX(tay, 0, 1)  ĐO_HẾT(tay)
+rọi "bell: " + bell["n"] + " qubit, " + dài(bell["lệnh"]) + " lệnh · trùng viết tay: " + (bell["lệnh"] == tay["lệnh"])
+rọi sang_qasm(bell) == sang_qasm(tay)
+
+rọi "── ② lặp / nếu lồng trong khối, biến ngoài đọc được, phạm vi riêng ──"
+đặt N = 5
+lượng_tử ghz (N) {
+    H(0)
+    lặp i trong dải(N - 1) { CX(i, i + 1) }
+    nếu N > 3 { X(N - 1)  X(N - 1) }
+    đặt chỉ_trong_khối = 1
+    ĐO_HẾT()
+}
+rọi "ghz: " + ghz["n"] + " qubit, " + dài(ghz["lệnh"]) + " lệnh"
+thử { rọi chỉ_trong_khối } bắt (e) { rọi "biến trong khối KHÔNG lọt ra ngoài (đọc ngoài khối ⇒ lỗi)" }
+
+rọi "── ③ tác vụ CỤC BỘ (≤ 26 qubit): chạy ngay, kết quả là tri có γ ──"
+lượng_tử nhỏ (8) {
+    H(0)
+    lặp i trong dải(7) { CX(i, i + 1) }
+    ĐO_HẾT()
+}
+đặt tv = tác_vụ_lượng_tử(nhỏ, 4000)
+rọi "nơi: " + tv["nơi"] + " · trước khi chạy: " + tv["trạng_thái"] + ", kết quả " + loại(tv["kết_quả"])
+chạy_tác_vụ(tv, 7)
+rọi "sau khi chạy: " + tv["trạng_thái"] + " · kết quả là " + loại(tv["kết_quả"])
+đặt khoá_đếm = khoá(tv["đếm"])
+rọi "chỉ hai chuỗi bit: " + khoá_đếm
+rọi "γ > 0.9: " + (γ_của(tv["kết_quả"]) > 0.9)
+
+rọi "── ④ tác vụ ĐÁM MÂY (> 26 qubit): HĐH chuẩn bị QASM, kết quả vẫn ẨN ──"
+lượng_tử lớn (30) {
+    H(0)
+    lặp i trong dải(29) { CX(i, i + 1) }
+    ĐO_HẾT()
+}
+đặt tl = tác_vụ_lượng_tử(lớn, 1000)
+chạy_tác_vụ(tl, 7)
+rọi "nơi: " + tl["nơi"] + " · trạng thái: " + tl["trạng_thái"] + " · kết quả " + loại(tl["kết_quả"])
+rọi "QASM có qreg q[30]: " + loại(vị_trí(tl["qasm"], "qreg q[30];"))
+đặt đếm_thật = bản()
+đặt đếm_thật["000000000000000000000000000000"] = 489
+đặt đếm_thật["111111111111111111111111111111"] = 511
+nhận_kết_quả(tl, đếm_thật)
+rọi "nhận từ môi giới: " + tl["trạng_thái"] + " · có đếm: " + dài(tl["đếm"]) + " chuỗi · độ tin vẫn " + loại(tl["kết_quả"]) + " (30 qubit: không mô phỏng nổi ψ lý tưởng)"
