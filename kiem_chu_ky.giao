@@ -3,7 +3,8 @@
 # tự băm lại mọi gói là qua tuốt. Chữ ký vá đúng chỗ ấy: chỉ người giữ KHOÁ RIÊNG mới ký nổi.
 nhập "lib_vỏ.giao"
 
-# Ba khoá + chữ ký dưới đây do `lam_khoa.py` sinh BÊN NGOÀI (khoá riêng không bao giờ vào máy).
+# Ba khoá + chữ ký dưới đây do `lam_khoa.py` sinh BÊN NGOÀI (khoá riêng không bao giờ vào máy). Công cụ RSA
+# bằng Python ấy đã bỏ ở v0.44 (kho giờ ký KÉP bằng goi.giao); đây là BỘ DỮ LIỆU CỐ ĐỊNH để kiểm định dạng RSA cũ.
 # Bài kiểm dùng chúng như dữ liệu chết, không tự sinh khoá — đúng vai: máy chỉ KIỂM.
 nhập "kiem_chu_ky_dulieu.giao"
 

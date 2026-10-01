@@ -101,10 +101,8 @@ try:
     kx = importlib.import_module("khach_xa")
 
     with open(os.path.join(P, "khoa_may_cong.txt"), encoding="utf-8") as f:
-        pk = f.read().strip().split("|")
-    e_, n_ = int(pk[1]), int(pk[2], 16)
-    k_ = (n_.bit_length() + 7) // 8
-    vân_thật = hashlib.sha256(f"{n_:x}".encode()).hexdigest()[:16]
+        dòng_công = f.read().strip()
+    vân_thật = kx.vân_tay_khoá_máy(dòng_công)
 
     P_ = int("".join("""
         ffffffffffffffffc90fdaa22168c234c4c6628b80dc1cd129024e088a67cc74020bbea63b139b22
@@ -120,21 +118,19 @@ try:
         s = socket.create_connection(("127.0.0.1", CỔNG), timeout=5)
         chào = kx._hút_dòng(s).strip().split()
         A_hex, ký_hex = chào[2], chào[3]
-        em = f"{pow(int(ký_hex, 16), e_, n_):0{k_ * 2}x}"
-        mong = ("0001" + "ff" * (k_ - 54) + "00" + "3031300d060960864801650304020105000420"
-                + hashlib.sha256(A_hex.encode()).hexdigest())
+        ký_ok = kx.kiểm_chữ_ký_máy(dòng_công, A_hex, ký_hex)
         b = int.from_bytes(secrets.token_bytes(32), "big") + 2
         s.sendall((f"{pow(2, b, P_):0512x}" + "\n").encode())
         gốc = pow(int(A_hex, 16), b, P_).to_bytes(256, "big")
         kp = b""; i = 1
         while len(kp) < 96:
             kp += hashlib.sha256(gốc + f"GIAO-kênh-{i}".encode()).digest(); i += 1
-        return s, chào, kx.Kênh(kp[:96]), (em == mong), A_hex
+        return s, chào, kx.Kênh(kp[:96]), ký_ok, A_hex
 
     s, chào, kênh, ký_ok, A1 = bắt_tay()
     ca("★★ máy chủ chào bằng VÂN TAY khoá máy (khách đối chiếu như known_hosts)",
        chào[0] == "GIAO-DH" and chào[1] == vân_thật, " ".join(chào)[:60])
-    ca("★★★ giá trị DH của máy có CHỮ KÝ hợp lệ bằng khoá máy — không có nó thì DH vô nghĩa "
+    ca("★★★ giá trị DH của máy có CHỮ KÝ KÉP (ML-DSA-65 + Ed25519) hợp lệ bằng khoá máy — không có nó thì DH vô nghĩa "
        "trước kẻ đứng giữa", ký_ok)
     _ = kênh.mở(kx._hút_dòng(s))                       # "Tên đăng nhập: "
     s.sendall((kênh.đóng("an") + "\n").encode()); kx._hút_dòng(s)
@@ -172,7 +168,7 @@ try:
     s2.close()
 
     o = phiên("gốc", "gốc", "xem /hệ/khoá_máy", "thoát")
-    ca("★ khoá RIÊNG của máy để 600 — nhưng gốc-quyền vẫn đọc được (đúng vai)", "rsa|" in o)
+    ca("★ khoá RIÊNG (KÉP) của máy để 600 — nhưng gốc-quyền vẫn đọc được (đúng vai)", "kép-riêng|" in o)
     o = phiên("an", "an", "xem /hệ/khoá_máy", "thoát")
     ca("★★ người thường KHÔNG đọc nổi khoá riêng của máy", "cấm đọc /hệ/khoá_máy" in o)
 

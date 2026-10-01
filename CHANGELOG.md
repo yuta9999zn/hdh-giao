@@ -5,6 +5,24 @@ Nền học thuyết: Nguyễn Trường An (DFCT / NNL-NTHT / CDFL).
 
 ---
 
+## v0.44.0 — Bỏ công cụ ký khoá bằng Python: kho nền, kho xa, khoá máy đều do goi.giao làm, ký kép (2026-10-01)
+
+- `lam_kho.py`, `lam_khoa.py`, `lam_dulieu_chu_ky.py` **đã xoá**. Thay bằng lệnh mới của `goi.giao` (GIAO trên
+  GVM-64): `nen` (sinh `kho_nen.giao` — kho gói nhúng sẵn của `hdh_nền.giao`, 25 gói từ `goi/`, ký kép) ·
+  `nen_kiem` (tệp đã commit khớp `goi/` + đúng chữ ký; chỉ cần khoá công nên clone nào cũng kiểm được — thay
+  mục CI `lam_kho --kiểm`) · `khoa_may` (khoá máy kép cho đăng nhập từ xa) · biến `GOI_KHOA` (thư mục khoá).
+- **Kho nền**: trước là 6 gói mẫu ký RSA tự viết; nay là hệ sinh thái `goi/` ký ML-DSA-65 + Ed25519.
+- **Kho xa**: gói nguồn ở `goi_xa/` (nhóm mới `mạng`), dựng bằng `goi.sh dung` với khoá RIÊNG `.khoa/kho_xa`;
+  `chay_kho_xa.py` chỉ còn phục vụ tệp. `kiem_kho_xa.py` 14/14 (5 gói kể cả siêu-gói).
+- **Đăng nhập từ xa**: khoá máy chuyển sang KÉP. HĐH ký giá trị DH bằng `ký_kép` (ngữ cảnh `giao-may-v1`);
+  khách (`khach_xa.py`) kiểm qua `wasm/ky_lenh.wasm` có ghim — neo khoá kép thì không nhận chữ ký RSA. Khoá
+  RSA cũ vẫn đọc/kiểm được. `kiem_tu_xa.py` 37/37.
+- `kiem_goi.sh` 17/17 (thêm kho xa + kho nền). `kiem_toan_bo` 92/92.
+- Còn lại trong nhóm "công cụ dựng" chưa chuyển: `ky_kep.py`, `niem_phong.py` (bước tiếp). `ghi_cong.py`,
+  `vong_tu_sua.py` điều khiển git/tiến trình/LLM — thuộc nhóm cầu nối với máy chủ.
+
+---
+
 ## v0.43.0 — Hệ sinh thái Mốc 1: bộ công cụ làm gói VIẾT BẰNG GIAO + 18 gói đầu tiên (2026-10-01)
 
 ### `goi.giao` — dh_make + lintian + autopkgtest + reprepro, bằng GIAO trên GVM-64

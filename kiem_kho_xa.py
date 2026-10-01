@@ -66,10 +66,12 @@ gọi(M, K, GH_TẠO, ["/hệ/kho/nguồn_xa", 644, "kho-xa|127.0.0.1|{CỔNG}"]
 print("=" * 68); print("NGHIỆM THU KHO PHẦN MỀM QUA MẠNG (I2)"); print("=" * 68)
 
 subprocess.run([PY, "chay_kho_xa.py", "--dựng"], env=ENV, cwd=P, capture_output=True, timeout=300)   # ký KÉP trước khi đọc khoá
-with open(os.path.join(KHO, "khoa_cong.txt"), encoding="utf-8") as f:
+with open(os.path.join(KHO, "khoá_công"), encoding="utf-8") as f:
     khoá_thật = f.read().strip()
-import lam_khoa
-vân_thật = lam_khoa.vân_tay_kép(khoá_thật)
+_p = khoá_thật.split("|")
+vân_thật = "kép:" + hashlib.sha256((_p[1] + _p[2]).encode()).hexdigest()[:16]
+import shutil as _sh
+_SH = _sh.which("sh") or r"C:\Program Files\Git\usr\bin\sh.exe"
 
 mc = subprocess.Popen([PY, "-u", "chay_kho_xa.py", "--cổng", str(CỔNG), "--im"],
                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -104,7 +106,7 @@ rọi kho_cài(M, V, "dao_xa", tối)[1]
 ''', "--cho-mạng", str(CỔNG))
     ca("★★ người thường không tự đổi mục lục CHUNG — nói rõ phải dùng gốc-quyền",
        "cập nhật mục lục chung cần gốc-quyền" in o, o[:400])
-    ca("★★ tải mục lục về và KIỂM CHỮ KÝ xong", "đã tải và KIỂM CHỮ KÝ xong: 3 gói" in o, o[-200:])
+    ca("★★ tải mục lục về và KIỂM CHỮ KÝ xong", "đã tải và KIỂM CHỮ KÝ xong: 5 gói" in o, o[-200:])
     ca("★ vân tay khoá đúng khoá đã neo", vân_thật in o, o[-200:])
     ca("★★★ cài được gói TẢI TỪ MẠNG: phụ thuộc kéo theo, thân gói tải + kiểm băm rồi mới ghi",
        "✓ chào_xa 1.0 (cần vì 'soi_mạng' cần chào_xa)" in o and "✓ soi_mạng 1.1" in o, o[-300:])
@@ -129,7 +131,10 @@ rọi "mục lục ghi xuống máy chưa? " + loại(gọi(M, V, GH_ĐỌC, ["/
     with open(ml, "w", encoding="utf-8") as f: f.write(gốc)
 
     # ② kho GIẢ MẠO: mục lục hợp lệ, băm đúng, nhưng máy neo khoá KHÁC
-    with open(os.path.join(P, "khoa_cong.txt"), encoding="utf-8") as f:
+    # khoá KHÁC: khoá của KHO GÓI (goi.giao) — hợp lệ, nhưng không phải khoá của kho xa
+    if not os.path.exists(os.path.join(P, ".khoa", "kho_goi", "cong.txt")):
+        subprocess.run([_SH, "goi.sh", "khoa"], cwd=P, env=ENV, capture_output=True)
+    with open(os.path.join(P, ".khoa", "kho_goi", "cong.txt"), encoding="utf-8") as f:
         khoá_khác = f.read().strip()
     o = chạy_giao(_nền(khoá_khác) + '''
 đặt r = kho_tải_mục_lục(M, V)
@@ -142,8 +147,9 @@ rọi "mục lục ghi xuống máy chưa? " + loại(gọi(M, V, GH_ĐỌC, ["/
 
     # ②b neo một KHOÁ KÉP KHÁC (cặp hợp lệ, không phải của kho) → từ chối
     import tempfile as _tf
-    _d = _tf.mkdtemp(); lam_khoa.sinh_kép(os.path.join(_d, "r.json"), os.path.join(_d, "c.txt"))
-    khoá_kép_khác = open(os.path.join(_d, "c.txt"), encoding="utf-8").read().strip()
+    _d = _tf.mkdtemp()
+    subprocess.run([_SH, "goi.sh", "khoa"], cwd=P, env=dict(ENV, GOI_KHOA=_d), capture_output=True)
+    khoá_kép_khác = open(os.path.join(_d, "cong.txt"), encoding="utf-8").read().strip()
     o = chạy_giao(_nền(khoá_kép_khác) + '''
 đặt r = kho_tải_mục_lục(M, V)
 rọi r[0]
@@ -155,7 +161,7 @@ rọi r[1]
     ck = os.path.join(KHO, "chữ_ký")
     with open(ck, encoding="utf-8") as f: ký_gốc = f.read()
     with open(os.path.join(KHO, "mục_lục"), encoding="utf-8") as f: ml_gốc = f.read()
-    with open(ck, "w", encoding="utf-8") as f: f.write(lam_khoa.ký(ml_gốc))
+    with open(ck, "w", encoding="utf-8") as f: f.write("ab" * 256)    # "chữ ký RSA" (dạng hex) — neo KÉP phải từ chối
     try:
         o = chạy_giao(_nền(khoá_thật) + '''
 đặt r = kho_tải_mục_lục(M, V)

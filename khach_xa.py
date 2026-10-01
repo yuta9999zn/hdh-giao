@@ -20,6 +20,41 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 # ---------------- ChaCha20 (RFC 8439) ----------------
+
+# ---------------- khoá máy: KÉP (v0.44) hoặc RSA cũ ----------------
+# Chữ ký kép kiểm bằng wasm/ky_lenh.wasm (mldsa-native + Monocypher — cùng mã HĐH dùng), ghim SHA-256 ở
+# wasm/ky.sha256; khách không tự viết mật mã.
+NGỮ_CẢNH_MÁY = b"giao-may-v1"
+
+def vân_tay_khoá_máy(dòng):
+    p = dòng.strip().split("|")
+    if p[0] == "kép": return "kép:" + hashlib.sha256((p[1] + p[2]).encode()).hexdigest()[:16]
+    return hashlib.sha256(f"{int(p[2], 16):x}".encode()).hexdigest()[:16]
+
+def kiểm_chữ_ký_máy(dòng, A_hex, ký):
+    "→ True nếu chữ ký trên A_hex ĐÚNG khoá máy đã biết. Khoá kép thì CHỈ nhận chữ ký kép (không hạ cấp)."
+    p = dòng.strip().split("|")
+    if p[0] == "kép":
+        q = ký.split("|")
+        if len(q) != 3 or q[0] != "kép": return False
+        import struct, subprocess, shutil
+        mod = os.path.join(HERE, "wasm", "ky_lenh.wasm")
+        kỳ = next((d.split()[0] for d in open(os.path.join(HERE, "wasm", "ky.sha256"), encoding="utf-8")
+                   if d.strip().endswith("ky_lenh.wasm")), None)
+        if kỳ != hashlib.sha256(open(mod, "rb").read()).hexdigest(): raise SystemExit("ky_lenh.wasm KHÁC ghim — dừng")
+        wt = os.environ.get("GIAO_WASMTIME") or shutil.which("wasmtime") or r"D:\wasmtime\wasmtime.exe"
+        try: ts = [bytes.fromhex(p[1]), bytes.fromhex(p[2]), A_hex.encode(), NGỮ_CẢNH_MÁY, bytes.fromhex(q[1]), bytes.fromhex(q[2])]
+        except ValueError: return False
+        r = subprocess.run([wt, "run", mod], input=bytes([7]) + b"".join(struct.pack("<I", len(t)) + t for t in ts),
+                           capture_output=True, timeout=60)
+        return r.stdout.decode().strip() == "11"
+    e, n = int(p[1]), int(p[2], 16)
+    k_ = (n.bit_length() + 7) // 8
+    try: em = f"{pow(int(ký, 16), e, n):0{k_ * 2}x}"
+    except ValueError: return False
+    return em == ("0001" + "ff" * (k_ - 54) + "00" + "3031300d060960864801650304020105000420"
+                  + hashlib.sha256(A_hex.encode()).hexdigest())
+
 def _qr(s, a, b, c, d):
     M = 0xffffffff
     s[a] = (s[a] + s[b]) & M; s[d] ^= s[a]; s[d] = ((s[d] << 16) | (s[d] >> 16)) & M
@@ -173,20 +208,15 @@ def main():
     if not os.path.exists(tệp_công):
         print(f"[không có {tệp_công}] — chưa biết máy này, không dám nối."); s.close(); sys.exit(1)
     with open(tệp_công, encoding="utf-8") as f:
-        p = f.read().strip().split("|")
-    e, n = int(p[1]), int(p[2], 16)
-    vân_tay_thật = hashlib.sha256(f"{n:x}".encode()).hexdigest()[:16]
+        dòng_công = f.read().strip()
+    vân_tay_thật = vân_tay_khoá_máy(dòng_công)
     if vân_tay_nhận != vân_tay_thật:
         print(f"⚠ VÂN TAY KHÔNG KHỚP! máy chủ nói {vân_tay_nhận}, khoá ta có là {vân_tay_thật}")
         print("  → có thể có kẻ đứng giữa. DỪNG.")
         s.close(); sys.exit(1)
 
     # ② KIỂM CHỮ KÝ trên giá trị DH của máy — không có bước này thì DH vô nghĩa trước kẻ đứng giữa
-    k_ = (n.bit_length() + 7) // 8
-    em = f"{pow(int(ký_hex, 16), e, n):0{k_ * 2}x}"
-    mong = ("0001" + "ff" * (k_ - 54) + "00"
-            + "3031300d060960864801650304020105000420" + hashlib.sha256(A_hex.encode()).hexdigest())
-    if em != mong:
+    if not kiểm_chữ_ký_máy(dòng_công, A_hex, ký_hex):
         print("⚠ CHỮ KÝ TRÊN GIÁ TRỊ DH SAI — kẻ đứng giữa? DỪNG."); s.close(); sys.exit(1)
 
     # ③ Diffie-Hellman: sinh khoá TẠM, gửi B, cùng tính bí mật chung rồi VỨT khoá tạm

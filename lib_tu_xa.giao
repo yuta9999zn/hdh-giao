@@ -67,12 +67,17 @@ hàm _tx_gửi_kín(máy, tid_gốc, phiên, mã, chữ) {
     trả _tx_gửi(máy, tid_gốc, mã, đóng_khung(kn_khoá_xuống(kp), kn_khoá_mac(kp), đếm, chữ) + "\n")
 }
 
+hàm _tx_hex(ds) {
+    đặt H = "0123456789abcdef"  đặt s = []
+    lặp x trong ds { gom(s, H[x // 16])  gom(s, H[x - x // 16 * 16]) }
+    trả nối(s, "")
+}
 hàm vân_tay_máy(máy, tid_gốc) {
     "Vân tay khoá CÔNG của máy — khách xem cái này để biết mình đang nói với ai (TOFU)."
     đặt kc = gọi(máy, tid_gốc, GH_ĐỌC, [TX_KHOÁ_CÔNG])
-    đặt k = đọc_khoá_công(kc)
-    nếu loại(k) == "ẩn" { trả "chưa-có-khoá-máy" }
-    trả vân_tay_khoá(k[1])
+    đặt vt = vân_tay_của(kc)                        # khoá KÉP (v0.44) hoặc RSA cũ
+    nếu loại(vt) == "ẩn" { trả "chưa-có-khoá-máy" }
+    trả vt
 }
 
 hàm phục_vụ_xa(máy, tid_gốc, cổng, phiên, hạt) {
@@ -94,7 +99,14 @@ hàm phục_vụ_xa(máy, tid_gốc, cổng, phiên, hạt) {
             trả tối
         }
         đặt A_hex = số_sang_hex(dh_công(a), 512)
-        đặt ký = ký_chữ_ký(A_hex, km[0], km[1])
+        # v0.44: khoá máy KÉP ⇒ ký kép ML-DSA-65 + Ed25519 (ngữ cảnh "giao-may-v1", rnd từ random_get);
+        # khoá RSA cũ vẫn chạy được. Dòng chào: "GIAO-DH <vân tay> <A> kép|<ký_ed>|<ký_ml>".
+        đặt ký = ẩn
+        nếu km[0] == "kép" {
+            đặt s = ký_kép(km[1], km[2], A_hex, "giao-may-v1", _tx_hex(ngẫu_nhiên_an_toàn(32)))
+            nếu loại(s) == "ẩn" { _tx_gửi(máy, tid_gốc, g[1], "khoá máy kép hỏng — không ký được\n")  trả tối }
+            đặt ký = "kép|" + s[0] + "|" + s[1]
+        } khác { đặt ký = ký_chữ_ký(A_hex, km[0], km[1]) }
         đặt_khoá(phiên, g[1], ["dh", "", 0, a, 0, 0])
         _tx_gửi(máy, tid_gốc, g[1], "GIAO-DH " + vân_tay_máy(máy, tid_gốc) + " " + A_hex + " " + ký + "\n")
         trả sáng

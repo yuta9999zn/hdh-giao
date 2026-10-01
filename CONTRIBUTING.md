@@ -63,11 +63,11 @@ G1/G4 (biểu tượng nền · nhiều bàn ảo · nhiều phiên đồ hoạ)
 
 ## 5. Khoá mật mã trong repo là KHOÁ DEMO
 
-Các tệp khoá riêng (`khoa_rieng.txt`, `khoa_may.txt`, `kho_xa/khoa_rieng.txt`) **không được
-commit** — chúng nằm trong `.gitignore` và được **sinh tự động** khi chạy lần đầu
-(`python chay_kho_xa.py --dựng`, hoặc `bat_xa.bat` sinh khoá máy). Bản sinh ra là **khoá đồ chơi
-để dạy/chạy dự án**, KHÔNG dùng cho bí mật thật (xem chú thích trong `lam_khoa.py`). Đừng đưa
-khoá riêng thật vào repo.
+Các tệp khoá riêng (`khoa_may.txt`, thư mục `.khoa/` — gồm khoá kho gói `.khoa/kho_goi/`, khoá kho
+xa `.khoa/kho_xa/`, khoá sổ niêm phong `.khoa/niem_phong/`) **không được commit** — chúng nằm trong
+`.gitignore` và được **sinh tự động** bằng bộ công cụ GIAO (`sh goi.sh khoa`, `sh goi.sh khoa_may`,
+`python chay_kho_xa.py --dựng`). Từ v0.44 mọi khoá là **khoá KÉP ML-DSA-65 + Ed25519** (mldsa-native +
+Monocypher, hạt từ random_get). Đừng đưa khoá riêng thật vào repo.
 
 ## 6. Gửi đóng góp
 

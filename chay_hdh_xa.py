@@ -49,15 +49,13 @@ def main():
     # ---- KHOÁ MÁY: sinh MỘT LẦN trên đĩa host, rồi nạp vào hệ-tệp GIAO ----
     # Khoá riêng vào /hệ/khoá_máy (600, chỉ gốc-quyền đọc) — máy chủ PHẢI giữ khoá riêng của
     # chính nó, khác với kho phần mềm (khoá riêng của kho không bao giờ vào máy).
-    import lam_khoa
+    # v0.44: khoá máy KÉP (ML-DSA-65 + Ed25519) sinh bằng goi.giao trên GVM-64 — hết RSA tự viết (lam_khoa.py).
     tệp_riêng = os.path.join(HERE, "khoa_may.txt")
-    if not os.path.exists(tệp_riêng):
-        print("  [khoá máy] chưa có — đang sinh RSA-2048 (một lần)…", flush=True)
-        cũ_r, cũ_c = lam_khoa.TỆP_RIÊNG, lam_khoa.TỆP_CÔNG
-        lam_khoa.TỆP_RIÊNG = tệp_riêng
-        lam_khoa.TỆP_CÔNG = os.path.join(HERE, "khoa_may_cong.txt")
-        lam_khoa.sinh()
-        lam_khoa.TỆP_RIÊNG, lam_khoa.TỆP_CÔNG = cũ_r, cũ_c
+    if not os.path.exists(tệp_riêng) or not open(tệp_riêng, encoding="utf-8").read().startswith("kép-riêng|"):
+        import shutil, subprocess
+        print("  [khoá máy] chưa có khoá KÉP — đang sinh (một lần, bằng goi.giao)…", flush=True)
+        sh = shutil.which("sh") or r"C:\Program Files\Git\usr\bin\sh.exe"
+        subprocess.run([sh, os.path.join(HERE, "goi.sh"), "khoa_may"], cwd=HERE, check=True, stdout=subprocess.DEVNULL)
     with open(tệp_riêng, encoding="utf-8") as f: kr = f.read().strip()
     with open(os.path.join(HERE, "khoa_may_cong.txt"), encoding="utf-8") as f: kc = f.read().strip()
     rt.glob["__kr"] = kr; rt.glob["__kc"] = kc

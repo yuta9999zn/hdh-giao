@@ -653,9 +653,9 @@ ca("★★★ nâng cấp rồi LÙI được: thân lệnh về bản cũ, phi�
 mã, o = _phiên(["an", "an", "gói kho", "gói cài bộ_hệ_thống", "gói", "bộ_hệ_thống", "tắt"])
 ca("chạy sạch (phiên kho tương tác)", mã == 0, o[-300:])
 ca("★ `gói kho` liệt kê mục lục kèm NHÓM và NĂNG LỰC",
-   "SIÊU-GÓI: gom bộ công cụ soi hệ thống" in o and "dọn_nhà" in o)
-ca("★★ SIÊU-GÓI kéo đủ bộ (học kali-linux-headless) rồi CHẠY được thật",
-   "✓ bộ_hệ_thống 1.0" in o and "── người ──" in o and "── nhóm ──" in o)
+   "SIÊU-GÓI: tiện ích hệ thống" in o and "dọn_nhà" in o and "xoá" in o)
+ca("★★ SIÊU-GÓI kéo đủ bộ (học kali-tools-*, sinh từ nhóm bởi goi.giao) rồi CHẠY được thật",
+   "✓ bộ_hệ_thống 1.0" in o and "━━ thông_tin_hệ ━━" in o and "── thông tin hệ ──" in o and "── đếm tệp ──" in o)
 
 print("\n[32] ★★★★ CHỮ KÝ KHOÁ-CÔNG-KHAI cho kho (I1) — RSA-2048 kiểm THUẦN GIAO")
 mã, o = chạy(["giao.py", "kiem_chu_ky.giao", "--bước", "500000000"])

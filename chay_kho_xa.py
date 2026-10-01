@@ -21,46 +21,31 @@ import os, sys, socket, hashlib, threading
 HERE = os.path.dirname(os.path.abspath(__file__))
 KHO = os.path.join(HERE, "kho_xa")
 sys.path.insert(0, HERE)
-import lam_khoa
+import shutil, subprocess
 
-# tên | phiên | nhóm | phụ thuộc | năng lực | mô tả | THÂN
-GÓI_XA = [
-    ("chào_xa", "1.0", "Mạng", "", "",
-     "gói tải VỀ TỪ MẠNG — chào một tiếng",
-     '# chào_xa — gói này tải về từ kho ở ngoài\nnói "chào từ kho xa!"\ntôi'),
-    ("soi_mạng", "1.1", "Mạng", "chào_xa", "",
-     "soi thiết bị mạng (cần chào_xa)",
-     '# soi_mạng\nchào_xa\nnói "── mạng ──"\nxem /tb/mạng'),
-    ("dao_xa", "1.0", "Tệp", "", "xoá",
-     "gói xa ĐÒI năng lực xoá — phải đồng ý mới cài",
-     '# dao_xa\nnói "(bản demo, không xoá gì)"'),
-]
+# v0.44: kho xa KHÔNG còn dựng/ký bằng Python (lam_khoa.py đã bỏ). Gói nguồn ở goi_xa/, dựng + ký kép bằng
+# BỘ CÔNG CỤ GIAO (goi.giao trên GVM-64) với khoá RIÊNG của kho xa (.khoa/kho_xa — khác khoá kho gói).
+NGUỒN_XA = os.path.join(HERE, "goi_xa")
+KHOÁ_XA = os.path.join(HERE, ".khoa", "kho_xa")
 
 
 def dựng():
-    os.makedirs(os.path.join(KHO, "gói"), exist_ok=True)
-    # khoá RIÊNG của kho xa — khác hẳn khoá của kho cục bộ, để chứng minh neo tin cậy có tác dụng
-    # v0.42: kho xa ký KÉP (ML-DSA-65 + Ed25519). Khoá riêng kép: kho_xa/khoa_kep_rieng.json (không commit).
-    riêng, công = os.path.join(KHO, "khoa_kep_rieng.json"), os.path.join(KHO, "khoa_cong.txt")
-    if not os.path.exists(riêng) or not open(công, encoding="utf-8").read().startswith("kép|"):
-        print("  [kho xa] sinh khoá KÉP của KHO (một lần)…"); lam_khoa.sinh_kép(riêng, công)
-    dòng = []
-    for tên, phiên, nhóm, pt, nl, mô, thân in GÓI_XA:
-        with open(os.path.join(KHO, "gói", tên), "w", encoding="utf-8") as f: f.write(thân)
-        băm = hashlib.sha256(thân.encode("utf-8")).hexdigest()
-        dòng.append(f"{tên}|{phiên}|{nhóm}|{pt}|{nl}|{băm}|{mô}")
-    mục = "\n".join(dòng)
-    with open(os.path.join(KHO, "mục_lục"), "w", encoding="utf-8") as f: f.write(mục)
-    with open(os.path.join(KHO, "chữ_ký"), "w", encoding="utf-8") as f: f.write(lam_khoa.ký_kép(mục, riêng))
-    print(f"  ✓ kho xa dựng ở {KHO} · {len(GÓI_XA)} gói · ký kép ML-DSA-65 + Ed25519")
-    print(f"  vân tay khoá KHO XA: {lam_khoa.vân_tay_kép(open(công, encoding='utf-8').read())}")
+    sh = shutil.which("sh") or r"C:\Program Files\Git\usr\bin\sh.exe"
+    env = dict(os.environ, GOI_NGUON=NGUỒN_XA, GOI_RA=KHO, GOI_KHOA=KHOÁ_XA)
+    if not os.path.exists(os.path.join(KHOÁ_XA, "rieng.txt")):
+        print("  [kho xa] sinh khoá KÉP của KHO XA (một lần, bằng goi.giao)…", flush=True)
+        subprocess.run([sh, os.path.join(HERE, "goi.sh"), "khoa"], env=env, cwd=HERE, check=True,
+                       stdout=subprocess.DEVNULL)
+    r = subprocess.run([sh, os.path.join(HERE, "goi.sh"), "dung"], env=env, cwd=HERE,
+                       capture_output=True, text=True, encoding="utf-8")
+    if r.returncode != 0: raise SystemExit("[kho xa] dựng hỏng:\n" + r.stdout[-800:] + r.stderr[-800:])
+    print("  " + r.stdout.strip().splitlines()[-1])
 
 
 def _đọc_thứ(thứ):
     thứ = thứ.strip()
     if thứ in ("mục_lục", "chữ_ký", "khoá_công"):
-        tệp = {"khoá_công": "khoa_cong.txt"}.get(thứ, thứ)
-        đường = os.path.join(KHO, tệp)
+        đường = os.path.join(KHO, thứ)
     elif thứ.startswith("gói/") and "/" not in thứ[4:] and ".." not in thứ:
         đường = os.path.join(KHO, "gói", thứ[4:])
     else:
@@ -99,8 +84,8 @@ def main():
         if a in ("--cổng", "--cong") and i + 1 < len(sys.argv):
             try: cổng = int(sys.argv[i + 1])
             except ValueError: pass
-    if not os.path.exists(os.path.join(KHO, "mục_lục")) or not os.path.exists(os.path.join(KHO, "khoa_kep_rieng.json")):
-        print("  [kho xa] chưa dựng (hoặc còn khoá RSA cũ) — đang dựng…"); dựng()
+    if not os.path.exists(os.path.join(KHO, "khoá_công")):
+        print("  [kho xa] chưa dựng — đang dựng…"); dựng()
     kể = "--im" not in sys.argv
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):                # Windows: KHÔNG cho tiến-trình khác chiếm chung cổng

@@ -113,8 +113,9 @@ kỳ = ["10f1e7e4d13b5915500fdd1fa32071c4",          # RFC 8439 §2.3.2 khối
       'nói "sen vàng nở sớm"']
 mục("ChaCha20 + HMAC-SHA256 THUẦN GIAO (khớp VECTOR RFC 8439 · khung kín mở lại nguyên văn)",
     ok and all(k in o for k in kỳ), "thiếu: "+", ".join(k for k in kỳ if k not in o))
-ok,o = chạy("khoá_kho", ["lam_kho.py","--kiểm"])
-mục("mục lục kho khớp thân gói VÀ đúng chữ ký (băm + RSA — chạy `python lam_kho.py` nếu lệch)",
+import shutil as _shx
+ok,o = chạy("khoá_kho", [_shx.which("sh") or r"C:\Program Files\Git\usr\bin\sh.exe", "goi.sh", "nen_kiem"], "✓ kho_nen.giao khớp")
+mục("kho nhúng sẵn (kho_nen.giao) khớp goi/ VÀ đúng chữ ký KÉP — kiểm bằng goi.giao (lệch: `sh goi.sh nen`)",
     ok and "✓" in o, o.strip()[-120:])
 ok,o = chạy("lib_sha256", ["giao.py","kiem_lib_sha256.giao"])
 kỳ = ["e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",

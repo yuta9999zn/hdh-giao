@@ -1,3 +1,5 @@
-chào_xa|1.0|Mạng|||746efa4615eb6377614aec2cc960b1a399ef1b9c177d2bf7fbe2565fd77ab605|gói tải VỀ TỪ MẠNG — chào một tiếng
-soi_mạng|1.1|Mạng|chào_xa||9b9ac72ce006cdc641a11cb94d3666456171199b1d16ff63dfb0db02b499c087|soi thiết bị mạng (cần chào_xa)
-dao_xa|1.0|Tệp||xoá|bacfb888bd5379afe65ba304067da154d983df8f9662201abe7ba9868748872b|gói xa ĐÒI năng lực xoá — phải đồng ý mới cài
+bộ_mạng|1.0|siêu-gói|chào_xa,soi_mạng||6a5e41846fb36631fbdbb8e057cac24435b0b953942e7f91d0b8cfaf3f104bd3|SIÊU-GÓI: tiện ích mạng: soi thiết bị, kết nối
+bộ_tệp|1.0|siêu-gói|dao_xa||591de4cd675083b7d27e097cfd9d43106360fc67ef3056f67560ba235f1ec484|SIÊU-GÓI: tiện ích tệp và thư mục
+chào_xa|1.0|mạng|||d7935f7b6726b9dfa1a413d8f48781eaea3f6cfd988d30c983fecab564d543c8|gói tải VỀ TỪ MẠNG — chào một tiếng
+dao_xa|1.0|tệp||xoá|ca09c78df8163328332c6d6d0a7eecc7f23a3f39f290dafee11e87ad56c7209a|gói xa ĐÒI năng lực xoá — phải đồng ý mới cài
+soi_mạng|1.1|mạng|chào_xa||28bdc6ed33b22aee7e345eecc0a932133bc7a396d7e4ce2768fb2dba1baecd9c|soi thiết bị mạng (cần chào_xa)

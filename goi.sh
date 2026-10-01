@@ -1,6 +1,6 @@
 #!/bin/sh
 # goi.sh — chạy BỘ CÔNG CỤ LÀM GÓI viết bằng GIAO (goi.giao) trên GVM-64. KHÔNG Python.
-#   sh goi.sh liet | kiem [tên…] | thu [tên…] | khoa | dung | moi <tên> <nhóm> <mô tả…>
+#   sh goi.sh liet | kiem [tên…] | thu [tên…] | khoa | dung | moi <tên> <nhóm> <mô tả…> | khoa_may | nen | nen_kiem
 # Việc của script này CHỈ là vào/ra tệp (máy không thấy thư mục nào):
 #   ① dịch goi.giao bằng trình biên dịch tự thân (tu_bien_dich.sh) — đệm ở __pycache__/goi.g64;
 #   ② gói goi/*/{GOI,than,kiem} (+ khoá riêng của kho khi `dung`) + "@lệnh" vào stdin
@@ -37,7 +37,10 @@ RA="$DEM/goi.ra.$$"
     t="$(basename "$d")"
     for f in GOI than kiem; do [ -f "$d$f" ] && muc "$d$f" "goi/$t/$f"; done
   done
-  case "$LENH" in dung*) [ -f .khoa/kho_goi/rieng.txt ] && muc .khoa/kho_goi/rieng.txt "@khoá_riêng" ;; esac
+  # GOI_KHOA: thư mục khoá của kho (mặc định .khoa/kho_goi) — kho xa dùng khoá RIÊNG của nó
+  KD="${GOI_KHOA:-.khoa/kho_goi}"
+  case "$LENH" in dung*|nen) [ -f "$KD/rieng.txt" ] && muc "$KD/rieng.txt" "@khoá_riêng" ;; esac
+  case "$LENH" in nen_kiem*) [ -f kho_nen.giao ] && muc kho_nen.giao "@kho_nen" ;; esac
 } | "$WT" run --preload "argon2=$A2" --preload "ky=$KM" "$GIAO/wasm/gvm64.wasm" -- \
       --bước 40000000000 --trần-ds 200000000 > "$RA" || MA=$?
 TAB="$(printf '\t')"
@@ -46,12 +49,13 @@ while IFS= read -r dong || [ -n "$dong" ]; do
     "@@TỆP$TAB"*)
       rest="${dong#@@TỆP$TAB}"; duong="${rest%%$TAB*}"; b64="${rest#*$TAB}"
       case "$duong" in *..*|/*) echo "[goi] từ chối ghi đường lạ: $duong" >&2; continue ;; esac
-      case "$duong" in goi/*|kho_dung/*|.khoa/kho_goi/*) ;; *) echo "[goi] từ chối ghi ngoài vùng cho phép: $duong" >&2; continue ;; esac
-      # GOI_NGUON / GOI_RA (kiểm thử): ánh xạ goi/… và kho_dung/… sang thư mục khác
-      case "$duong" in goi/*) duong="${GOI_NGUON:-goi}/${duong#goi/}" ;; kho_dung/*) duong="${GOI_RA:-kho_dung}/${duong#kho_dung/}" ;; esac
+      case "$duong" in goi/*|kho_dung/*|.khoa/kho_goi/*|khoa_may.txt|khoa_may_cong.txt|kho_nen.giao) ;; *) echo "[goi] từ chối ghi ngoài vùng cho phép: $duong" >&2; continue ;; esac
+      # GOI_NGUON / GOI_RA / GOI_KHOA: ánh xạ goi/…, kho_dung/…, .khoa/kho_goi/… sang thư mục khác
+      case "$duong" in goi/*) duong="${GOI_NGUON:-goi}/${duong#goi/}" ;; kho_dung/*) duong="${GOI_RA:-kho_dung}/${duong#kho_dung/}" ;;
+                       .khoa/kho_goi/*) duong="${GOI_KHOA:-.khoa/kho_goi}/${duong#.khoa/kho_goi/}" ;; esac
       mkdir -p "$(dirname "$duong")"
       printf '%s' "$b64" | base64 -d > "$duong"
-      case "$duong" in .khoa/*rieng*) chmod 600 "$duong" 2>/dev/null || true ;; esac
+      case "$duong" in *rieng*|khoa_may.txt) chmod 600 "$duong" 2>/dev/null || true ;; esac
       echo "  → $duong" ;;
     *) printf '%s\n' "$dong" ;;
   esac

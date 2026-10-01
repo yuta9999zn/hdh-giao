@@ -1,0 +1,8 @@
+tên: dao_xa
+phiên: 1.0
+nhóm: tệp
+mô_tả: gói xa ĐÒI năng lực xoá — phải đồng ý mới cài
+giấy_phép: Apache-2.0
+phụ_thuộc: 
+năng_lực: xoá
+duy_trì: HĐH-GIAO

@@ -21,6 +21,11 @@ O="$(GOI_RA="$TM/kho" sh goi.sh dung 2>&1)"
 ca "$( [ -f "$TM/kho/mục_lục" ] && [ -f "$TM/kho/chữ_ký" ] && grep -q '^kép|' "$TM/kho/chữ_ký" && co "$O" "ký kép" || echo 1)" \
    "dựng kho: $(printf '%s' "$O" | tail -1)" "$O"
 
+O="$(GOI_NGUON=goi_xa sh goi.sh thu 2>&1)"; M=$?
+ca "$( [ $M = 0 ] && co "$O" "THỬ GÓI: 5/5" || echo 1)" "kho xa goi_xa/: $(printf '%s' "$O" | grep 'THỬ GÓI')" "$O"
+O="$(sh goi.sh nen_kiem 2>&1)"
+ca "$(co "$O" "✓ kho_nen.giao khớp goi/")" "kho nhúng sẵn kho_nen.giao khớp goi/ + đúng chữ ký kép" "$O"
+
 echo "[② gói XẤU — lint phải bắt]"
 X="$TM/xau"; mkdir -p "$X"
 g() { mkdir -p "$X/$1"; printf 'tên: %s\nphiên: %s\nnhóm: %s\nmô_tả: thử\ngiấy_phép: %s\nphụ_thuộc: %s\nnăng_lực: %s\n' "$1" "$2" "$3" "$4" "$5" "$6" > "$X/$1/GOI"

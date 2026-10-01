@@ -27,6 +27,7 @@ nhập "lib_base64.giao"
                ["an-ninh/điều-tra", "bộ_điều_tra", "điều tra sự cố: nhật ký, dấu vết, chụp trạng thái"],
                ["hệ-thống", "bộ_hệ_thống", "tiện ích hệ thống"],
                ["tệp", "bộ_tệp", "tiện ích tệp và thư mục"],
+               ["mạng", "bộ_mạng", "tiện ích mạng: soi thiết bị, kết nối"],
                ["văn-bản", "bộ_văn_bản", "xử lý văn bản"],
                ["phát-triển", "bộ_phát_triển", "phát triển phần mềm GIAO"],
                ["khoa-học", "bộ_khoa_học", "khoa học, toán, lượng tử"]]
@@ -494,4 +495,81 @@ nếu VIỆC == "moi" {
     ra_tệp("goi/" + t + "/kiem", "người: an\nchạy: " + t + "\nchứa: ── " + t + " ──\n")
     rọi "đã tạo khung goi/" + t + "/ — sửa than + kiem, rồi: sh goi.sh kiem " + t + " && sh goi.sh thu " + t
 }
-nếu chứa(["liet", "kiem", "thu", "khoa", "dung", "moi"], VIỆC) == tối { __ném("lệnh '" + VIỆC + "' lạ — liet · kiem · thu · khoa · dung · moi") }
+# ---------------- KHOÁ MÁY (đăng nhập từ xa — như khoá máy chủ SSH) ----------------
+nếu VIỆC == "khoa_may" {
+    đặt ξ = _hex(ngẫu_nhiên_an_toàn(32))  đặt hạt = _hex(ngẫu_nhiên_an_toàn(32))
+    đặt kc = khoá_kép_từ_hạt(ξ, hạt)
+    ra_tệp("khoa_may.txt", "kép-riêng|" + ξ + "|" + hạt)
+    ra_tệp("khoa_may_cong.txt", "kép|" + kc[0] + "|" + kc[1])
+    rọi "đã sinh khoá MÁY kép (ML-DSA-65 + Ed25519) · vân tay " + vân_tay_của("kép|" + kc[0] + "|" + kc[1])
+}
+
+# ---------------- KHO NỀN: kho gói nhúng sẵn trong hdh_nền.giao ----------------
+# `nen` sinh kho_nen.giao (KHÔNG sửa tay) từ goi/ + ký kép bằng khoá kho; `nen_kiem` kiểm tệp đã commit khớp
+# goi/ và đúng chữ ký — chỉ cần khoá CÔNG nằm sẵn trong tệp, nên bản clone nào cũng kiểm được.
+hàm _giao_chuỗi(s) {
+    đặt ra = []
+    lặp ch trong s {
+        nếu ch == "\\" { gom(ra, "\\\\") } khác { nếu ch == "\"" { gom(ra, "\\\"") } khác {
+            nếu ch == "\n" { gom(ra, "\\n") } khác { nếu ch == "\t" { gom(ra, "\\t") } khác { gom(ra, ch) } }
+        } }
+    }
+    trả "\"" + nối(ra, "") + "\""
+}
+hàm nội_dung_kho_nền(gói, mục, ký, khoá_công) {
+    đặt d = ["# kho_nen.giao — SINH TỰ ĐỘNG bởi `sh goi.sh nen` từ goi/ (KHÔNG sửa tay; kiểm: `sh goi.sh nen_kiem`).",
+             "# Kho gói NHÚNG SẴN của HĐH-GIAO: " + dài(gói) + " gói (kể cả siêu-gói), mục lục KÝ KÉP ML-DSA-65 + Ed25519.",
+             "# Khoá riêng của kho KHÔNG ở đây — chỉ khoá công (neo tin cậy) và chữ ký."]
+    gom(d, "đặt KHO_NỀN_MỤC_LỤC = " + _giao_chuỗi(mục))
+    gom(d, "đặt KHO_NỀN_CHỮ_KÝ = " + _giao_chuỗi(ký))
+    gom(d, "đặt KHO_NỀN_KHOÁ_CÔNG = " + _giao_chuỗi(khoá_công))
+    gom(d, "đặt KHO_NỀN_GÓI = []")
+    lặp t trong sắp_xếp(khoá(gói)) { gom(d, "gom(KHO_NỀN_GÓI, [" + _giao_chuỗi(t) + ", " + _giao_chuỗi(lấy_khoá(lấy_khoá(gói, t), "_thân")) + "])") }
+    gom(d, "hàm dựng_kho_nền(M, khởi) {")
+    gom(d, "    gọi(M, khởi, GH_TẠO_THƯ, [\"/hệ/kho\", 755])")
+    gom(d, "    gọi(M, khởi, GH_TẠO_THƯ, [\"/hệ/kho/gói\", 755])")
+    gom(d, "    lặp g trong KHO_NỀN_GÓI { gọi(M, khởi, GH_TẠO, [\"/hệ/kho/gói/\" + g[0], 644, g[1]]) }")
+    gom(d, "    gọi(M, khởi, GH_TẠO, [\"/hệ/kho/mục_lục\", 644, KHO_NỀN_MỤC_LỤC])")
+    gom(d, "    # NEO TIN CẬY — nguồn khai đúng một khoá công của riêng nó (học `Signed-By:`)")
+    gom(d, "    gọi(M, khởi, GH_TẠO, [\"/hệ/kho/khoá_công\", 644, KHO_NỀN_KHOÁ_CÔNG])")
+    gom(d, "    gọi(M, khởi, GH_TẠO, [\"/hệ/kho/mục_lục.ký\", 644, KHO_NỀN_CHỮ_KÝ])")
+    gom(d, "    gọi(M, khởi, GH_TẠO, [\"/hệ/kho/nguồn\", 644, \"kho-nhà|/hệ/kho/mục_lục|/hệ/kho/mục_lục.ký|/hệ/kho/khoá_công\"])")
+    gom(d, "    gọi(M, khởi, GH_TẠO, [\"/hệ/gói_đã_cài\", 644, \"\"])")
+    gom(d, "}")
+    trả nối(d, "\n") + "\n"
+}
+hàm _dòng_bắt_đầu(nội, tiền) {
+    lặp d trong tách(nội, "\n") { nếu bắt_đầu(d, tiền) { trả d } }
+    trả ẩn
+}
+nếu VIỆC == "nen" {
+    đặt r = kiểm_gói(VÀO, [])
+    nếu dài(r[0]) > 0 { lặp x trong r[0] { rọi "  ✗ " + x }  __ném("lint còn lỗi — không sinh kho nền") }
+    đặt riêng = lấy_khoá(VÀO, "@khoá_riêng")
+    nếu loại(riêng) == "ẩn" { __ném("chưa có khoá kho — chạy: sh goi.sh khoa") }
+    đặt p = tách(cắt_lề(riêng), "|")
+    đặt kc = khoá_kép_từ_hạt(p[1], p[2])
+    đặt khoá_công = "kép|" + kc[0] + "|" + kc[1]
+    đặt gói = gói_đủ(VÀO)
+    đặt mục = mục_lục_của(gói)
+    đặt ký = ký_mục_lục(mục, p[1], p[2])
+    ra_tệp("kho_nen.giao", nội_dung_kho_nền(gói, mục, ký, khoá_công))
+    rọi "đã sinh kho_nen.giao: " + dài(gói) + " gói · ký kép · vân tay " + vân_tay_của(khoá_công)
+}
+nếu VIỆC == "nen_kiem" {
+    đặt cũ = lấy_khoá(VÀO, "@kho_nen")
+    nếu loại(cũ) == "ẩn" { __ném("không có kho_nen.giao") }
+    đặt dk = _dòng_bắt_đầu(cũ, "đặt KHO_NỀN_CHỮ_KÝ = \"")  đặt dc = _dòng_bắt_đầu(cũ, "đặt KHO_NỀN_KHOÁ_CÔNG = \"")
+    nếu loại(dk) == "ẩn" { __ném("kho_nen.giao thiếu chữ ký") }
+    nếu loại(dc) == "ẩn" { __ném("kho_nen.giao thiếu khoá công") }
+    đặt ký = lát_chuỗi(dk, dài("đặt KHO_NỀN_CHỮ_KÝ = \""), dài(dk) - 1)
+    đặt khoá_công = lát_chuỗi(dc, dài("đặt KHO_NỀN_KHOÁ_CÔNG = \""), dài(dc) - 1)
+    đặt gói = gói_đủ(VÀO)
+    đặt mục = mục_lục_của(gói)
+    nếu nội_dung_kho_nền(gói, mục, ký, khoá_công) != cũ {
+        __ném("kho_nen.giao KHÔNG khớp goi/ (gói đổi mà chưa sinh lại) — chạy: sh goi.sh nen")
+    }
+    nếu kiểm_chữ_ký_khoá(mục, ký, khoá_công) != sáng { __ném("CHỮ KÝ trong kho_nen.giao KHÔNG đúng mục lục / khoá công") }
+    rọi "✓ kho_nen.giao khớp goi/ (" + dài(gói) + " gói) VÀ đúng chữ ký kép · khoá " + vân_tay_của(khoá_công)
+}
+nếu chứa(["liet", "kiem", "thu", "khoa", "dung", "moi", "khoa_may", "nen", "nen_kiem"], VIỆC) == tối { __ném("lệnh '" + VIỆC + "' lạ — liet · kiem · thu · khoa · dung · moi · khoa_may · nen · nen_kiem") }

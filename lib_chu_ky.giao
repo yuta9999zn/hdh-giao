@@ -8,7 +8,8 @@
 # đúng một keyring) — ta lấy đúng ý ấy.
 #
 # PHÂN VAI cho gọn và an toàn:
-#   • KÝ  — việc của người giữ kho, làm BÊN NGOÀI (`lam_khoa.py`). Khoá riêng KHÔNG bao giờ vào máy.
+#   • KÝ  — việc của người giữ kho, làm BÊN NGOÀI máy (`sh goi.sh dung` — goi.giao, ký KÉP từ v0.42). Khoá riêng
+#     KHÔNG bao giờ vào máy.
 #   • KIỂM — việc của HĐH, làm ở đây, chỉ cần khoá công. Máy không giữ bí mật nào cả.
 # (Đúng như đời thật: máy người dùng không có khoá riêng của Debian/Kali.)
 #

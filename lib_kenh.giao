@@ -149,10 +149,14 @@ hàm mở_khoá_phiên(gói_hex, d_hex, n_hex) {
 }
 
 hàm đọc_khoá_máy(dòng) {
-    "'rsa|<d hex>|<n hex>' → [d_hex, n_hex] · ẩn nếu hỏng."
+    "'kép-riêng|<ξ hex>|<hạt Ed25519 hex>' (v0.44, ký kép) → ['kép', ξ, hạt] · 'rsa|<d>|<n>' (cũ) → [d_hex, n_hex] · ẩn nếu hỏng."
     nếu loại(dòng) == "chuỗi" { } khác { trả ẩn }
     đặt p = tách_giữ(cắt_lề(dòng), "|")
     nếu dài(p) >= 3 { } khác { trả ẩn }
+    nếu p[0] == "kép-riêng" {
+        nếu dài(cắt_lề(p[1])) == 64 { nếu dài(cắt_lề(p[2])) == 64 { trả ["kép", cắt_lề(p[1]), cắt_lề(p[2])] } }
+        trả ẩn
+    }
     nếu p[0] == "rsa" { } khác { trả ẩn }
     trả [cắt_lề(p[1]), cắt_lề(p[2])]
 }

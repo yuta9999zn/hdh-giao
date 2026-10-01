@@ -1,4 +1,4 @@
-# kiem_chu_ky_dulieu.giao — SINH TỰ ĐỘNG bởi lam_dulieu_chu_ky.py, ĐỪNG sửa tay.
+# kiem_chu_ky_dulieu.giao — sinh bởi lam_dulieu_chu_ky.py (đã bỏ ở v0.44); nay là bộ dữ liệu CỐ ĐỊNH, ĐỪNG sửa tay.
 # Kho THẬT và kho GIẢ MẠO: mục lục kho giả cũng hợp lệ, băm cũng đúng — khác mỗi chữ ký.
 đặt CK_THÂN = "# nền\nnói \"nền\""
 đặt CK_MỤC = "nền|1.0|Nền|||0420c3bae42c2a38169f66ef6b2bf3020c1318837d5a6bcbfc9253cd463d5ff9|gói nền"
