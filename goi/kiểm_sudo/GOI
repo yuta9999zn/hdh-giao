@@ -1,0 +1,8 @@
+tên: kiểm_sudo
+phiên: 1.0
+nhóm: an-ninh/kiểm-toán
+mô_tả: ai được nâng quyền, nâng cho lệnh nào (sổ /hệ/sudo + nhóm)
+giấy_phép: Apache-2.0
+phụ_thuộc: 
+năng_lực: 
+duy_trì: HĐH-GIAO

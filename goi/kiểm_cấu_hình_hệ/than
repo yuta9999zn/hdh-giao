@@ -1,0 +1,6 @@
+# kiểm_cấu_hình_hệ — chạy bộ kiểm cú pháp trên mọi tệp cấu hình của /hệ
+nói "── kiểm cấu hình ──"
+kiểm_cấu_hình /hệ/người_dùng
+kiểm_cấu_hình /hệ/nhóm
+kiểm_cấu_hình /hệ/sudo
+kiểm_cấu_hình /hệ/mật_khẩu

@@ -1,0 +1,8 @@
+tên: đo_đĩa
+phiên: 1.1
+nhóm: hệ-thống
+mô_tả: đếm số tệp trong một thư mục (mặc định /tạm)
+giấy_phép: Apache-2.0
+phụ_thuộc: 
+năng_lực: 
+duy_trì: HĐH-GIAO

@@ -1,0 +1,8 @@
+tên: soi_tài_nguyên
+phiên: 1.0
+nhóm: an-ninh/giám-sát
+mô_tả: bộ nhớ và tiến trình — dấu hiệu bị chiếm tài nguyên
+giấy_phép: Apache-2.0
+phụ_thuộc: soi_tiến_trình
+năng_lực: 
+duy_trì: HĐH-GIAO

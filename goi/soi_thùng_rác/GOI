@@ -1,0 +1,8 @@
+tên: soi_thùng_rác
+phiên: 1.0
+nhóm: an-ninh/điều-tra
+mô_tả: xem thùng rác: thứ gì đã bị xoá (xoá trong HĐH-GIAO là khả hồi)
+giấy_phép: Apache-2.0
+phụ_thuộc: 
+năng_lực: 
+duy_trì: HĐH-GIAO

@@ -1,0 +1,2 @@
+# tìm_chữ — tìm các dòng chứa một chữ trong tệp: tìm_chữ <chữ> <tệp>
+xem $2 | tìm $1

@@ -1,0 +1,8 @@
+tên: tìm_chữ
+phiên: 1.0
+nhóm: văn-bản
+mô_tả: tìm các dòng chứa một chữ trong tệp: tìm_chữ <chữ> <tệp>
+giấy_phép: Apache-2.0
+phụ_thuộc: 
+năng_lực: 
+duy_trì: HĐH-GIAO

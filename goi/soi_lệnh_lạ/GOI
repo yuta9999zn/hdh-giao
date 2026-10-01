@@ -1,0 +1,8 @@
+tên: soi_lệnh_lạ
+phiên: 1.0
+nhóm: an-ninh/kiểm-toán
+mô_tả: liệt kê mọi lệnh ở /lệnh và thư mục lệnh riêng để soát lệnh lạ
+giấy_phép: Apache-2.0
+phụ_thuộc: 
+năng_lực: 
+duy_trì: HĐH-GIAO

@@ -5,6 +5,42 @@ Nền học thuyết: Nguyễn Trường An (DFCT / NNL-NTHT / CDFL).
 
 ---
 
+## v0.43.0 — Hệ sinh thái Mốc 1: bộ công cụ làm gói VIẾT BẰNG GIAO + 18 gói đầu tiên (2026-10-01)
+
+### `goi.giao` — dh_make + lintian + autopkgtest + reprepro, bằng GIAO trên GVM-64
+- `sh goi.sh liet · moi · kiem · thu · khoa · dung`. `goi.sh` chỉ làm vào/ra tệp: gói `goi/*` vào stdin,
+  tệp ra là dòng `@@TỆP<TAB>đường<TAB>base64` (`base64 -d`), chỉ ghi được dưới `goi/`, `kho_dung/`,
+  `.khoa/kho_goi/`. `goi.giao` dịch bằng trình biên dịch tự thân (`tu_bien_dich.sh`). **Không Python.**
+- **Lint** (`kiem`): manifest, tên trùng lệnh hệ thống, phiên/nhóm/giấy phép SPDX, phụ thuộc + vòng,
+  **suy năng lực từ thân gói** (dùng `xoá`/`soi-mạng`/`đĩa`/`duyệt`… mà không khai ⇒ lỗi; khai thừa ⇒ cảnh
+  báo), gọi gói khác không khai phụ thuộc, lệnh lạ, thiếu kiểm thử, và **chính sách phòng thủ**: công cụ
+  nhóm `an-ninh/*` không được xoá/đĩa/mạng.
+- **Thử** (`thu`): `goi.giao` tự khởi một HĐH-GIAO sạch NGAY TRONG MÁY (`khởi_máy`, `cài_lệnh`), ký kép mục
+  lục bằng khoá tạm, rồi `kho_cài` từng gói (kiểm chữ ký kép → kiểm băm → kéo phụ thuộc) và `chạy_dòng_im`
+  — dưới quyền `an` hoặc `gốc` theo `kiem`. 25/25 (18 gói + 7 siêu-gói) trong ~26 s.
+- **Dựng kho** (`dung`): mục lục + ký kép (ngữ cảnh `giao-kho-v1`) + tự kiểm lại chữ ký + gói. Siêu-gói
+  `bộ_*` sinh từ nhóm (học `kali-tools-*`); `bộ_an_ninh` gom mọi nhóm an ninh.
+- Builtin mới `khoá_kép_từ_hạt` (70), `ký_kép` (71) — `ky.wasm` thêm sinh khoá/ký (vẫn 0 import; khoá
+  riêng đưa vào từ stdin mỗi lần, không nằm trong HĐH). Ghim mới `wasm/ky.sha256`.
+- `kiem_goi.sh` **15/15** (trong CI): kho thật (lint 0 lỗi · thử 25/25 · dựng kho ký kép) + 10 kiểu gói
+  XẤU đều bị bắt + lint lỗi thì KHÔNG dựng kho + khung `moi` hợp lệ ngay.
+
+### 18 gói đầu tiên (`goi/`)
+- an-ninh/kiểm-toán: `soi_người`, `gác_cổng`, `kiểm_sudo`, `kiểm_cấu_hình_hệ`, `kiểm_kho_gói`, `soi_lệnh_lạ`
+- an-ninh/giám-sát: `soi_đăng_nhập`, `soi_tiến_trình`, `soi_tài_nguyên`
+- an-ninh/điều-tra: `dấu_vết`, `soi_thùng_rác`
+- hệ-thống: `đo_đĩa`, `nhật_ký_gọn`, `thông_tin_hệ` · tệp: `cây_nhà`, `dọn_nhà` (khai `xoá`, đi qua cổng
+  duyệt) · văn-bản: `đếm_dòng`, `tìm_chữ`
+
+### Hai lỗi THẬT của vỏ HĐH do `goi.giao thu` tìm ra — đã sửa
+- `soi`, `quyền`, `chép`, `chuyển`, `vì_sao`, `ghi`, `tạothư`, `sờ`, `về` **thiếu đối số ⇒ SẬP CẢ VỎ**
+  (`dài(ẩn)` trong `tuyệt_đối`). Nay bảng số đối số tối thiểu ở cửa `_nội_trú`: báo cách dùng, mã 2.
+- **`a && b` chạy b DÙ a thất bại** và làm mất lời báo của a: `xoá x && nói "đã xoá"` in "đã xoá" khi xoá
+  đang CHỜ DUYỆT. Nay như sh. `kiem_vo_doi_so.giao` (khớp giữa hai máy, trong CI).
+- `kiem_toan_bo` **92/92**.
+
+---
+
 ## v0.42.0 — Lộ trình: ngẫu nhiên an toàn · cập nhật ký kép · TLS lai hậu lượng tử · khối `lượng_tử` + tác vụ (2026-10-01)
 
 ### GĐ1 — `ngẫu_nhiên_an_toàn(n)` (`chuẩn.giao`)

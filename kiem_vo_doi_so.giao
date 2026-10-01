@@ -1,0 +1,30 @@
+# kiem_vo_doi_so.giao — hai lỗi vỏ HĐH do bộ công cụ gói (goi.giao thu) tìm ra, v0.43:
+#  ① lệnh cần đường dẫn mà THIẾU đối số ⇒ trước đây SẬP CẢ VỎ (dài(ẩn)); nay báo cách dùng, mã 2
+#  ② `a && b` trước đây chạy b DÙ a thất bại và làm mất lời báo của a; nay như sh: a hỏng ⇒ dừng
+nhập "lib_vỏ.giao"
+đặt M = khởi_máy()
+thêm_người(M, 0, "gốc")  thêm_người(M, 1000, "an")
+đặt K = sinh_tt(M, "khởi", 0, 0, "/")
+lặp d trong ["/lệnh", "/nhà", "/nhà/an"] { gọi(M, K, GH_TẠO_THƯ, [d, 755]) }
+gọi(M, K, GH_TẠO_THƯ, ["/tạm", 777])  gọi(M, K, GH_TẠO_THƯ, ["/thùng_rác", 777])
+cài_lệnh(M, K)
+gọi(M, K, GH_TẠO, ["/hệ/đường_lệnh", 644, "/lệnh"])
+đặt V = gọi(M, K, GH_SINH, ["vỏ", 5])
+đặt_khoá(lấy_khoá(lấy_khoá(M, "cred"), V), "uid", 1000)
+
+rọi "── ① thiếu đối số ⇒ cách dùng, không sập ──"
+lặp dòng trong ["soi", "quyền /tạm", "chép a", "chuyển", "vì_sao", "ghi", "tạothư", "sờ", "về", "xoá", "đổichủ /tạm", "giết", "kiểm_cấu_hình"] {
+    đặt r = chạy_dòng_im(M, V, dòng)
+    rọi "[" + dòng + "] mã " + r[0] + " — " + r[1]
+}
+rọi "đủ đối số vẫn chạy: " + chạy_dòng_im(M, V, "soi /tạm")[1]
+
+rọi "── ② && như sh ──"
+chạy_dòng_im(M, V, "ghi /tạm/a x")
+đặt r = chạy_dòng_im(M, V, "xoá /tạm/a && nói KHÔNG_ĐƯỢC_IN")
+rọi "xoá chờ duyệt && …: mã " + r[0] + " — " + r[1]
+đặt r = chạy_dòng_im(M, V, "nói MỘT && nói HAI && nói BA")
+rọi "ba vế đều thành công: mã " + r[0] + " — " + nối(tách(r[1], "\n"), " | ")
+đặt r = chạy_dòng_im(M, V, "nói TRƯỚC && soi && nói SAU_KHÔNG_ĐƯỢC_IN")
+rọi "vế giữa hỏng: mã " + r[0] + " — " + nối(tách(r[1], "\n"), " | ")
+rọi "tệp /tạm/a vẫn còn (xoá chưa duyệt): " + loại(gọi(M, V, GH_ĐỌC, ["/tạm/a"]))

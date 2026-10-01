@@ -1,0 +1,497 @@
+# ============================================================
+# goi.giao — BỘ CÔNG CỤ LÀM GÓI của hệ sinh thái HĐH-GIAO, VIẾT BẰNG GIAO, chạy trên GVM-64
+# (học dh_make + lintian + autopkgtest + reprepro của Debian/Kali)
+# ============================================================
+#   sh goi.sh liet                 liệt kê gói theo nhóm + siêu-gói sinh tự động
+#   sh goi.sh kiem [tên…]          LINT: manifest · phụ thuộc + vòng · SUY NĂNG LỰC từ thân · chính sách an ninh
+#   sh goi.sh thu [tên…]           khởi một HĐH-GIAO SẠCH ngay trong máy này, cài gói qua ĐÚNG đường cài thật
+#                                  (kiểm chữ ký kép → kiểm băm → kéo phụ thuộc) rồi chạy và đối chiếu đầu ra
+#   sh goi.sh khoa                 sinh cặp khoá KÉP cho kho (ML-DSA-65 + Ed25519; hạt từ random_get)
+#   sh goi.sh dung                 dựng kho ký kép ở kho_dung/ (mục_lục · chữ_ký · khoá_công · gói/)
+#   sh goi.sh moi <tên> <nhóm> <mô tả…>   tạo khung gói goi/<tên>/
+#
+# Máy không thấy thư mục nào: goi.sh gói goi/*/{GOI,than,kiem} (+ khoá riêng khi dựng) vào stdin; công cụ
+# in báo cáo, và mỗi TỆP RA là một dòng  "@@TỆP<TAB>đường<TAB>base64"  để goi.sh ghi (base64 -d).
+# Gói nguồn goi/<tên>/:
+#   GOI   "khoá: giá trị" — tên · phiên · nhóm · mô_tả · giấy_phép · [phụ_thuộc] · [năng_lực] · [duy_trì]
+#   than  THÂN gói — kịch bản vỏ HĐH-GIAO (cài vào /lệnh/<tên>; có $1 $2 $*, ống |, >, &&)
+#   kiem  "người: an|gốc" · "chạy: <dòng>" (nhiều lần) · "chứa: <chữ>" · "không_chứa: <chữ>"
+# Chính sách nhận công cụ: LO_TRINH_HE_SINH_THAI.md.
+# ============================================================
+nhập "lib_vỏ.giao"
+nhập "lib_base64.giao"
+
+# ---------------- bảng chính sách ----------------
+đặt NHÓM_DS = [["an-ninh/kiểm-toán", "bộ_kiểm_toán", "kiểm toán cấu hình, quyền, mật khẩu, kho gói của CHÍNH máy này"],
+               ["an-ninh/giám-sát", "bộ_giám_sát", "theo dõi đăng nhập, tiến trình, tài nguyên"],
+               ["an-ninh/điều-tra", "bộ_điều_tra", "điều tra sự cố: nhật ký, dấu vết, chụp trạng thái"],
+               ["hệ-thống", "bộ_hệ_thống", "tiện ích hệ thống"],
+               ["tệp", "bộ_tệp", "tiện ích tệp và thư mục"],
+               ["văn-bản", "bộ_văn_bản", "xử lý văn bản"],
+               ["phát-triển", "bộ_phát_triển", "phát triển phần mềm GIAO"],
+               ["khoa-học", "bộ_khoa_học", "khoa học, toán, lượng tử"]]
+đặt SIÊU_AN_NINH = ["bộ_an_ninh", "SIÊU-GÓI: toàn bộ công cụ an ninh phòng thủ (kiểm toán + giám sát + điều tra)"]
+đặt GIẤY_PHÉP_DS = ["Apache-2.0", "MIT", "BSD-2-Clause", "BSD-3-Clause", "CC0-1.0", "GPL-3.0-or-later", "MPL-2.0", "ISC"]
+đặt NĂNG_LỰC_DS = ["mạng", "gốc", "đĩa", "xoá", "ghi"]
+đặt NHẠY_DS = ["mạng", "gốc", "đĩa", "xoá"]                 # khớp NĂNG_LỰC_NHẠY của lib_kho.giao
+# lệnh vỏ → năng lực nó đòi (suy từ thân gói)
+đặt LỆNH_ĐÒI = bản()
+lặp c trong [["xoá","xoá"],["rm","xoá"],["dọn_rác","xoá"],["dọn_dẹp","xoá"],["giết","xoá"],["kill","xoá"],
+             ["soi-mạng","mạng"],["xem-vào","mạng"],["theo-dõi","mạng"],["tắt-dõi","mạng"],["đá","mạng"],["thôi-đá","mạng"],["chạy_thật","mạng"],
+             ["đĩa","đĩa"],["gắntb","đĩa"],["mknod","đĩa"],
+             ["duyệt","gốc"],["sudo","gốc"],["đổichủ","gốc"],["chown","gốc"],["đổi_nhóm","gốc"],
+             ["ghi","ghi"],["tạothư","ghi"],["mkdir","ghi"],["sờ","ghi"],["touch","ghi"],["chép","ghi"],["cp","ghi"],
+             ["chuyển","ghi"],["mv","ghi"],["quyền","ghi"],["chmod","ghi"],["ống","ghi"],["mkfifo","ghi"],["dịch","ghi"]] {
+    đặt_khoá(LỆNH_ĐÒI, c[0], c[1])
+}
+đặt BÍ_DANH_DS = ["ls","cat","echo","pwd","cd","mkdir","touch","rm","stat","tree","chmod","chown","whoami","ps","kill",
+                  "dmesg","grep","wc","mknod","mv","cp","run","tick","jobs","verbose","sched","mkfifo","close",
+                  "snapshot","ai","pick","sudo","cc","file"]
+đặt LỆNH_MẪU_DS = ["đếm_số", "chào", "soi_rác", "bơm", "lọc", "hút", "soi_hệ", "lỗi", "rác"]
+đặt NỘI_TRÚ_DS = tên_lệnh_nội_trú()                          # MỘT nguồn sự thật: chính lib_vỏ.giao
+đặt NGỮ_CẢNH_KHO = "giao-kho-v1"                             # khớp CK_NGỮ_CẢNH_KHO của lib_chu_ky.giao
+đặt TAB = ký_tự(9)
+
+# ---------------- đọc gói vào (stdin) ----------------
+hàm _byte_utf8(ch) {
+    đặt c = mã(ch)
+    nếu c < 128 { trả 1 }
+    nếu c < 2048 { trả 2 }
+    nếu c < 65536 { trả 3 }
+    trả 4
+}
+hàm _bỏ_cr(s) {
+    đặt ra = []  đặt n = dài(s)  đặt i = 0
+    lặp n {
+        đặt ch = s[i]
+        nếu mã(ch) == 13 {
+            đặt bỏ = tối
+            nếu i + 1 < n { nếu s[i + 1] == "\n" { đặt bỏ = sáng } }
+            nếu bỏ == tối { gom(ra, "\n") }
+        } khác { gom(ra, ch) }
+        đặt i = i + 1
+    }
+    trả nối(ra, "")
+}
+hàm đọc_vào(s) {
+    "gói stdin: NUL + số_byte + ' ' + đường + '\\n' + đúng số_byte byte → bản đường → nội dung"
+    đặt vào = bản()  đặt n = dài(s)  đặt i = 0
+    mãi {
+        nếu i >= n { dừng }
+        nếu mã(s[i]) != 0 { __ném("gói vào hỏng tại ký tự " + i) }
+        đặt i = i + 1  đặt đầu = []
+        mãi { nếu i >= n { dừng }  nếu s[i] == "\n" { dừng }  gom(đầu, s[i])  đặt i = i + 1 }
+        đặt i = i + 1
+        đặt sp = tách(nối(đầu, ""), " ")
+        đặt cần = 0
+        lặp ch trong sp[0] { đặt cần = cần * 10 + (mã(ch) - 48) }
+        đặt đường = nối(lát(sp, 1, dài(sp)), " ")
+        đặt buf = []  đặt đã = 0
+        mãi { nếu đã >= cần { dừng }  gom(buf, s[i])  đặt đã = đã + _byte_utf8(s[i])  đặt i = i + 1 }
+        đặt_khoá(vào, đường, _bỏ_cr(nối(buf, "")))
+    }
+    trả vào
+}
+
+hàm ra_tệp(đường, nội) { rọi "@@TỆP" + TAB + đường + TAB + mã_hoá_b64(chuỗi_thành_byte(nội)) }
+
+# ---------------- gói nguồn ----------------
+hàm _cắt_cuối_nl(s) {
+    đặt t = s
+    mãi { nếu dài(t) == 0 { dừng }  nếu t[dài(t) - 1] == "\n" { đặt t = lát_chuỗi(t, 0, dài(t) - 1) } khác { dừng } }
+    trả t
+}
+hàm _ds_phẩy(s) {
+    đặt ra = []
+    nếu loại(s) == "ẩn" { trả ra }
+    lặp x trong tách(s, ",") { đặt y = cắt_lề(x)  nếu dài(y) > 0 { gom(ra, y) } }
+    trả ra
+}
+hàm đọc_gói_nguồn(vào, tên) {
+    đặt m = bản()
+    đặt gốc = "goi/" + tên + "/"
+    lặp dòng trong tách(lấy_khoá(vào, gốc + "GOI"), "\n") {
+        đặt d = cắt_lề(dòng)
+        nếu dài(d) > 0 { nếu d[0] != "#" {
+            đặt v = vị_trí(d, ":")
+            nếu loại(v) == "ẩn" { đặt_khoá(m, "_lỗi_manifest", "dòng thiếu ':' — " + d) } khác {
+                đặt_khoá(m, cắt_lề(lát_chuỗi(d, 0, v)), cắt_lề(lát_chuỗi(d, v + 1, dài(d))))
+            }
+        } }
+    }
+    đặt_khoá(m, "_thân", _cắt_cuối_nl(lấy_khoá(vào, gốc + "than")))
+    đặt kq = lấy_khoá(vào, gốc + "kiem")
+    nếu loại(kq) == "ẩn" { đặt kq = "" }
+    đặt_khoá(m, "_kiểm", kq)
+    đặt_khoá(m, "_phụ", _ds_phẩy(lấy_khoá(m, "phụ_thuộc")))
+    đặt_khoá(m, "_nl", _ds_phẩy(lấy_khoá(m, "năng_lực")))
+    trả m
+}
+hàm tên_gói_vào(vào) {
+    "→ danh sách tên gói (thư mục goi/<tên>/ có GOI), sắp xếp"
+    đặt ra = []
+    lặp đường trong khoá(vào) {
+        nếu bắt_đầu(đường, "goi/") {
+            đặt p = tách(đường, "/")
+            nếu dài(p) == 3 { nếu p[2] == "GOI" { gom(ra, p[1]) } }
+        }
+    }
+    trả sắp_xếp(ra)
+}
+hàm nhóm_của(tên_nhóm) {
+    lặp n trong NHÓM_DS { nếu n[0] == tên_nhóm { trả n } }
+    trả ẩn
+}
+hàm tên_trong_ràng(spec) {
+    "phụ thuộc 'a>=1.0/b' → ['a', 'b'] (khớp tách_ràng của lib_kho)"
+    đặt ra = []
+    lặp x trong tách(spec, "/") {
+        đặt t = x  đặt cắt = dài(x)
+        lặp op trong [">=", "<=", "=", ">", "<"] {
+            đặt v = vị_trí(x, op)
+            nếu loại(v) != "ẩn" { nếu v < cắt { đặt cắt = v } }
+        }
+        gom(ra, cắt_lề(lát_chuỗi(x, 0, cắt)))
+    }
+    trả ra
+}
+hàm _bỏ_chuỗi_trích(d) {
+    "bỏ nội dung trong \"…\" để không nhận nhầm chữ trong chuỗi là lệnh"
+    đặt ra = []  đặt trong = tối
+    lặp ch trong d {
+        nếu ch == "\"" { nếu trong == sáng { đặt trong = tối } khác { đặt trong = sáng }  gom(ra, ch) } khác {
+            nếu trong == tối { gom(ra, ch) }
+        }
+    }
+    trả nối(ra, "")
+}
+hàm lệnh_trong_thân(thân) {
+    "→ [[số_dòng, lệnh]] — từ đầu mỗi đoạn (tách theo |, &&, ;); '>' = có ghi tệp"
+    đặt ra = []  đặt số = 0
+    lặp dòng trong tách(thân, "\n") {
+        đặt số = số + 1
+        đặt d = cắt_lề(dòng)
+        nếu dài(d) > 0 { nếu d[0] != "#" {
+            đặt d = _bỏ_chuỗi_trích(d)
+            nếu loại(vị_trí(d, ">")) != "ẩn" { gom(ra, [số, ">"]) }
+            đặt d = nối(tách(d, "&&"), "|")  đặt d = nối(tách(d, ";"), "|")
+            lặp đoạn trong tách(d, "|") {
+                đặt đ = cắt_lề(đoạn)
+                nếu dài(đ) > 0 { nếu đ[dài(đ) - 1] == "&" { đặt đ = cắt_lề(lát_chuỗi(đ, 0, dài(đ) - 1)) } }
+                nếu dài(đ) > 0 { gom(ra, [số, tách(đ, " ")[0]]) }
+            }
+        } }
+    }
+    trả ra
+}
+hàm _tên_hợp_lệ(t) {
+    nếu dài(t) == 0 { trả tối }
+    lặp ch trong t { nếu chứa([" ", "\t", "|", "/", "\\", "$", "\"", "'", ">", "<", "&", ";", "#", "(", ")", "[", "]",
+                              "{", "}", "*", "?", ":", ",", "=", ".", "!", "-", "@", "%", "+", "~"], ch) { trả tối } }
+    trả sáng
+}
+hàm _phiên_hợp_lệ(v) {
+    nếu loại(v) != "chuỗi" { trả tối }
+    đặt p = tách(v, ".")
+    nếu dài(p) < 2 { trả tối }  nếu dài(p) > 3 { trả tối }
+    lặp x trong p { nếu dài(x) == 0 { trả tối }  lặp ch trong x { nếu là_chữ_số(ch) == tối { trả tối } } }
+    trả sáng
+}
+
+# ---------------- LINT ----------------
+hàm kiểm_gói(vào, chọn) {
+    "→ [lỗi, cảnh_báo] — danh sách chuỗi. Lỗi thì KHÔNG được vào kho."
+    đặt lỗi = []  đặt cb = []
+    đặt tất = tên_gói_vào(vào)
+    đặt gói = bản()
+    lặp t trong tất { đặt_khoá(gói, t, đọc_gói_nguồn(vào, t)) }
+    đặt siêu = [SIÊU_AN_NINH[0]]
+    lặp n trong NHÓM_DS { gom(siêu, n[1]) }
+    đặt ds = chọn
+    nếu dài(ds) == 0 { đặt ds = tất }
+    lặp t trong ds {
+        nếu có_khoá(gói, t) == tối { gom(lỗi, t + ": không có gói nguồn goi/" + t + "/") } khác {
+            _kiểm_một(t, lấy_khoá(gói, t), gói, siêu, lỗi, cb)
+        }
+    }
+    # vòng phụ thuộc (DFS ba màu)
+    đặt màu = bản()
+    lặp t trong tất { _đi_vòng(t, [], gói, màu, lỗi) }
+    trả [lỗi, cb]
+}
+hàm _đi_vòng(t, đường, gói, màu, lỗi) {
+    nếu lấy_khoá(màu, t) == 1 { gom(lỗi, "VÒNG phụ thuộc: " + nối(ghép(đường, [t]), " → "))  trả ẩn }
+    nếu lấy_khoá(màu, t) == 2 { trả ẩn }
+    nếu có_khoá(gói, t) == tối { trả ẩn }
+    đặt_khoá(màu, t, 1)
+    lặp spec trong lấy_khoá(lấy_khoá(gói, t), "_phụ") {
+        lặp n trong tên_trong_ràng(spec) { _đi_vòng(n, ghép(đường, [t]), gói, màu, lỗi) }
+    }
+    đặt_khoá(màu, t, 2)
+}
+hàm _kiểm_một(t, m, gói, siêu, lỗi, cb) {
+    đặt tiền = t + ": "
+    nếu có_khoá(m, "_lỗi_manifest") { gom(lỗi, tiền + "GOI " + lấy_khoá(m, "_lỗi_manifest")) }
+    lặp k trong ["tên", "phiên", "nhóm", "mô_tả", "giấy_phép"] {
+        nếu loại(lấy_khoá(m, k)) == "ẩn" { gom(lỗi, tiền + "manifest thiếu '" + k + "'") } khác {
+            nếu dài(lấy_khoá(m, k)) == 0 { gom(lỗi, tiền + "manifest thiếu '" + k + "'") }
+        }
+    }
+    nếu lấy_khoá(m, "tên") != t { gom(lỗi, tiền + "tên trong GOI ('" + lấy_khoá(m, "tên") + "') khác tên thư mục") }
+    nếu _tên_hợp_lệ(t) == tối { gom(lỗi, tiền + "tên chỉ gồm chữ, số, '_' (để gọi được như một lệnh)") }
+    nếu chứa(NỘI_TRÚ_DS, t) { gom(lỗi, tiền + "tên TRÙNG lệnh có sẵn của vỏ — sẽ đè lên lệnh hệ thống") }
+    nếu chứa(BÍ_DANH_DS, t) { gom(lỗi, tiền + "tên TRÙNG bí danh lệnh vỏ") }
+    nếu chứa(LỆNH_MẪU_DS, t) { gom(lỗi, tiền + "tên TRÙNG lệnh mẫu có sẵn ở /lệnh") }
+    nếu chứa(siêu, t) { gom(lỗi, tiền + "tên dành cho siêu-gói sinh tự động") }
+    nếu loại(lấy_khoá(m, "phiên")) == "chuỗi" { nếu _phiên_hợp_lệ(lấy_khoá(m, "phiên")) == tối { gom(lỗi, tiền + "phiên '" + lấy_khoá(m, "phiên") + "' phải dạng 1.0 hoặc 1.0.2") } }
+    nếu loại(lấy_khoá(m, "nhóm")) == "chuỗi" { nếu loại(nhóm_của(lấy_khoá(m, "nhóm"))) == "ẩn" { gom(lỗi, tiền + "nhóm '" + lấy_khoá(m, "nhóm") + "' lạ") } }
+    nếu loại(lấy_khoá(m, "giấy_phép")) == "chuỗi" { nếu chứa(GIẤY_PHÉP_DS, lấy_khoá(m, "giấy_phép")) == tối { gom(lỗi, tiền + "giấy phép '" + lấy_khoá(m, "giấy_phép") + "' không trong danh sách SPDX được nhận") } }
+    lặp k trong khoá(m) { nếu k[0] != "_" { nếu loại(vị_trí(lấy_khoá(m, k), "|")) != "ẩn" { gom(lỗi, tiền + "trường '" + k + "' chứa '|' — làm vỡ mục lục") } } }
+    lặp nl trong lấy_khoá(m, "_nl") { nếu chứa(NĂNG_LỰC_DS, nl) == tối { gom(lỗi, tiền + "năng lực '" + nl + "' lạ") } }
+    đặt phụ_tên = []
+    lặp spec trong lấy_khoá(m, "_phụ") {
+        lặp n trong tên_trong_ràng(spec) {
+            gom(phụ_tên, n)
+            nếu có_khoá(gói, n) == tối { gom(lỗi, tiền + "phụ thuộc '" + n + "' không có trong kho") }
+        }
+    }
+    # SUY NĂNG LỰC từ thân + lệnh lạ
+    đặt dùng = []
+    lặp sl trong lệnh_trong_thân(lấy_khoá(m, "_thân")) {
+        đặt lệnh = sl[1]
+        nếu lệnh == ">" { nếu chứa(dùng, "ghi") == tối { gom(dùng, "ghi") } } khác { nếu lệnh[0] != "$" {
+            nếu có_khoá(LỆNH_ĐÒI, lệnh) { nếu chứa(dùng, lấy_khoá(LỆNH_ĐÒI, lệnh)) == tối { gom(dùng, lấy_khoá(LỆNH_ĐÒI, lệnh)) } }
+            đặt biết = tối
+            nếu chứa(NỘI_TRÚ_DS, lệnh) { đặt biết = sáng }  nếu chứa(BÍ_DANH_DS, lệnh) { đặt biết = sáng }
+            nếu chứa(LỆNH_MẪU_DS, lệnh) { đặt biết = sáng }  nếu chứa(phụ_tên, lệnh) { đặt biết = sáng }
+            nếu biết == tối {
+                nếu có_khoá(gói, lệnh) { gom(lỗi, tiền + "than dòng " + sl[0] + ": gọi gói '" + lệnh + "' mà KHÔNG khai phụ thuộc") } khác {
+                    gom(lỗi, tiền + "than dòng " + sl[0] + ": lệnh '" + lệnh + "' không có (không phải lệnh vỏ, không phải gói phụ thuộc)")
+                }
+            }
+        } }
+    }
+    lặp nl trong dùng {
+        nếu chứa(lấy_khoá(m, "_nl"), nl) == tối {
+            nếu chứa(NHẠY_DS, nl) { gom(lỗi, tiền + "than dùng lệnh đòi năng lực NHẠY CẢM '" + nl + "' mà KHÔNG khai — người dùng sẽ không được hỏi") } khác {
+                gom(cb, tiền + "than ghi tệp mà không khai năng lực 'ghi'")
+            }
+        }
+    }
+    lặp nl trong lấy_khoá(m, "_nl") { nếu chứa(NHẠY_DS, nl) { nếu chứa(dùng, nl) == tối { gom(cb, tiền + "khai năng lực '" + nl + "' mà than không dùng — khai thừa làm người dùng sợ vô cớ") } } }
+    nếu loại(vị_trí("\n" + lấy_khoá(m, "_kiểm"), "\nchứa:")) == "ẩn" { gom(lỗi, tiền + "thiếu kiểm thử (tệp kiem cần ít nhất một dòng 'chứa: …')") }
+    nếu loại(lấy_khoá(m, "nhóm")) == "chuỗi" { nếu bắt_đầu(lấy_khoá(m, "nhóm"), "an-ninh/") {
+        lặp nl trong ["xoá", "đĩa", "mạng"] { nếu chứa(dùng, nl) {
+            gom(lỗi, tiền + "công cụ AN NINH PHÒNG THỦ chỉ được soi/đọc/báo cáo — '" + nl + "' (sửa/xoá/mạng) phải là gói riêng ngoài nhóm an-ninh")
+        } }
+    } }
+}
+
+# ---------------- siêu-gói sinh từ nhóm (học kali-tools-*) ----------------
+hàm _tạo_siêu(tên, mô, thành) {
+    đặt m = bản()
+    đặt dòng = ["# " + tên + " — " + mô]
+    lặp x trong thành { gom(dòng, "nói \"━━ " + x + " ━━\"")  gom(dòng, x) }
+    đặt_khoá(m, "tên", tên)  đặt_khoá(m, "phiên", "1.0")  đặt_khoá(m, "nhóm", "siêu-gói")
+    đặt_khoá(m, "mô_tả", mô)  đặt_khoá(m, "giấy_phép", "Apache-2.0")
+    đặt_khoá(m, "_phụ", thành)  đặt_khoá(m, "_nl", [])  đặt_khoá(m, "_thân", nối(dòng, "\n"))
+    trả m
+}
+hàm siêu_gói(gói) {
+    đặt ra = bản()  đặt an_ninh = []
+    lặp n trong NHÓM_DS {
+        đặt thành = []
+        lặp t trong khoá(gói) { nếu lấy_khoá(lấy_khoá(gói, t), "nhóm") == n[0] { gom(thành, t) } }
+        nếu dài(thành) > 0 {
+            đặt_khoá(ra, n[1], _tạo_siêu(n[1], "SIÊU-GÓI: " + n[2], sắp_xếp(thành)))
+            nếu bắt_đầu(n[0], "an-ninh/") { gom(an_ninh, n[1]) }
+        }
+    }
+    nếu dài(an_ninh) > 0 { đặt_khoá(ra, SIÊU_AN_NINH[0], _tạo_siêu(SIÊU_AN_NINH[0], SIÊU_AN_NINH[1], sắp_xếp(an_ninh))) }
+    trả ra
+}
+hàm gói_đủ(vào) {
+    "→ bản tên → manifest: mọi gói nguồn + siêu-gói sinh tự động"
+    đặt gói = bản()
+    lặp t trong tên_gói_vào(vào) { đặt_khoá(gói, t, đọc_gói_nguồn(vào, t)) }
+    đặt s = siêu_gói(gói)
+    lặp t trong khoá(s) { đặt_khoá(gói, t, lấy_khoá(s, t)) }
+    trả gói
+}
+hàm dòng_mục_lục(t, m) {
+    đặt d = t + "|" + lấy_khoá(m, "phiên") + "|" + lấy_khoá(m, "nhóm") + "|" + nối(lấy_khoá(m, "_phụ"), ",") + "|"
+    trả d + nối(lấy_khoá(m, "_nl"), ",") + "|" + sha256_hex(lấy_khoá(m, "_thân")) + "|" + lấy_khoá(m, "mô_tả")
+}
+hàm mục_lục_của(gói) {
+    đặt dòng = []
+    lặp t trong sắp_xếp(khoá(gói)) { gom(dòng, dòng_mục_lục(t, lấy_khoá(gói, t))) }
+    trả nối(dòng, "\n")
+}
+hàm _hex(bytes) {
+    đặt H = "0123456789abcdef"  đặt s = []
+    lặp x trong bytes { gom(s, H[x // 16])  gom(s, H[dư(x, 16)]) }
+    trả nối(s, "")
+}
+hàm ký_mục_lục(mục, ξ, hạt) {
+    đặt s = ký_kép(ξ, hạt, mục, NGỮ_CẢNH_KHO, _hex(ngẫu_nhiên_an_toàn(32)))
+    nếu loại(s) == "ẩn" { __ném("ký kép thất bại (khoá riêng hỏng?)") }
+    trả "kép|" + s[0] + "|" + s[1]
+}
+
+# ---------------- THỬ: HĐH SẠCH, cài qua đường thật, chạy, đối chiếu ----------------
+hàm _dòng_kiểm(k, đầu) {
+    đặt ra = []
+    lặp dòng trong tách(k, "\n") {
+        đặt d = cắt_lề(dòng)
+        nếu bắt_đầu(d, đầu) { gom(ra, cắt_lề(lát_chuỗi(d, dài(đầu), dài(d)))) }
+    }
+    trả ra
+}
+hàm thử_gói(vào, chọn) {
+    đặt gói = gói_đủ(vào)
+    đặt mục = mục_lục_của(gói)
+    # khoá TẠM cho kho thử (hạt từ random_get, không lưu đâu cả)
+    đặt ξ = _hex(ngẫu_nhiên_an_toàn(32))  đặt hạt = _hex(ngẫu_nhiên_an_toàn(32))
+    đặt kc = khoá_kép_từ_hạt(ξ, hạt)
+    đặt ký = ký_mục_lục(mục, ξ, hạt)
+    # HĐH sạch
+    đặt M = khởi_máy()
+    thêm_người(M, 0, "gốc")  thêm_người(M, 1000, "an")
+    đặt K = sinh_tt(M, "khởi", 0, 0, "/")
+    lặp d trong ["/hệ", "/nhà", "/lệnh", "/hệ/kho", "/hệ/kho/gói", "/nhà/an", "/nhà/an/lệnh"] { gọi(M, K, GH_TẠO_THƯ, [d, 755]) }
+    gọi(M, K, GH_TẠO_THƯ, ["/thùng_rác", 777])  gọi(M, K, GH_TẠO_THƯ, ["/tạm", 777])
+    gọi(M, K, GH_ĐỔI_CHỦ, ["/nhà/an", 1000])  duyệt(M)
+    gọi(M, K, GH_ĐỔI_CHỦ, ["/nhà/an/lệnh", 1000])  duyệt(M)
+    cài_lệnh(M, K)
+    gọi(M, K, GH_TẠO, ["/hệ/người_dùng", 644, "gốc:0:/\nan:1000:/nhà/an"])
+    gọi(M, K, GH_TẠO, ["/hệ/mật_khẩu", 600, ""])
+    gọi(M, K, GH_TẠO, ["/hệ/nhóm", 644, "văn:100:gốc,an"])
+    gọi(M, K, GH_TẠO, ["/hệ/sudo", 440, "an: xem liệt"])
+    gọi(M, K, GH_TẠO, ["/hệ/đường_lệnh", 644, "/lệnh:/nhà/an/lệnh"])
+    gọi(M, K, GH_TẠO, ["/hệ/gói_đã_cài", 644, ""])
+    gọi(M, K, GH_TẠO, ["/hệ/kho/mục_lục", 644, mục])
+    gọi(M, K, GH_TẠO, ["/hệ/kho/mục_lục.ký", 644, ký])
+    gọi(M, K, GH_TẠO, ["/hệ/kho/khoá_công", 644, "kép|" + kc[0] + "|" + kc[1]])
+    gọi(M, K, GH_TẠO, ["/hệ/kho/nguồn", 644, "kho-thử|/hệ/kho/mục_lục|/hệ/kho/mục_lục.ký|/hệ/kho/khoá_công"])
+    lặp t trong khoá(gói) { gọi(M, K, GH_TẠO, ["/hệ/kho/gói/" + t, 644, lấy_khoá(lấy_khoá(gói, t), "_thân")]) }
+    đặt V = gọi(M, K, GH_SINH, ["vỏ", 5])
+    đặt_khoá(lấy_khoá(lấy_khoá(M, "cred"), V), "uid", 1000)
+    đặt_khoá(lấy_khoá(lấy_khoá(M, "cred"), V), "thư", "/nhà/an")
+    # chọn gói: nguồn trước, siêu-gói sau
+    đặt ds = chọn
+    nếu dài(ds) == 0 {
+        đặt ds = tên_gói_vào(vào)
+        lặp t trong sắp_xếp(khoá(gói)) { nếu chứa(ds, t) == tối { gom(ds, t) } }
+    }
+    đặt đạt = 0  đặt rớt = 0
+    lặp t trong ds {
+        đặt m = lấy_khoá(gói, t)
+        nếu loại(m) == "ẩn" { rọi "  ✗ " + t + " — không có gói"  đặt rớt = rớt + 1 } khác {
+            đặt k = lấy_khoá(m, "_kiểm")
+            nếu loại(k) == "ẩn" { đặt k = "chạy: " + t + "\nchứa: ━━" }
+            đặt người = _dòng_kiểm(k, "người:")
+            đặt tid = V  đặt ai = "an"
+            nếu dài(người) > 0 { nếu người[0] == "gốc" { đặt tid = K  đặt ai = "gốc" } }
+            đặt chạy_ds = _dòng_kiểm(k, "chạy:")
+            nếu dài(chạy_ds) == 0 { đặt chạy_ds = [t] }
+            đặt c = kho_cài(M, K, t, sáng)
+            # đã được cài trước đó như PHỤ THUỘC của gói khác ⇒ coi như cài xong (thử phần chạy)
+            nếu c[0] != sáng { nếu loại(c[1]) == "chuỗi" { nếu loại(vị_trí(c[1], "đã cài rồi")) != "ẩn" { đặt c = [sáng, []] } } }
+            đặt đầu_ra = ""
+            nếu c[0] == sáng { lặp dòng trong chạy_ds { đặt đầu_ra = đầu_ra + chạy_dòng_im(M, tid, dòng)[1] + "\n" } }
+            đặt thiếu = []  đặt thừa = []
+            lặp x trong _dòng_kiểm(k, "chứa:") { nếu loại(vị_trí(đầu_ra, x)) == "ẩn" { gom(thiếu, x) } }
+            lặp x trong _dòng_kiểm(k, "không_chứa:") { nếu loại(vị_trí(đầu_ra, x)) != "ẩn" { gom(thừa, x) } }
+            nếu c[0] == sáng { nếu dài(thiếu) == 0 { nếu dài(thừa) == 0 {
+                rọi "  ✓ " + t + " (" + ai + ")"  đặt đạt = đạt + 1
+            } } }
+            nếu c[0] != sáng { rọi "  ✗ " + t + " — cài không được: " + c[1]  đặt rớt = rớt + 1 } khác {
+                nếu dài(thiếu) + dài(thừa) > 0 {
+                    rọi "  ✗ " + t + " (" + ai + ") — thiếu " + thiếu + " · có chữ cấm " + thừa
+                    rọi "      đầu ra: " + lát_chuỗi(đầu_ra, 0, 500)
+                    đặt rớt = rớt + 1
+                }
+            }
+        }
+    }
+    trả [đạt, rớt]
+}
+
+# ---------------- chạy ----------------
+đặt VÀO = đọc_vào(vào_còn())
+đặt LỆNH = lấy_khoá(VÀO, "@lệnh")
+nếu loại(LỆNH) == "ẩn" { __ném("thiếu @lệnh — chạy bằng: sh goi.sh <lệnh> …") }
+đặt ĐỐI = []
+lặp x trong tách(cắt_lề(LỆNH), " ") { nếu dài(x) > 0 { gom(ĐỐI, x) } }
+đặt VIỆC = ĐỐI[0]
+đặt CHỌN = lát(ĐỐI, 1, dài(ĐỐI))
+
+nếu VIỆC == "liet" {
+    đặt gói = bản()
+    lặp t trong tên_gói_vào(VÀO) { đặt_khoá(gói, t, đọc_gói_nguồn(VÀO, t)) }
+    lặp n trong NHÓM_DS {
+        đặt ds = []
+        lặp t trong khoá(gói) { nếu lấy_khoá(lấy_khoá(gói, t), "nhóm") == n[0] { gom(ds, t) } }
+        nếu dài(ds) > 0 {
+            rọi ""  rọi n[0] + "  (" + n[1] + ")"
+            lặp t trong sắp_xếp(ds) {
+                đặt m = lấy_khoá(gói, t)
+                đặt đuôi = ""
+                nếu dài(lấy_khoá(m, "_nl")) > 0 { đặt đuôi = "  [năng lực: " + nối(lấy_khoá(m, "_nl"), ",") + "]" }
+                rọi "  " + t + " " + lấy_khoá(m, "phiên") + " — " + lấy_khoá(m, "mô_tả") + đuôi
+            }
+        }
+    }
+    rọi ""  rọi dài(gói) + " gói · siêu-gói: " + nối(sắp_xếp(khoá(siêu_gói(gói))), ", ")
+}
+nếu VIỆC == "kiem" {
+    đặt r = kiểm_gói(VÀO, CHỌN)
+    lặp x trong r[1] { rọi "  ⚠ " + x }
+    lặp x trong r[0] { rọi "  ✗ " + x }
+    đặt n = dài(CHỌN)  nếu n == 0 { đặt n = dài(tên_gói_vào(VÀO)) }
+    rọi ""  rọi "LINT GÓI: " + n + " gói · " + dài(r[0]) + " lỗi · " + dài(r[1]) + " cảnh báo"
+    nếu dài(r[0]) > 0 { __ném("lint còn " + dài(r[0]) + " lỗi") }
+}
+nếu VIỆC == "thu" {
+    đặt r = kiểm_gói(VÀO, [])
+    nếu dài(r[0]) > 0 { lặp x trong r[0] { rọi "  ✗ " + x }  __ném("lint còn lỗi — không thử") }
+    đặt kq = thử_gói(VÀO, CHỌN)
+    rọi ""  rọi "THỬ GÓI: " + kq[0] + "/" + (kq[0] + kq[1]) + " đạt"
+    nếu kq[1] > 0 { __ném(kq[1] + " gói rớt") }
+}
+nếu VIỆC == "khoa" {
+    đặt ξ = _hex(ngẫu_nhiên_an_toàn(32))  đặt hạt = _hex(ngẫu_nhiên_an_toàn(32))
+    đặt kc = khoá_kép_từ_hạt(ξ, hạt)
+    ra_tệp(".khoa/kho_goi/rieng.txt", "kép-riêng|" + ξ + "|" + hạt)
+    ra_tệp(".khoa/kho_goi/cong.txt", "kép|" + kc[0] + "|" + kc[1])
+    rọi "đã sinh cặp khoá KÉP cho kho gói · vân tay " + vân_tay_của("kép|" + kc[0] + "|" + kc[1])
+}
+nếu VIỆC == "dung" {
+    đặt r = kiểm_gói(VÀO, [])
+    nếu dài(r[0]) > 0 { lặp x trong r[0] { rọi "  ✗ " + x }  __ném("lint còn lỗi — không dựng kho") }
+    đặt riêng = lấy_khoá(VÀO, "@khoá_riêng")
+    nếu loại(riêng) == "ẩn" { __ném("chưa có khoá kho — chạy: sh goi.sh khoa") }
+    đặt p = tách(cắt_lề(riêng), "|")
+    đặt kc = khoá_kép_từ_hạt(p[1], p[2])
+    đặt gói = gói_đủ(VÀO)
+    đặt mục = mục_lục_của(gói)
+    đặt ký = ký_mục_lục(mục, p[1], p[2])
+    nếu kiểm_chữ_ký_khoá(mục, ký, "kép|" + kc[0] + "|" + kc[1]) != sáng { __ném("ký xong mà tự kiểm KHÔNG qua") }
+    ra_tệp("kho_dung/mục_lục", mục)
+    ra_tệp("kho_dung/chữ_ký", ký)
+    ra_tệp("kho_dung/khoá_công", "kép|" + kc[0] + "|" + kc[1])
+    lặp t trong sắp_xếp(khoá(gói)) { ra_tệp("kho_dung/gói/" + t, lấy_khoá(lấy_khoá(gói, t), "_thân")) }
+    rọi "đã dựng kho_dung/: " + dài(gói) + " gói (kể cả siêu-gói) · ký kép · vân tay " + vân_tay_của("kép|" + kc[0] + "|" + kc[1])
+}
+nếu VIỆC == "moi" {
+    nếu dài(ĐỐI) < 4 { __ném("dùng: sh goi.sh moi <tên> <nhóm> <mô tả…>") }
+    đặt t = ĐỐI[1]  đặt nh = ĐỐI[2]  đặt mô = nối(lát(ĐỐI, 3, dài(ĐỐI)), " ")
+    nếu loại(nhóm_của(nh)) == "ẩn" { __ném("nhóm '" + nh + "' lạ") }
+    nếu có_khoá(VÀO, "goi/" + t + "/GOI") { __ném("goi/" + t + " đã có") }
+    nếu _tên_hợp_lệ(t) == tối { __ném("tên '" + t + "' không hợp lệ") }
+    ra_tệp("goi/" + t + "/GOI", "tên: " + t + "\nphiên: 0.1\nnhóm: " + nh + "\nmô_tả: " + mô + "\ngiấy_phép: Apache-2.0\nphụ_thuộc:\nnăng_lực:\nduy_trì: HĐH-GIAO\n")
+    ra_tệp("goi/" + t + "/than", "# " + t + " — " + mô + "\nnói \"── " + t + " ──\"\n")
+    ra_tệp("goi/" + t + "/kiem", "người: an\nchạy: " + t + "\nchứa: ── " + t + " ──\n")
+    rọi "đã tạo khung goi/" + t + "/ — sửa than + kiem, rồi: sh goi.sh kiem " + t + " && sh goi.sh thu " + t
+}
+nếu chứa(["liet", "kiem", "thu", "khoa", "dung", "moi"], VIỆC) == tối { __ném("lệnh '" + VIỆC + "' lạ — liet · kiem · thu · khoa · dung · moi") }

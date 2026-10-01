@@ -1,0 +1,8 @@
+tên: kiểm_kho_gói
+phiên: 1.0
+nhóm: an-ninh/kiểm-toán
+mô_tả: kho gói có đúng chữ ký kép của khoá đã neo không, đã cài những gì
+giấy_phép: Apache-2.0
+phụ_thuộc: 
+năng_lực: 
+duy_trì: HĐH-GIAO

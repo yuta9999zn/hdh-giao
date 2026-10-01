@@ -1,0 +1,3 @@
+# đo_đĩa — đếm số tệp trong một thư mục (mặc định /tạm)
+nói "── đếm tệp ──"
+liệt $1 | đếm

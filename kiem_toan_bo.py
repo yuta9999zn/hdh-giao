@@ -416,7 +416,7 @@ print("\n[★ GVM-64 — máy tính toán của GIAO (WASM/WASI, không Python l
 _wt = shutil.which("wasmtime") or (r"D:\wasmtime\wasmtime.exe" if os.path.exists(r"D:\wasmtime\wasmtime.exe") else None)
 if _wt:
     _ds = ["lượng_tử_bell.giao", "lượng_tử_grover.giao", "lượng_tử_dịch_chuyển.giao", "lượng_tử_hilbert.giao",
-           "lượng_tử_xeb.giao", "kiem_lib_sha256.giao", "kiem_lib_mật_khẩu.giao", "kiem_muoi_he.giao", "kiem_luong_tu_khoi.giao", "kiem_ky_kep_giao.giao", "kiem_argon2.giao", "kiem_cdfl_gvm64.giao", "examples/hilbert.giao", "kiem_lib_bit.giao",
+           "lượng_tử_xeb.giao", "kiem_lib_sha256.giao", "kiem_lib_mật_khẩu.giao", "kiem_muoi_he.giao", "kiem_luong_tu_khoi.giao", "kiem_ky_kep_giao.giao", "kiem_vo_doi_so.giao", "kiem_argon2.giao", "kiem_cdfl_gvm64.giao", "examples/hilbert.giao", "kiem_lib_bit.giao",
            "kiem_lib_thập_phân.giao", "kiem_lib_chuoi.giao", "kiem_lib_bản.giao", "kiem_lib_duyet.giao"]
     ok, o = chạy("kiem_gvm64", ["kiem_gvm64.py"] + _ds, "KẾT QUẢ")
     _kq = [d for d in o.splitlines() if d.startswith("KẾT QUẢ")]
@@ -424,7 +424,7 @@ if _wt:
     # TỰ THÂN HOÁ: giaoc64.giao (chạy trên GVM-64) ≡ giaoc64.py từng BYTE + điểm bất động. CI chạy tập đại
     # diện (CRLF + NUL trong chuỗi, nhiều tầng nhập, CDFL, số thực, lượng tử); toàn bộ: python kiem_tu_bien_dich.py
     _dd = ["lib_dia.giao", "lib_vỏ.giao", "kiem_cdfl_gvm64.giao", "lượng_tử_xeb.giao", "kiem_lib_mật_khẩu.giao",
-           "examples/hilbert.giao", "kiem_luong_tu_khoi.giao"]
+           "examples/hilbert.giao", "kiem_luong_tu_khoi.giao", "goi.giao"]
     ok, o = chạy("tu_bien_dich", ["kiem_tu_bien_dich.py"] + _dd, "KẾT QUẢ TỰ BIÊN DỊCH")
     mục("TỰ THÂN HOÁ: giaoc64.giao trên GVM-64 ≡ giaoc64.py từng byte + điểm bất động 2 thế hệ",
         ok and f"{len(_dd)} trùng từng byte · 0 lệch" in o and "điểm bất động đạt" in o, o[-400:])
@@ -443,6 +443,15 @@ if _wt:
     ok, o = chạy("tls_pq", ([_py_pq, "-W", "ignore", "kiem_tls_pq.py"] if _py_pq else ["kiem_tls_pq.py"]), "TLS HẬU LƯỢNG TỬ")
     mục("TLS lai X25519+ML-KEM-768 của môi giới: máy chủ cổ điển bị đóng, máy chủ lai đi qua" +
         ("" if _py_pq else " (BỎ QUA — chưa đặt GIAO_PY_QISKIT)"), ok and "✗" not in o, o[-300:])
+    # HỆ SINH THÁI: bộ công cụ làm gói viết bằng GIAO (goi.giao trên GVM-64) — lint, thử trong HĐH sạch, dựng kho
+    _sh = shutil.which("sh") or r"C:\Program Files\Git\usr\bin\sh.exe"
+    ok, o = chạy("kiem_goi", [_sh, "kiem_goi.sh"], "BỘ CÔNG CỤ GÓI")
+    _kq = [d for d in o.splitlines() if d.startswith("BỘ CÔNG CỤ GÓI")]
+    mục(f"hệ sinh thái: goi.giao (GIAO trên GVM-64) — lint bắt 10 kiểu gói xấu, mọi gói cài+chạy đạt trong HĐH sạch, dựng kho ký kép ({_kq[0][16:] if _kq else '?'})",
+        ok and "✗" not in o, o[-400:])
+    ok, o = chạy("vo_doi_so", ["giao.py", "kiem_vo_doi_so.giao", "--bước", "200000000"])
+    mục("vỏ HĐH: thiếu đối số ⇒ cách dùng (không sập) · && dừng khi vế trước hỏng (lỗi do goi.giao tìm ra)",
+        ok and "[soi] mã 2" in o and "KHÔNG_ĐƯỢC_IN" not in o and "MỘT | HAI | BA" in o and "SAU_KHÔNG_ĐƯỢC_IN" not in o, o[-300:])
     ok, o = chạy("moi_gioi", ["kiem_moi_gioi.py"], "MÔI GIỚI LƯỢNG TỬ")
     mục("môi giới lượng tử: chạy khô → cần_người_duyệt, thiếu token → từ chối, không niêm phong treo",
         ok and "✗" not in o, o[-300:])

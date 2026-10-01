@@ -1,0 +1,8 @@
+tên: dọn_nhà
+phiên: 2.1
+nhóm: tệp
+mô_tả: chuyển tệp vào thùng rác (xoá khả hồi — lấy lại bằng hoàn_tác)
+giấy_phép: Apache-2.0
+phụ_thuộc: 
+năng_lực: xoá
+duy_trì: HĐH-GIAO

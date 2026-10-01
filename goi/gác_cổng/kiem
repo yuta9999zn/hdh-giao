@@ -1,0 +1,6 @@
+người: an
+chạy: gác_cổng
+chứa: /hệ/mật_khẩu:
+chứa: rw-------  tệp  chủ=gốc
+chứa: cấm ĐỌC '/hệ/mật_khẩu'
+chứa: ── vì sao

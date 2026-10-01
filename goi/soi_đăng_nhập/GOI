@@ -1,0 +1,8 @@
+tên: soi_đăng_nhập
+phiên: 1.0
+nhóm: an-ninh/giám-sát
+mô_tả: lọc nhật ký tìm đăng nhập, đăng nhập sai, nâng quyền
+giấy_phép: Apache-2.0
+phụ_thuộc: 
+năng_lực: 
+duy_trì: HĐH-GIAO

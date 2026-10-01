@@ -1,0 +1,8 @@
+tên: gác_cổng
+phiên: 1.3
+nhóm: an-ninh/kiểm-toán
+mô_tả: soi quyền các tệp nhạy cảm và vì sao người này đọc được hay không
+giấy_phép: Apache-2.0
+phụ_thuộc: soi_người
+năng_lực: 
+duy_trì: HĐH-GIAO

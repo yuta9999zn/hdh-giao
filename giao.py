@@ -1157,6 +1157,40 @@ class Runtime:
             ra=r.stdout.decode("utf-8","replace").strip()
             if r.returncode!=0 or len(ra)!=2: return AN
             return [SANG if ra[0]=="1" else TOI, SANG if ra[1]=="1" else TOI]
+        def _ky_lenh(lệnh, *trường):                      # gọi wasm/ky_lenh.wasm (đã kiểm ghim ở b_kiem_ky_kep)
+            import struct as _st, subprocess as _sp, shutil as _sh, hashlib as _hl
+            gốc=os.path.dirname(os.path.abspath(__file__))
+            wt=os.environ.get("GIAO_WASMTIME") or _sh.which("wasmtime") or (r"D:\wasmtime\wasmtime.exe" if os.path.exists(r"D:\wasmtime\wasmtime.exe") else None)
+            mod=os.environ.get("GIAO_KY_WASM") or os.path.join(gốc,"wasm","ky_lenh.wasm")
+            if wt is None or not os.path.exists(mod): self.err("ký kép cần wasmtime và wasm/ky_lenh.wasm (sh wasm/dung_ky.sh)")
+            if not getattr(self,"_ky_đã_ghim",False):
+                kỳ=None
+                for d in open(os.path.join(gốc,"wasm","ky.sha256"),encoding="utf-8"):
+                    if d.strip().endswith("ky_lenh.wasm"): kỳ=d.split()[0].lower()
+                if kỳ!=_hl.sha256(open(mod,"rb").read()).hexdigest(): self.err("ký kép: ky_lenh.wasm KHÁC ghim — từ chối chạy")
+                self._ky_đã_ghim=True
+            vào=bytes([lệnh])+b"".join(_st.pack("<I",len(t))+t for t in trường)
+            r=_sp.run([wt,"run",mod],input=vào,capture_output=True,timeout=120)
+            ra=r.stdout.decode("utf-8","replace").strip()
+            return None if r.returncode!=0 or ra.startswith("LOI") else ra
+        def b_khoa_kep_tu_hat(a):                         # khoá_kép_từ_hạt(ξ_hex, hạt_ed_hex) → [khoá_ed_hex, khoá_ml_hex]
+            need(a,2,"khoá_kép_từ_hạt")
+            try: ξ,hạt=(bytes.fromhex(x) for x in a)
+            except (ValueError,TypeError): return AN
+            if len(ξ)!=32 or len(hạt)!=32: return AN
+            ml=_ky_lenh(1,ξ); ed=_ky_lenh(4,hạt)
+            if ml is None or ed is None: return AN
+            return [ed, ml[:2*1952]]
+        def b_ky_kep(a):                                  # ký_kép(ξ_hex, hạt_ed_hex, nội_dung, ngữ_cảnh, rnd_hex) → [ký_ed_hex, ký_ml_hex]
+            need(a,5,"ký_kép")
+            if not all(isinstance(x,str) for x in a): return AN
+            try: ξ,hạt,rnd=(bytes.fromhex(x) for x in (a[0],a[1],a[4]))
+            except ValueError: return AN
+            nd,ctx=a[2].encode("utf-8"),a[3].encode("utf-8")
+            if len(ξ)!=32 or len(hạt)!=32 or len(rnd)!=32 or len(ctx)>255: return AN
+            r=_ky_lenh(8,ξ,hạt,nd,ctx,rnd)
+            if r is None: return AN
+            return [r[:128], r[128:]]
         def b_vao_con(a):                                 # vào_còn() → phần còn lại của stdin (UTF-8). Như GVM-64:
             need(a,0,"vào_còn")                           # stdin là đường vào sẵn có, không phải năng lực mới.
             try: return sys.stdin.buffer.read().decode("utf-8", "replace")
@@ -1174,6 +1208,7 @@ class Runtime:
              "tạo_tri":b_tao_tri,"tao_tri":b_tao_tri, "γ_của":b_gamma_cua,"gamma_cua":b_gamma_cua,
              "ngẫu_hệ":b_ngau_he,"ngau_he":b_ngau_he,
              "vào_còn":b_vao_con,"vao_con":b_vao_con, "ra_byte":b_ra_byte, "argon2":b_argon2, "kiểm_ký_kép":b_kiem_ky_kep,"kiem_ky_kep":b_kiem_ky_kep,
+             "khoá_kép_từ_hạt":b_khoa_kep_tu_hat,"khoa_kep_tu_hat":b_khoa_kep_tu_hat, "ký_kép":b_ky_kep,"ky_kep":b_ky_kep,
              "thêm":b_them,"them":b_them, "ghép":b_ghep,"ghep":b_ghep,
              "gom":b_gom, "đảo":b_dao,"dao":b_dao, "nối":b_noi,"noi":b_noi, "tách":b_tach,"tach":b_tach,
              "là_ds":b_la_ds,"la_ds":b_la_ds, "là_số":b_la_so,"la_so":b_la_so,

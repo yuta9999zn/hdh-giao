@@ -46,3 +46,6 @@ soi_mang_usb/*.log
 # ───────────────────────────────────────────────────────── khoá ký kép sổ niêm phong (bí mật, sinh tự động)
 .khoa/
 kho_xa/khoa_kep_rieng.json
+
+# kho gói DỰNG ra (sh goi.sh dung) — sản phẩm, dựng lại được
+kho_dung/

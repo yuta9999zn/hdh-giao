@@ -1,0 +1,5 @@
+# kiểm_sudo — ai được nâng quyền, nâng cho lệnh nào (sổ /hệ/sudo + nhóm)
+nói "── sổ sudo ──"
+xem /hệ/sudo
+nói "── nhóm ──"
+nhóm

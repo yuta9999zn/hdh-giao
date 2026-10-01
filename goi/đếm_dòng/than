@@ -1,0 +1,2 @@
+# đếm_dòng — đếm dòng/từ của một tệp
+xem $1 | đếm

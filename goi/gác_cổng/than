@@ -1,0 +1,12 @@
+# gác_cổng — soi quyền các tệp nhạy cảm và vì sao người này đọc được hay không
+soi_người
+nói "── quyền tệp nhạy cảm ──"
+nói "/hệ/mật_khẩu:"
+soi /hệ/mật_khẩu
+nói "/hệ/sudo:"
+soi /hệ/sudo
+nói "/hệ/người_dùng:"
+soi /hệ/người_dùng
+nói "── vì sao (với người đang chạy) ──"
+vì_sao /hệ/mật_khẩu
+vì_sao /hệ/sudo

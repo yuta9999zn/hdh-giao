@@ -1,0 +1,5 @@
+# soi_đăng_nhập — lọc nhật ký tìm đăng nhập, đăng nhập sai, nâng quyền
+nói "── đăng nhập trong nhật ký ──"
+nhật_ký 200 | tìm đăng
+nói "── nâng quyền ──"
+nhật_ký 200 | tìm duyệt

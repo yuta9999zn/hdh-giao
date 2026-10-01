@@ -33,6 +33,13 @@
 // nạp bằng --preload ky=wasm/ky.wasm. Dùng để HĐH kiểm mục lục kho (bản cập nhật) ký kép.
 @external("ky", "k_dat")      declare function k_dat(i: i32, b: i32): i32;
 @external("ky", "k_kiem_kep") declare function k_kiem_kep(lm: i32, lctx: i32, lml: i32): i32;
+@external("ky", "k_lay")      declare function k_lay(i: i32): i32;
+@external("ky", "k_khoa")     declare function k_khoa(): i32;
+@external("ky", "k_ky_kep")   declare function k_ky_kep(lm: i32, lctx: i32): i32;
+const HEXS = "0123456789abcdef";
+function kyRaHex(tu: i32, n: i32): string {
+  let s = ""; for (let i = 0; i < n; i++) { let b = k_lay(tu + i); s += HEXS.charAt(b >> 4) + HEXS.charAt(b & 15); } return s;
+}
 // hex → đẩy từng byte vào module ký từ vị trí pos; trả số byte, -1 nếu không phải hex hợp lệ
 function hexVaoKy(s: string, pos: i32): i32 {
   let n = s.length; if ((n & 1) != 0) return -1;
@@ -1150,6 +1157,24 @@ function builtin(id: i32, b: i32, n: i32): void {
     }
     case 65: { // __ném(thông_điệp) — CHỈ cho thư viện hạ tầng (_cdfl.giao): lỗi runtime như self.err của giao.py
       if (!need(n, 1, "__ném")) return; err(render(sk[b], sv[b], so[b])); return;
+    }
+    case 70: { // khoá_kép_từ_hạt(ξ_hex 64, hạt_ed_hex 64) → [khoá_ed_hex, khoá_ml_hex]; hỏng → ẩn
+      if (!need(n, 2, "khoá_kép_từ_hạt")) return;
+      if (sk[b] != K_STR || sk[b + 1] != K_STR) { RA(); return; }
+      if (hexVaoKy((<SObj>so[b]).s, 0) != 32 || hexVaoKy((<SObj>so[b + 1]).s, 32) != 32) { RA(); return; }
+      if (k_khoa() != 0) { RA(); return; }
+      let ra = new LObj(); ra.push(K_STR, 0, new SObj(kyRaHex(0, 32))); ra.push(K_STR, 0, new SObj(kyRaHex(32, 1952)));
+      RO(K_LIST, ra); return;
+    }
+    case 71: { // ký_kép(ξ_hex, hạt_ed_hex, nội_dung, ngữ_cảnh, rnd_hex 64) → [ký_ed_hex, ký_ml_hex]; hỏng → ẩn
+      if (!need(n, 5, "ký_kép")) return;
+      for (let q = 0; q < 5; q++) if (sk[b + q] != K_STR) { RA(); return; }
+      if (hexVaoKy((<SObj>so[b]).s, 0) != 32 || hexVaoKy((<SObj>so[b + 1]).s, 32) != 32 || hexVaoKy((<SObj>so[b + 4]).s, 64) != 32) { RA(); return; }
+      let lm = utf8VaoKy((<SObj>so[b + 2]).s, 96); if (lm < 0) { RA(); return; }
+      let lc = utf8VaoKy((<SObj>so[b + 3]).s, 96 + lm); if (lc < 0 || lc > 255) { RA(); return; }
+      if (k_ky_kep(lm, lc) != 0) { RA(); return; }
+      let ra = new LObj(); ra.push(K_STR, 0, new SObj(kyRaHex(0, 64))); ra.push(K_STR, 0, new SObj(kyRaHex(64, 3309)));
+      RO(K_LIST, ra); return;
     }
     case 69: { // kiểm_ký_kép(khoá_ed_hex, khoá_ml_hex, nội_dung, ngữ_cảnh, ký_ed_hex, ký_ml_hex) → [ed?, ml?] (sáng/tối); hỏng → ẩn
       if (!need(n, 6, "kiểm_ký_kép")) return;

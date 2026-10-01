@@ -1,0 +1,7 @@
+# dấu_vết — gom nhanh dấu vết: ai đang chạy, nhật ký gần nhất, tiến trình
+nói "── ai ──"
+tôi
+nói "── nhật ký 30 dòng ──"
+nhật_ký 30
+nói "── tiến trình ──"
+tt

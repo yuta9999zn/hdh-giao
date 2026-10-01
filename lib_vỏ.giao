@@ -287,9 +287,25 @@ hàm _chạy_mã_máy(máy, tid, tên, đường, nội, đối) {
 }
 
 # ---------------- THÂN NỘI TRÚ (một thân, nhiều tên — như busybox) ----------------
+# Số đối số TỐI THIỂU của lệnh cần đường dẫn/đích. Thiếu thì báo cách dùng (mã 2, như Linux `mv: missing file
+# operand`) — trước đây `soi`, `quyền`, `chép`, `chuyển`, `vì_sao`, `ghi`, `tạothư`, `sờ`, `về` thiếu đối số thì
+# SẬP CẢ VỎ (dài(ẩn) trong tuyệt_đối). Bộ công cụ gói (goi.giao thu) bắt được khi siêu-gói gọi công cụ không đối.
+đặt _CẦN_ĐỐI = bản()
+lặp c trong [["soi", 1, "soi <đường>"], ["quyền", 2, "quyền <tệp> <số>"], ["chép", 2, "chép <từ> <tới>"],
+             ["chuyển", 2, "chuyển <từ> <tới>"], ["vì_sao", 1, "vì_sao <đường>"], ["ghi", 1, "ghi <tệp> <nội dung…>"],
+             ["tạothư", 1, "tạothư <thư mục>"], ["sờ", 1, "sờ <tệp>"], ["về", 1, "về <thư mục>"], ["xoá", 1, "xoá <đường>"],
+             ["đổichủ", 2, "đổichủ <đường> <uid>"], ["giết", 1, "giết <tid>"], ["gắntb", 2, "gắntb <đường> <trình>"],
+             ["dịch", 2, "dịch <nguồn> <đích>"], ["ống", 1, "ống <đường> [sức]"], ["đóng", 1, "đóng <ống>"],
+             ["chụp", 1, "chụp <tệp>"], ["kiểm_cấu_hình", 1, "kiểm_cấu_hình <tệp>"]] {
+    đặt_khoá(_CẦN_ĐỐI, c[0], [c[1], c[2]])
+}
 hàm _nội_trú(máy, tid, đối, vào) {
     nếu dài(đối) == 0 { trả _kết(0, "") }
     đặt lệnh = _chuẩn_tên(đối[0])
+    nếu có_khoá(_CẦN_ĐỐI, lệnh) {
+        đặt cần = lấy_khoá(_CẦN_ĐỐI, lệnh)
+        nếu dài(đối) - 1 < cần[0] { trả _kết(2, lệnh + ": thiếu đối số — cách dùng: " + cần[1]) }
+    }
 
     nếu lệnh == "liệt" {
         đặt d = _từ_thứ(đối, 1)
@@ -845,8 +861,17 @@ hàm chạy_dòng(máy, tid, dòng) {
     nếu _đang_im(máy) == tối { đặt ngoài_cùng = sáng }
     nếu ngoài_cùng == sáng { đặt_trạng(bảng, tid, "chạy") }
 
-    đặt kq = _kết(0, "")
-    lặp phần trong tách(dòng, "&&") { đặt kq = _chạy_đoạn(máy, tid, cắt_lề(phần)) }
+    # `a && b`: chạy b CHỈ KHI a thành công (mã 0) — như sh. Trước đây vòng này chạy MỌI vế và chỉ giữ kết quả
+    # vế cuối: `xoá x && nói "đã xoá"` vẫn in "đã xoá" khi xoá đang CHỜ DUYỆT (mã 1), còn lời báo chờ duyệt
+    # thì mất (goi.giao thu bắt được qua gói dọn_nhà). Khi IM, gom đầu ra mọi vế đã chạy (khi không im, mỗi
+    # vế tự in rồi).
+    đặt kq = _kết(0, "")  đặt gom_ra = []
+    lặp phần trong tách(dòng, "&&") {
+        đặt kq = _chạy_đoạn(máy, tid, cắt_lề(phần))
+        nếu dài(kq[1]) > 0 { gom(gom_ra, kq[1]) }
+        nếu kq[0] != 0 { dừng }
+    }
+    nếu _đang_im(máy) == sáng { đặt kq = _kết(kq[0], nối(gom_ra, "\n")) }
 
     nếu ngoài_cùng == sáng {
         nếu trạng_của(bảng, tid) == "chết" { } khác { đặt_trạng(bảng, tid, "chặn") }

@@ -1,0 +1,8 @@
+tên: dấu_vết
+phiên: 1.0
+nhóm: an-ninh/điều-tra
+mô_tả: gom nhanh dấu vết: ai đang chạy, nhật ký gần nhất, tiến trình
+giấy_phép: Apache-2.0
+phụ_thuộc: 
+năng_lực: 
+duy_trì: HĐH-GIAO

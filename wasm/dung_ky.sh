@@ -12,8 +12,8 @@ N=ben_ngoai/mldsa-native; M=ben_ngoai/monocypher
   -DMLD_CONFIG_PARAMETER_SET=65 -DMLD_CONFIG_NO_RANDOMIZED_API \
   -Wl,-z,stack-size=1048576 -I$N -I$M \
   $N/mldsa_native.c $M/monocypher.c $M/monocypher-ed25519.c wasm/ky_lenh.c -o wasm/ky_lenh.wasm
-# ky.wasm: module reactor CHỈ KIỂM cho GVM-64 (--preload ky=wasm/ky.wasm), 0 import
-"$SDK/bin/clang" --target=wasm32-wasip1 --sysroot="$SDK/share/wasi-sysroot" -O2 -mexec-model=reactor   -DMLD_CONFIG_PARAMETER_SET=65 -DMLD_CONFIG_NO_RANDOMIZED_API -DMLD_CONFIG_NO_KEYPAIR_API -DMLD_CONFIG_NO_SIGN_API   -Wl,-z,stack-size=1048576 -I$N -I$M   $N/mldsa_native.c $M/monocypher.c $M/monocypher-ed25519.c wasm/ky_gvm.c -o wasm/ky.wasm
+# ky.wasm: module reactor cho GVM-64 (--preload ky=wasm/ky.wasm), 0 import — kiểm + (v0.43) sinh khoá/ký cho goi.giao
+"$SDK/bin/clang" --target=wasm32-wasip1 --sysroot="$SDK/share/wasi-sysroot" -O2 -mexec-model=reactor   -DMLD_CONFIG_PARAMETER_SET=65 -DMLD_CONFIG_NO_RANDOMIZED_API   -Wl,-z,stack-size=1048576 -I$N -I$M   $N/mldsa_native.c $M/monocypher.c $M/monocypher-ed25519.c wasm/ky_gvm.c -o wasm/ky.wasm
 if [ "$1" = "--ghim" ]; then
   sha256sum wasm/ky_lenh.wasm wasm/ky.wasm | sed 's/ \*/  /' > wasm/ky.sha256; echo "đã GHIM:"; cat wasm/ky.sha256
 else

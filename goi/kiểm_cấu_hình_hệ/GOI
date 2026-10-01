@@ -1,0 +1,8 @@
+tên: kiểm_cấu_hình_hệ
+phiên: 1.0
+nhóm: an-ninh/kiểm-toán
+mô_tả: chạy bộ kiểm cú pháp trên mọi tệp cấu hình của /hệ
+giấy_phép: Apache-2.0
+phụ_thuộc: 
+năng_lực: 
+duy_trì: HĐH-GIAO

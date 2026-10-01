@@ -1,0 +1,3 @@
+# dọn_nhà — chuyển tệp vào thùng rác (xoá khả hồi — lấy lại bằng hoàn_tác)
+nói "── dọn ──"
+xoá $1 && nói "đã chuyển vào thùng rác: $1"

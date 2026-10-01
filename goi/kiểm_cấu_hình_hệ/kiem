@@ -1,0 +1,6 @@
+người: gốc
+chạy: kiểm_cấu_hình_hệ
+chứa: ✓ /hệ/người_dùng hợp lệ
+chứa: ✓ /hệ/sudo hợp lệ
+chứa: ✓ /hệ/mật_khẩu hợp lệ
+không_chứa: ✗
