@@ -27,6 +27,11 @@ const thật = createHash("sha256").update(a2byte).digest("hex");
 if (!ghim || ghim.split(/\s+/)[0] !== thật) { process.stderr.write(`argon2.wasm: SHA-256 ${thật} KHÁC ghim — từ chối nạp\n`); process.exit(3); }
 const a2 = (await WebAssembly.instantiate(a2byte, {})).instance;
 if (a2.exports._initialize) a2.exports._initialize();
-const imports = { ...wasi.getImportObject(), argon2: a2.exports };
+const kyByte = readFileSync(join(here, "ky.wasm"));
+const ghimKy = readFileSync(join(here, "ky.sha256"), "utf8").split(/\r?\n/).find(d => d.endsWith(" wasm/ky.wasm"));
+if (!ghimKy || ghimKy.split(/\s+/)[0] !== createHash("sha256").update(kyByte).digest("hex")) { process.stderr.write("ky.wasm: SHA-256 KHÁC ghim — từ chối nạp\n"); process.exit(3); }
+const ky = (await WebAssembly.instantiate(kyByte, {})).instance;
+if (ky.exports._initialize) ky.exports._initialize();
+const imports = { ...wasi.getImportObject(), argon2: a2.exports, ky: ky.exports };
 const { instance } = await WebAssembly.instantiate(readFileSync(join(here, "gvm64.wasm")), imports);
 process.exitCode = wasi.start(instance) ?? 0;

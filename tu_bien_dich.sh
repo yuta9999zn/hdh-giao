@@ -15,6 +15,10 @@ A2="${GIAO_ARGON2_WASM:-$GIAO/wasm/argon2.wasm}"
 KY="$(grep ' wasm/argon2.wasm$' "$GIAO/wasm/argon2.sha256" | cut -d' ' -f1)"
 THAT="$(sha256sum "$A2" | cut -d' ' -f1)"
 [ -n "$KY" ] && [ "$KY" = "$THAT" ] || { echo "[tu_bien_dich] $A2: SHA-256 $THAT KHÁC ghim $KY — từ chối nạp" >&2; exit 3; }
+KM="${GIAO_KY_GVM_WASM:-$GIAO/wasm/ky.wasm}"
+KY2="$(grep ' wasm/ky.wasm$' "$GIAO/wasm/ky.sha256" | cut -d' ' -f1)"
+THAT2="$(sha256sum "$KM" | cut -d' ' -f1)"
+[ -n "$KY2" ] && [ "$KY2" = "$THAT2" ] || { echo "[tu_bien_dich] $KM: SHA-256 $THAT2 KHÁC ghim $KY2 — từ chối nạp" >&2; exit 3; }
 CHINH="$1"; GOC="$(cd "$(dirname "$CHINH")" && pwd)"; TEN="$(basename "$CHINH")"
 DS="$TEN"; CHO="$TEN"
 while [ -n "$CHO" ]; do                       # bao đóng các tệp được `nhập` (tương đối thư mục gốc)
@@ -34,4 +38,4 @@ done
   for f in $DS; do printf '\000%s %s\n' "$(wc -c < "$GOC/$f" | tr -d ' ')" "$f"; cat "$GOC/$f"; done
   printf '\000%s @chuẩn.giao\n' "$(wc -c < "$GIAO/chuẩn.giao" | tr -d ' ')"; cat "$GIAO/chuẩn.giao"
   printf '\000%s @_cdfl.giao\n' "$(wc -c < "$GIAO/_cdfl.giao" | tr -d ' ')"; cat "$GIAO/_cdfl.giao"
-} | "$WT" run --preload "argon2=$A2" "$GIAO/wasm/gvm64.wasm" -- --bước 4000000000 --trần-ds 200000000
+} | "$WT" run --preload "argon2=$A2" --preload "ky=$KM" "$GIAO/wasm/gvm64.wasm" -- --bước 4000000000 --trần-ds 200000000

@@ -416,7 +416,7 @@ print("\n[★ GVM-64 — máy tính toán của GIAO (WASM/WASI, không Python l
 _wt = shutil.which("wasmtime") or (r"D:\wasmtime\wasmtime.exe" if os.path.exists(r"D:\wasmtime\wasmtime.exe") else None)
 if _wt:
     _ds = ["lượng_tử_bell.giao", "lượng_tử_grover.giao", "lượng_tử_dịch_chuyển.giao", "lượng_tử_hilbert.giao",
-           "lượng_tử_xeb.giao", "kiem_lib_sha256.giao", "kiem_lib_mật_khẩu.giao", "kiem_muoi_he.giao", "kiem_argon2.giao", "kiem_cdfl_gvm64.giao", "examples/hilbert.giao", "kiem_lib_bit.giao",
+           "lượng_tử_xeb.giao", "kiem_lib_sha256.giao", "kiem_lib_mật_khẩu.giao", "kiem_muoi_he.giao", "kiem_luong_tu_khoi.giao", "kiem_ky_kep_giao.giao", "kiem_argon2.giao", "kiem_cdfl_gvm64.giao", "examples/hilbert.giao", "kiem_lib_bit.giao",
            "kiem_lib_thập_phân.giao", "kiem_lib_chuoi.giao", "kiem_lib_bản.giao", "kiem_lib_duyet.giao"]
     ok, o = chạy("kiem_gvm64", ["kiem_gvm64.py"] + _ds, "KẾT QUẢ")
     _kq = [d for d in o.splitlines() if d.startswith("KẾT QUẢ")]
@@ -424,7 +424,7 @@ if _wt:
     # TỰ THÂN HOÁ: giaoc64.giao (chạy trên GVM-64) ≡ giaoc64.py từng BYTE + điểm bất động. CI chạy tập đại
     # diện (CRLF + NUL trong chuỗi, nhiều tầng nhập, CDFL, số thực, lượng tử); toàn bộ: python kiem_tu_bien_dich.py
     _dd = ["lib_dia.giao", "lib_vỏ.giao", "kiem_cdfl_gvm64.giao", "lượng_tử_xeb.giao", "kiem_lib_mật_khẩu.giao",
-           "examples/hilbert.giao"]
+           "examples/hilbert.giao", "kiem_luong_tu_khoi.giao"]
     ok, o = chạy("tu_bien_dich", ["kiem_tu_bien_dich.py"] + _dd, "KẾT QUẢ TỰ BIÊN DỊCH")
     mục("TỰ THÂN HOÁ: giaoc64.giao trên GVM-64 ≡ giaoc64.py từng byte + điểm bất động 2 thế hệ",
         ok and f"{len(_dd)} trùng từng byte · 0 lệch" in o and "điểm bất động đạt" in o, o[-400:])
@@ -437,6 +437,12 @@ if _wt:
     ok, o = chạy("ky_kep", ["kiem_ky_kep.py"], "KÝ KÉP")
     mục("GĐ2 ký kép ML-DSA-65 + Ed25519: vector NIST ACVP + RFC 8032 khớp; sổ niêm phong phát hiện sửa/gỡ/ký lại",
         ok and "✗" not in o, o[-300:])
+    # TLS hậu lượng tử của môi giới: cần Python có pyopenssl + cryptography (OpenSSL ≥ 3.5) — GIAO_PY_QISKIT;
+    # Python thường thì bài kiểm tự BỎ QUA (và môi giới khi ấy từ chối gửi — kiem_moi_gioi kiểm điều đó).
+    _py_pq = os.environ.get("GIAO_PY_QISKIT")
+    ok, o = chạy("tls_pq", ([_py_pq, "-W", "ignore", "kiem_tls_pq.py"] if _py_pq else ["kiem_tls_pq.py"]), "TLS HẬU LƯỢNG TỬ")
+    mục("TLS lai X25519+ML-KEM-768 của môi giới: máy chủ cổ điển bị đóng, máy chủ lai đi qua" +
+        ("" if _py_pq else " (BỎ QUA — chưa đặt GIAO_PY_QISKIT)"), ok and "✗" not in o, o[-300:])
     ok, o = chạy("moi_gioi", ["kiem_moi_gioi.py"], "MÔI GIỚI LƯỢNG TỬ")
     mục("môi giới lượng tử: chạy khô → cần_người_duyệt, thiếu token → từ chối, không niêm phong treo",
         ok and "✗" not in o, o[-300:])

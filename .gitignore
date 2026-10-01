@@ -45,3 +45,4 @@ soi_mang_usb/*.log
 
 # ───────────────────────────────────────────────────────── khoá ký kép sổ niêm phong (bí mật, sinh tự động)
 .khoa/
+kho_xa/khoa_kep_rieng.json

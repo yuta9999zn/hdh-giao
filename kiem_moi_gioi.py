@@ -31,6 +31,16 @@ mã, o, sổ = chạy(["--duyệt"])
 ca("--duyệt mà thiếu token ⇒ từ chối, không gửi", mã != 0 and "QISKIT_IBM_TOKEN" in o, o[-300:])
 ca("thiếu token KHÔNG để lại niêm phong treo", not os.path.exists(sổ))
 try:
+    import OpenSSL  # noqa: F401
+    có_pyopenssl = True
+except ImportError:
+    có_pyopenssl = False
+if not có_pyopenssl:
+    mã, o, sổ = chạy(["--duyệt"], token="token-giả-chỉ-để-kiểm")
+    ca("có token nhưng Python thiếu pyOpenSSL (không TLS hậu lượng tử) ⇒ TỪ CHỐI, không gửi",
+       mã != 0 and "TỪ CHỐI" in o and "--cho-tls-cổ-điển" in o, o[-300:])
+    ca("từ chối vì TLS cổ điển KHÔNG để lại niêm phong treo", not os.path.exists(sổ))
+try:
     import qiskit_aer  # noqa: F401
     có_aer = True
 except ImportError:

@@ -5,6 +5,50 @@ Nền học thuyết: Nguyễn Trường An (DFCT / NNL-NTHT / CDFL).
 
 ---
 
+## v0.42.0 — Lộ trình: ngẫu nhiên an toàn · cập nhật ký kép · TLS lai hậu lượng tử · khối `lượng_tử` + tác vụ (2026-10-01)
+
+### GĐ1 — `ngẫu_nhiên_an_toàn(n)` (`chuẩn.giao`)
+- n byte từ nguồn ngẫu nhiên của HĐH (`ngẫu_hệ` = os.urandom / WASI random_get), mỗi byte = 8 bit cao.
+  Muối Argon2 dùng hàm này. Kiểm: 64 byte trong 0..255, hai lần gọi khác nhau, 4096 byte phủ 256/256.
+
+### GĐ2 — Bản cập nhật HĐH ký kép ML-DSA-65 + Ed25519
+- Khoá neo dạng `kép|<Ed25519>|<ML-DSA-65>`, chữ ký `kép|<ký_ed>|<ký_ml>`, ngữ cảnh `giao-kho-v1`.
+  `lib_chu_ky.kiểm_chữ_ký_khoá` chọn bộ kiểm theo DẠNG khoá đã neo; neo khoá KÉP thì CHỈ nhận chữ ký kép
+  (không có đường hạ cấp về RSA tự viết). RSA cũ vẫn kiểm được cho nguồn neo RSA.
+- Builtin mới `kiểm_ký_kép` (id 69) trên CẢ HAI máy: giao.py → `wasm/ky_lenh.wasm`; GVM-64 → module mới
+  `wasm/ky.wasm` (CHỈ KIỂM, 0 import, `--preload ky=…`, ghim trong `wasm/ky.sha256`). Mọi vỏ kiểm ghim cả
+  `argon2.wasm` lẫn `ky.wasm`. `kiem_ky_kep_giao.giao` khớp từng ký tự giữa hai máy (đúng · sửa nội dung ·
+  sai ngữ cảnh ⇒ [sáng, tối] — Ed25519 không gắn ngữ cảnh, chỉ ML-DSA bắt được · hỏng riêng từng chữ ký).
+- Kho xa (kênh cập nhật, `chay_kho_xa.py`) ký kép (`lam_khoa.sinh_kép/ký_kép`); khoá riêng
+  `kho_xa/khoa_kep_rieng.json` (gitignore). `kiem_kho_xa.py` **14/14** (thêm: neo khoá kép khác ⇒ từ chối;
+  HẠ CẤP — neo khoá kép mà kho đưa chữ ký RSA ⇒ từ chối, không ghi byte nào).
+
+### GĐ2 — TLS lai X25519 + ML-KEM-768 cho môi giới
+- `ssl` của mọi Python trên máy (3.11: OpenSSL 1.1.1q; 3.14: OpenSSL 3.0.18) KHÔNG có ML-KEM. Gói
+  `cryptography` đi kèm **OpenSSL 4.0.3** ⇒ môi giới ép urllib3/requests (qiskit-ibm-runtime) qua pyOpenSSL
+  và CHỐT ở mọi kết nối: nhóm trao đổi khoá phải lai hậu lượng tử, không thì đóng — token không đi kênh
+  cổ điển (trừ `--cho-tls-cổ-điển`). Bắt tay thử trước khi niêm phong/gửi.
+- Đo thật: `quantum.cloud.ibm.com`, `iam.cloud.ibm.com` (và cloudflare.com) thoả thuận **X25519MLKEM768 /
+  TLS 1.3**; requests sau khi ép cũng dùng X25519MLKEM768.
+- `kiem_tls_pq.py` **7/7** (không cần mạng: máy chủ cục bộ cổ điển ⇒ đóng; máy chủ có ML-KEM ⇒ đi qua;
+  cờ cổ điển; + IBM thật khi `GIAO_KIEM_MANG=1`). CI chạy nó khi đặt `GIAO_PY_QISKIT`; Python thường ⇒ bỏ
+  qua, và `kiem_moi_gioi.py` kiểm rằng môi giới khi ấy TỪ CHỐI gửi, không để niêm phong treo.
+
+### GĐ3 — Khối `lượng_tử`, tác vụ, chọn nơi chạy
+- `lượng_tử m (n) { H(0)  CX(0, 1)  ĐO_HẾT() }`: từ khoá NGỮ CẢNH (lần đầu làm từ khoá thật thì VỠ
+  `lib_trienkhai.giao` — có hàm `lượng_tử(xung_mhz)`, nghĩa lát thời gian; CI bắt được 4 mục), hạ lúc phân
+  tích ở `giao.py` + `giaoc64.giao` thành hàm vô danh gọi với `mạch(n)`. `.g64` trùng từng byte.
+- `tác_vụ_lượng_tử`, `nơi_chạy` (≤ 26 qubit cục bộ, lớn hơn đám mây), `chạy_tác_vụ`, `nhận_kết_quả`:
+  kết quả là tri(XEB, γ); chưa chạy / chờ môi giới ⇒ ẨN; > 26 qubit có đếm nhưng độ tin vẫn ẩn.
+- `kiem_luong_tu_khoi.giao` (khối ≡ viết tay, lặp/nếu lồng, phạm vi riêng, tác vụ 8 qubit γ > 0.9, tác vụ
+  30 qubit chờ môi giới) — khớp giữa hai máy.
+
+### GĐ4 — chưa làm được ở đây
+- Chạy trên IBM Quantum thật cần token của chủ dự án. Mọi thứ đã sẵn: `QISKIT_IBM_TOKEN=… python
+  moi_gioi_luong_tu.py mạch_mẫu_ibm.giao --shots 1000 --duyệt` (người tự gõ `--duyệt`).
+
+---
+
 ## v0.41.0 — Ghim vân tay khoá sổ niêm phong · ML-DSA chuyển sang mldsa-native (2026-10-01)
 
 ### Ghim khoá sổ niêm phong (vá giới hạn nêu ở v0.40.0)

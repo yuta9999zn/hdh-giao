@@ -17,7 +17,7 @@ khoá CÔNG để kiểm. Nên ở đây:
 KHÔNG dùng cho bí mật thật: sinh số nguyên tố ở đây là bản gọn để dạy/chạy dự án, chưa qua
 thẩm định mật mã. Điều nó chứng minh là NGỮ NGHĨA: chỉ ai giữ khoá riêng mới ký nổi mục lục.
 """
-import os, sys, hashlib, secrets
+import os, sys, hashlib, secrets, json
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TỆP_RIÊNG = os.path.join(HERE, "khoa_rieng.txt")
@@ -98,6 +98,27 @@ def kiểm(nội, sig_hex):
     m = pow(int(sig_hex, 16), e, n)
     return f"{m:0{k * 2}x}" == _khuôn(nội, k)
 
+
+# ---------------- KÝ KÉP ML-DSA-65 + Ed25519 (v0.42) — thay RSA tự viết cho kho ----------------
+# Khoá riêng KÉP = (ξ ML-DSA, hạt Ed25519) từ os.urandom; khoá công = "kép|<ed hex>|<ml hex>". Mã mật mã:
+# mldsa-native + Monocypher qua ky_kep.py (WASM, ghim SHA-256). HĐH kiểm bằng lib_chu_ky.kiểm_chữ_ký_khoá.
+NGỮ_CẢNH_KHO = b"giao-kho-v1"
+def sinh_kép(tệp_riêng, tệp_công):
+    import ky_kep as K
+    ξ, hạt = os.urandom(32), os.urandom(32)
+    pk_ml, _ = K.mldsa_khoá(ξ); pk_ed = K.ed_khoá(hạt)
+    fd = os.open(tệp_riêng, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f: json.dump({"mldsa_xi": ξ.hex(), "ed_hat": hạt.hex()}, f)
+    with open(tệp_công, "w", encoding="utf-8") as f: f.write(f"kép|{pk_ed.hex()}|{pk_ml.hex()}\n")
+def ký_kép(nội, tệp_riêng):
+    import ky_kep as K
+    d = json.load(open(tệp_riêng, encoding="utf-8"))
+    ed, ml = K.ký_kép(bytes.fromhex(d["mldsa_xi"]), bytes.fromhex(d["ed_hat"]), nội.encode("utf-8"), NGỮ_CẢNH_KHO)
+    return f"kép|{ed.hex()}|{ml.hex()}"
+def vân_tay_kép(dòng_công):
+    "Như vân_tay_của trong lib_chu_ky.giao: 'kép:' + 16 hex đầu của SHA-256(ed_hex + ml_hex)."
+    _, ed, ml = dòng_công.strip().split("|")
+    return "kép:" + hashlib.sha256((ed + ml).encode("utf-8")).hexdigest()[:16]
 
 if __name__ == "__main__":
     a = sys.argv[1:]

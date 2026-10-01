@@ -115,16 +115,16 @@ hàm kho_kiểm_ký(máy, tid) {
     # Còn khi ĐÃ khai nguồn thì chữ ký là BẮT BUỘC, không có đường lùi.
     nếu loại(ng) == "ẩn" { trả [sáng, "cục-bộ (CHƯA NEO KHOÁ — tin theo quyền tệp, không phải chữ ký)"] }
     đặt kc = gọi(máy, tid, GH_ĐỌC, [ng[3]])
-    đặt k = đọc_khoá_công(kc)
-    nếu loại(k) == "ẩn" { trả [tối, "không đọc nổi khoá công ở " + ng[3]] }
+    đặt vt = vân_tay_của(kc)
+    nếu loại(vt) == "ẩn" { trả [tối, "không đọc nổi khoá công ở " + ng[3]] }
     đặt sig = gọi(máy, tid, GH_ĐỌC, [ng[2]])
     nếu loại(sig) == "chuỗi" { } khác { trả [tối, "kho KHÔNG có chữ ký (" + ng[2] + ") — chỉ có băm thì chống được sửa đổi, KHÔNG chống được kho giả mạo"] }
     đặt nội = gọi(máy, tid, GH_ĐỌC, [ng[1]])
     nếu loại(nội) == "chuỗi" { } khác { trả [tối, "không đọc nổi mục lục " + ng[1]] }
-    đặt r = kiểm_chữ_ký(nội, cắt_lề(sig), k[1], k[0])
-    nếu r == sáng { trả [sáng, vân_tay_khoá(k[1])] }
+    đặt r = kiểm_chữ_ký_khoá(nội, sig, kc)
+    nếu r == sáng { trả [sáng, vt] }
     nếu loại(r) == "ẩn" { trả [tối, "chữ ký hoặc khoá hỏng định dạng"] }
-    trả [tối, "CHỮ KÝ KHÔNG KHỚP — mục lục đã bị đổi, hoặc kho này KHÔNG phải kho bạn tin (khoá " + vân_tay_khoá(k[1]) + ")"]
+    trả [tối, "CHỮ KÝ KHÔNG KHỚP — mục lục đã bị đổi, hoặc kho này KHÔNG phải kho bạn tin (khoá " + vt + ")"]
 }
 
 hàm kho_đã_cài(máy, tid) {
@@ -318,11 +318,10 @@ hàm kho_tải_mục_lục(máy, tid) {
     nếu loại(ký) == "chuỗi" { } khác { trả [tối, "kho xa không có chữ ký — KHÔNG tin"] }
     # ★ KIỂM TRƯỚC KHI GHI: khoá công là thứ ĐÃ CÓ SẴN trên máy (neo tin cậy), KHÔNG tải về.
     đặt kc = gọi(máy, tid, GH_ĐỌC, [_neo_khoá(máy, tid)])
-    đặt k = đọc_khoá_công(kc)
-    nếu loại(k) == "ẩn" { trả [tối, "máy chưa neo khoá công cho kho xa"] }
-    đặt r = kiểm_chữ_ký(ml, cắt_lề(ký), k[1], k[0])
+    đặt vt = vân_tay_của(kc)
+    nếu loại(vt) == "ẩn" { trả [tối, "máy chưa neo khoá công cho kho xa"] }
+    đặt r = kiểm_chữ_ký_khoá(ml, ký, kc)
     nếu r == sáng { } khác {
-        đặt vt = vân_tay_khoá(k[1])
         trả [tối, "CHỮ KÝ KHÔNG KHỚP — mục lục bị sửa trên đường, hoặc kho ấy không phải kho bạn neo (khoá " + vt + "). KHÔNG ghi gì cả."]
     }
     # Mục lục là tài sản CHUNG của cả máy (nằm ở /hệ, chủ gốc) nên cập nhật nó cần gốc-quyền —
@@ -331,7 +330,7 @@ hàm kho_tải_mục_lục(máy, tid) {
     nếu r1 == sáng { } khác { trả [tối, "chữ ký ĐÚNG nhưng không ghi nổi " + KHO_MỤC + ": " + lỗi_cuối(máy) + " (cập nhật mục lục chung cần gốc-quyền — thử `sudo gói tải`)"] }
     đặt r2 = gọi(máy, tid, GH_TẠO, [KHO_MỤC + ".ký", 644, cắt_lề(ký)])
     nếu r2 == sáng { } khác { trả [tối, "ghi được mục lục nhưng KHÔNG ghi nổi chữ ký: " + lỗi_cuối(máy)] }
-    trả [sáng, "đã tải và KIỂM CHỮ KÝ xong: " + dài(kho_mục_lục(máy, tid)) + " gói (khoá " + vân_tay_khoá(k[1]) + ")"]
+    trả [sáng, "đã tải và KIỂM CHỮ KÝ xong: " + dài(kho_mục_lục(máy, tid)) + " gói (khoá " + vt + ")"]
 }
 
 hàm _neo_khoá(máy, tid) {

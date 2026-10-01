@@ -40,11 +40,10 @@ GÓI_XA = [
 def dựng():
     os.makedirs(os.path.join(KHO, "gói"), exist_ok=True)
     # khoá RIÊNG của kho xa — khác hẳn khoá của kho cục bộ, để chứng minh neo tin cậy có tác dụng
-    r, c = lam_khoa.TỆP_RIÊNG, lam_khoa.TỆP_CÔNG
-    lam_khoa.TỆP_RIÊNG = os.path.join(KHO, "khoa_rieng.txt")
-    lam_khoa.TỆP_CÔNG = os.path.join(KHO, "khoa_cong.txt")
-    if not os.path.exists(lam_khoa.TỆP_RIÊNG):
-        print("  [kho xa] sinh khoá riêng của KHO (một lần)…"); lam_khoa.sinh()
+    # v0.42: kho xa ký KÉP (ML-DSA-65 + Ed25519). Khoá riêng kép: kho_xa/khoa_kep_rieng.json (không commit).
+    riêng, công = os.path.join(KHO, "khoa_kep_rieng.json"), os.path.join(KHO, "khoa_cong.txt")
+    if not os.path.exists(riêng) or not open(công, encoding="utf-8").read().startswith("kép|"):
+        print("  [kho xa] sinh khoá KÉP của KHO (một lần)…"); lam_khoa.sinh_kép(riêng, công)
     dòng = []
     for tên, phiên, nhóm, pt, nl, mô, thân in GÓI_XA:
         with open(os.path.join(KHO, "gói", tên), "w", encoding="utf-8") as f: f.write(thân)
@@ -52,12 +51,9 @@ def dựng():
         dòng.append(f"{tên}|{phiên}|{nhóm}|{pt}|{nl}|{băm}|{mô}")
     mục = "\n".join(dòng)
     with open(os.path.join(KHO, "mục_lục"), "w", encoding="utf-8") as f: f.write(mục)
-    with open(os.path.join(KHO, "chữ_ký"), "w", encoding="utf-8") as f: f.write(lam_khoa.ký(mục))
-    lam_khoa.TỆP_RIÊNG, lam_khoa.TỆP_CÔNG = r, c
-    with open(os.path.join(KHO, "khoa_cong.txt"), encoding="utf-8") as f:
-        n = f.read().strip().split("|")[2]
-    print(f"  ✓ kho xa dựng ở {KHO} · {len(GÓI_XA)} gói")
-    print(f"  vân tay khoá KHO XA: {hashlib.sha256(n.encode()).hexdigest()[:16]}")
+    with open(os.path.join(KHO, "chữ_ký"), "w", encoding="utf-8") as f: f.write(lam_khoa.ký_kép(mục, riêng))
+    print(f"  ✓ kho xa dựng ở {KHO} · {len(GÓI_XA)} gói · ký kép ML-DSA-65 + Ed25519")
+    print(f"  vân tay khoá KHO XA: {lam_khoa.vân_tay_kép(open(công, encoding='utf-8').read())}")
 
 
 def _đọc_thứ(thứ):
@@ -103,8 +99,8 @@ def main():
         if a in ("--cổng", "--cong") and i + 1 < len(sys.argv):
             try: cổng = int(sys.argv[i + 1])
             except ValueError: pass
-    if not os.path.exists(os.path.join(KHO, "mục_lục")):
-        print("  [kho xa] chưa dựng — đang dựng…"); dựng()
+    if not os.path.exists(os.path.join(KHO, "mục_lục")) or not os.path.exists(os.path.join(KHO, "khoa_kep_rieng.json")):
+        print("  [kho xa] chưa dựng (hoặc còn khoá RSA cũ) — đang dựng…"); dựng()
     kể = "--im" not in sys.argv
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):                # Windows: KHÔNG cho tiến-trình khác chiếm chung cổng

@@ -84,6 +84,52 @@ hàm đọc_khoá_công(dòng) {
     trả [e, cắt_lề(p[2])]
 }
 
+# ---------------- KÝ KÉP ML-DSA-65 + Ed25519 (v0.42, lộ trình GĐ2) ----------------
+# RSA ở trên là mã TỰ VIẾT (sinh số nguyên tố "bản gọn", chưa thẩm định). Khoá neo dạng KÉP:
+#     kép|<khoá công Ed25519 hex 64>|<khoá công ML-DSA-65 hex 3904>
+# chữ ký tương ứng:  kép|<ký Ed25519 hex 128>|<ký ML-DSA-65 hex>
+# Kiểm bằng builtin `kiểm_ký_kép` — mã mldsa-native + Monocypher (vendor nguyên văn → WASM, ghim SHA-256).
+# Hợp lệ khi CẢ HAI đúng. Neo khoá KÉP thì CHỈ nhận chữ ký kép — không có đường hạ cấp xuống RSA.
+đặt CK_NGỮ_CẢNH_KHO = "giao-kho-v1"
+hàm đọc_khoá_kép(dòng) {
+    "→ [ed_hex, ml_hex] · ẩn nếu không phải khoá kép hợp lệ."
+    nếu loại(dòng) == "chuỗi" { } khác { trả ẩn }
+    đặt p = tách_giữ(cắt_lề(dòng), "|")
+    nếu dài(p) == 3 { } khác { trả ẩn }
+    nếu p[0] == "kép" { } khác { trả ẩn }
+    nếu dài(p[1]) == 64 { } khác { trả ẩn }
+    nếu dài(p[2]) == 3904 { } khác { trả ẩn }
+    trả [p[1], p[2]]
+}
+hàm kiểm_chữ_ký_khoá(nội, chữ_ký, khoá) {
+    "Kiểm theo DẠNG khoá đã neo. sáng = đúng · tối = sai (kể cả cố HẠ CẤP) · ẩn = đầu vào hỏng."
+    đặt kk = đọc_khoá_kép(khoá)
+    nếu loại(kk) == "ẩn" {
+        đặt k = đọc_khoá_công(khoá)
+        nếu loại(k) == "ẩn" { trả ẩn }
+        nếu loại(chữ_ký) == "chuỗi" { } khác { trả ẩn }
+        trả kiểm_chữ_ký(nội, cắt_lề(chữ_ký), k[1], k[0])
+    }
+    nếu loại(chữ_ký) == "chuỗi" { } khác { trả ẩn }
+    đặt q = tách_giữ(cắt_lề(chữ_ký), "|")
+    nếu dài(q) == 3 { } khác { trả tối }                # neo KÉP mà chữ ký không phải ký kép ⇒ từ chối
+    nếu q[0] == "kép" { } khác { trả tối }
+    đặt r = kiểm_ký_kép(kk[0], kk[1], nội, CK_NGỮ_CẢNH_KHO, q[1], q[2])
+    nếu loại(r) == "ẩn" { trả tối }
+    nếu r[0] == sáng { nếu r[1] == sáng { trả sáng } }
+    trả tối
+}
+hàm vân_tay_của(khoá) {
+    "Vân tay ngắn của khoá đã neo (RSA hoặc KÉP) · ẩn nếu không đọc được khoá."
+    đặt kk = đọc_khoá_kép(khoá)
+    nếu loại(kk) == "ẩn" {
+        đặt k = đọc_khoá_công(khoá)
+        nếu loại(k) == "ẩn" { trả ẩn }
+        trả vân_tay_khoá(k[1])
+    }
+    trả "kép:" + lát_chuỗi(sha256_hex(kk[0] + kk[1]), 0, 16)
+}
+
 hàm vân_tay_khoá(n_hex) {
     "Vân tay ngắn để NGƯỜI đối chiếu khoá bằng mắt (như fingerprint của GPG)."
     trả lát_chuỗi(sha256_hex(n_hex), 0, 16)

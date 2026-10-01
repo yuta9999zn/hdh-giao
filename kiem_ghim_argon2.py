@@ -69,6 +69,14 @@ try:
         r = subprocess.run([node, os.path.join(wasm_tạm, "giao64.mjs"), g64], capture_output=True, timeout=120)
         ca("vỏ Node (giao64.mjs): argon2.wasm sửa 1 byte ⇒ từ chối (mã 3)", r.returncode == 3, r.stderr.decode("utf-8", "replace")[-200:])
         shutil.rmtree(wasm_tạm, ignore_errors=True)
+    # module KIỂM ký kép cho GVM-64 (wasm/ky.wasm, --preload ky=…) cũng được ghim
+    g4 = giả(os.path.join(P, "wasm", "ky.wasm"))
+    try:
+        try: lệnh_gvm64(ky=g4); ok = False
+        except LệchGhim: ok = True
+        ca("vỏ Python (vo_gvm64): ky.wasm sửa 1 byte ⇒ từ chối nạp", ok)
+    finally:
+        os.remove(g4)
     # module ký kép (ML-DSA-65 + Ed25519) cũng được ghim (wasm/ky.sha256)
     g3 = giả(os.path.join(P, "wasm", "ky_lenh.wasm"))
     try:

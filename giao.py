@@ -1131,6 +1131,32 @@ class Runtime:
                 mã=ra.split()[1] if ra.startswith("LOI") and len(ra.split())>1 else "?"
                 self.err(f"argon2: lỗi mã {mã}" + (" (vượt trần tham số)" if mã=="-1000" else ""))
             return list(bytes.fromhex(ra))
+        def b_kiem_ky_kep(a):                             # kiểm_ký_kép(ed_hex, ml_hex, nội_dung, ngữ_cảnh, ký_ed_hex, ký_ml_hex)
+            # → [sáng/tối Ed25519, sáng/tối ML-DSA-65]; đầu vào hỏng → ẩn. Mã kiểm là mldsa-native + Monocypher
+            # (wasm/ky_lenh.wasm, ghim wasm/ky.sha256) — cùng mã với GVM-64 (--preload ky=wasm/ky.wasm).
+            need(a,6,"kiểm_ký_kép")
+            if not all(isinstance(x,str) for x in a): return AN
+            try:
+                ked,kml,sed,sml = (bytes.fromhex(x) for x in (a[0],a[1],a[4],a[5]))
+            except ValueError: return AN
+            nd,ctx = a[2].encode("utf-8"), a[3].encode("utf-8")
+            if len(ked)!=32 or len(kml)!=1952 or len(sed)!=64 or len(ctx)>255: return AN
+            import struct as _st, subprocess as _sp, shutil as _sh, hashlib as _hl
+            gốc=os.path.dirname(os.path.abspath(__file__))
+            wt=os.environ.get("GIAO_WASMTIME") or _sh.which("wasmtime") or (r"D:\wasmtime\wasmtime.exe" if os.path.exists(r"D:\wasmtime\wasmtime.exe") else None)
+            mod=os.environ.get("GIAO_KY_WASM") or os.path.join(gốc,"wasm","ky_lenh.wasm")
+            if wt is None or not os.path.exists(mod): self.err("kiểm_ký_kép cần wasmtime và wasm/ky_lenh.wasm (sh wasm/dung_ky.sh)")
+            if not getattr(self,"_ky_đã_ghim",False):
+                kỳ=None
+                for d in open(os.path.join(gốc,"wasm","ky.sha256"),encoding="utf-8"):
+                    if d.strip().endswith("ky_lenh.wasm"): kỳ=d.split()[0].lower()
+                if kỳ!=_hl.sha256(open(mod,"rb").read()).hexdigest(): self.err("kiểm_ký_kép: ky_lenh.wasm KHÁC ghim — từ chối chạy")
+                self._ky_đã_ghim=True
+            vào=bytes([7])+b"".join(_st.pack("<I",len(t))+t for t in (ked,kml,nd,ctx,sed,sml))
+            r=_sp.run([wt,"run",mod],input=vào,capture_output=True,timeout=120)
+            ra=r.stdout.decode("utf-8","replace").strip()
+            if r.returncode!=0 or len(ra)!=2: return AN
+            return [SANG if ra[0]=="1" else TOI, SANG if ra[1]=="1" else TOI]
         def b_vao_con(a):                                 # vào_còn() → phần còn lại của stdin (UTF-8). Như GVM-64:
             need(a,0,"vào_còn")                           # stdin là đường vào sẵn có, không phải năng lực mới.
             try: return sys.stdin.buffer.read().decode("utf-8", "replace")
@@ -1147,7 +1173,7 @@ class Runtime:
         reg={"dài":b_dai,"dai":b_dai, "đầu":b_dau,"dau":b_dau, "đuôi":b_duoi,"duoi":b_duoi,
              "tạo_tri":b_tao_tri,"tao_tri":b_tao_tri, "γ_của":b_gamma_cua,"gamma_cua":b_gamma_cua,
              "ngẫu_hệ":b_ngau_he,"ngau_he":b_ngau_he,
-             "vào_còn":b_vao_con,"vao_con":b_vao_con, "ra_byte":b_ra_byte, "argon2":b_argon2,
+             "vào_còn":b_vao_con,"vao_con":b_vao_con, "ra_byte":b_ra_byte, "argon2":b_argon2, "kiểm_ký_kép":b_kiem_ky_kep,"kiem_ky_kep":b_kiem_ky_kep,
              "thêm":b_them,"them":b_them, "ghép":b_ghep,"ghep":b_ghep,
              "gom":b_gom, "đảo":b_dao,"dao":b_dao, "nối":b_noi,"noi":b_noi, "tách":b_tach,"tach":b_tach,
              "là_ds":b_la_ds,"la_ds":b_la_ds, "là_số":b_la_so,"la_so":b_la_so,

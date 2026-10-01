@@ -234,6 +234,29 @@ còn **chậm hơn** (256–331 ns), vì mỗi phép tính vẫn phải đóng g
 nhanh nhờ vòng lặp native trên bộ nhớ liền khối. Thư viện chuẩn Python không có vòng lặp như vậy,
 nên đây là giới hạn của hướng "không phụ thuộc thư viện ngoài". Hướng thoát là nâng GVM/WASM (mục 8).
 
+## 5c. Khối `lượng_tử` và tác vụ lượng tử (v0.42)
+
+```
+nhập "lib_lượng_tử.giao"
+lượng_tử bell (2) {          # ≡ đặt bell = mạch(2); H(bell, 0); CX(bell, 0, 1); ĐO_HẾT(bell)
+    H(0)
+    CX(0, 1)
+    ĐO_HẾT()
+}
+đặt tv = tác_vụ_lượng_tử(bell, 4000)   # nơi = "cục_bộ" (≤ 26 qubit) · "đám_mây" (> 26)
+chạy_tác_vụ(tv, ẩn)                    # cục bộ: chạy ngay, kết_quả = tri(XEB, γ)
+                                       # đám mây: tv["qasm"] sẵn, trạng thái "chờ_môi_giới", kết_quả ẨN
+nhận_kết_quả(tv, đếm_từ_môi_giới)      # ≤ 26 qubit: chấm γ/XEB · lớn hơn: có đếm, độ tin vẫn ẩn
+```
+
+- `lượng_tử` là từ khoá NGỮ CẢNH: chỉ dạng `lượng_tử <tên> (` mới là khối mạch — `lượng_tử(…)` vẫn là lời
+  gọi hàm thường (`lib_trienkhai.giao` có hàm `lượng_tử(xung_mhz)` — lát thời gian của bộ lập lịch).
+- Khối được hạ NGAY lúc phân tích thành một hàm vô danh gọi với `mạch(n)`: mỗi câu gọi hàm TRỰC TIẾP trong
+  khối (kể cả trong `lặp`/`nếu`/`thử` lồng) được chèn mạch làm đối số đầu. Khối có phạm vi riêng. Trình
+  thông dịch và hai trình biên dịch không cần lệnh mới; hai trình biên dịch ra `.g64` trùng từng byte.
+- 26 qubit = trần bộ nhớ thực tế của wasm32. Mạch lớn hơn: GVM-64 không có mạng, nên việc gửi là của
+  môi giới (người duyệt, niêm phong, TLS lai hậu lượng tử).
+
 ## 6. Chạy trên máy lượng tử thật — môi giới `moi_gioi_luong_tu.py`
 
 GVM-64 không có mạng, và không nên có. Việc gọi IBM Quantum dồn vào **một** tiến trình môi giới chạy
@@ -253,7 +276,12 @@ QISKIT_IBM_TOKEN=… python moi_gioi_luong_tu.py mạch_mẫu_ibm.giao --shots 1
 4. Gửi bằng `SamplerV2` (`qiskit-ibm-runtime`), lưu số đếm ở `__pycache__/luong_tu_that/`.
 5. **Chấm trên GVM-64:** `chấm_mẫu(đếm, ψ_lý_tưởng, ε)` → XEB tuyến tính + γ, rồi chấm niêm phong.
 
-Token chỉ đọc từ biến môi trường `QISKIT_IBM_TOKEN`, không ghi ra đĩa. Chế độ `--giả-lập p` thay máy
+Token chỉ đọc từ biến môi trường `QISKIT_IBM_TOKEN`, không ghi ra đĩa. **TLS lai hậu lượng tử** (v0.42):
+mọi kết nối tới IBM đi qua pyOpenSSL (OpenSSL của gói `cryptography`, ≥ 3.5) và phải thoả thuận nhóm
+X25519MLKEM768 — bắt tay thử trước khi niêm phong/gửi, và chốt ở từng kết nối; không đạt thì từ chối
+(chấp nhận TLS cổ điển phải ghi rõ `--cho-tls-cổ-điển`). Đo 2026-10-01: `quantum.cloud.ibm.com` và
+`iam.cloud.ibm.com` đều thoả thuận X25519MLKEM768 / TLS 1.3. Python chạy môi giới cần
+`pip install qiskit qiskit-ibm-runtime pyopenssl cryptography certifi`. Chế độ `--giả-lập p` thay máy
 thật bằng Aer có nhiễu khử cực p mỗi cổng, để kiểm cả quy trình khi chưa có token. Mạch mẫu 4 qubit,
 độ sâu 3, p = 0.02: XEB = 0.674, γ = +0.513; p = 0.3: XEB = 0.001, γ = −0.997 (tối).
 `kiem_moi_gioi.py` kiểm cổng duyệt + thứ tự niêm phong (trong `kiem_toan_bo.py`).

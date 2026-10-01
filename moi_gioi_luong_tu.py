@@ -18,7 +18,9 @@ tính toán vẫn ở GIAO trên GVM-64:
     python moi_gioi_luong_tu.py mạch.giao --giả-lập 0.02 [--duyệt]   # thử CẢ QUY TRÌNH không cần token:
                                                                       # Aer + nhiễu khử cực mỗi cổng
 Token: CHỈ đọc từ biến môi trường QISKIT_IBM_TOKEN (không ghi ra đĩa, không in). Cần gói
-qiskit-ibm-runtime (pip install qiskit-ibm-runtime) trong Python chạy môi giới — chỉ khi gửi máy thật.
+qiskit-ibm-runtime + pyopenssl + cryptography (OpenSSL ≥ 3.5) trong Python chạy môi giới — chỉ khi gửi máy thật.
+TLS: mọi kết nối tới IBM phải thoả thuận nhóm LAI HẬU LƯỢNG TỬ (X25519MLKEM768…), kiểm bắt tay trước khi
+gửi và chốt ở từng kết nối; không thì từ chối (chấp nhận cổ điển: --cho-tls-cổ-điển).
 Khoảng XEB: cao ≥ 0.5 · vừa 0.2–0.5 · thấp < 0.2.
 """
 import os, sys, json, time, hashlib, shutil, subprocess, tempfile
@@ -46,6 +48,73 @@ def chạy_giao(mã_nguồn, thư_mục):
 
 def khoảng_xeb(x):
     return "cao" if x >= 0.5 else ("vừa" if x >= 0.2 else "thấp")
+
+# ---------------- TLS HẬU LƯỢNG TỬ (v0.42, lộ trình GĐ2): X25519 + ML-KEM-768 ----------------
+# ssl của Python trên máy này (OpenSSL 1.1.1 / 3.0) KHÔNG có ML-KEM. pyOpenSSL dùng OpenSSL đi kèm gói
+# `cryptography` (≥ 3.5: có ML-KEM, đề nghị X25519MLKEM768 trước tiên). Môi giới ép requests/urllib3 (thứ
+# qiskit-ibm-runtime dùng) đi qua pyOpenSSL và CHỐT ở MỌI kết nối: nhóm trao đổi khoá phải là nhóm lai
+# hậu lượng tử, không thì đóng kết nối — token không bao giờ đi trên kênh chỉ cổ điển (trừ --cho-tls-cổ-điển).
+# Đo 2026-10-01: quantum.cloud.ibm.com và iam.cloud.ibm.com đều thoả thuận X25519MLKEM768 / TLS 1.3.
+MÁY_CHỦ_IBM = ["quantum.cloud.ibm.com", "iam.cloud.ibm.com"]
+NHÓM_HẬU_LƯỢNG_TỬ = {"X25519MLKEM768", "SecP256r1MLKEM768", "SecP384r1MLKEM1024", "MLKEM768", "MLKEM1024"}
+
+class TLSCổĐiển(RuntimeError): pass
+
+def _bối_cảnh_pq(xác_minh=True):
+    from OpenSSL import SSL
+    ctx = SSL.Context(SSL.TLS_CLIENT_METHOD)
+    ctx.set_min_proto_version(SSL.TLS1_3_VERSION)
+    if xác_minh:
+        import certifi
+        ctx.set_verify(SSL.VERIFY_PEER); ctx.load_verify_locations(certifi.where())
+    return ctx
+
+def bắt_tay_nhóm(host, cổng=443, xác_minh=True):
+    "Bắt tay TLS 1.3 bằng pyOpenSSL → (nhóm trao đổi khoá, phiên bản). Không gửi dữ liệu nào."
+    import socket
+    from OpenSSL import SSL
+    s = socket.create_connection((host, cổng), timeout=15); s.settimeout(None)
+    try:
+        c = SSL.Connection(_bối_cảnh_pq(xác_minh), s)
+        c.set_tlsext_host_name(host.encode()); c.set_connect_state(); c.do_handshake()
+        nhóm, bản = c.get_group_name(), c.get_protocol_version_name()
+        c.shutdown(); return nhóm, bản
+    finally:
+        s.close()
+
+def bật_tls_hậu_lượng_tử(cho_cổ_điển=False):
+    """Ép urllib3 (requests, qiskit-ibm-runtime) đi qua pyOpenSSL và chốt nhóm lai ở MỌI kết nối.
+    → chuỗi phiên bản OpenSSL đang dùng. Thiếu pyOpenSSL/OpenSSL đủ mới ⇒ TLSCổĐiển (trừ cho_cổ_điển)."""
+    import warnings
+    try:
+        warnings.simplefilter("ignore", DeprecationWarning)
+        import urllib3.contrib.pyopenssl as po
+        from cryptography.hazmat.backends.openssl.backend import backend
+    except ImportError as e:
+        if cho_cổ_điển: return "ssl chuẩn (CỔ ĐIỂN — người dùng cho phép)"
+        raise TLSCổĐiển(f"thiếu {e.name} — cài: pip install pyopenssl cryptography urllib3 (cần OpenSSL ≥ 3.5)")
+    po.inject_into_urllib3()
+    gốc = po.PyOpenSSLContext.wrap_socket
+    if not getattr(gốc, "_giao_chốt_pq", False):
+        def bọc(self, *a, **k):
+            ws = gốc(self, *a, **k)
+            nhóm = ws.connection.get_group_name()
+            if nhóm not in NHÓM_HẬU_LƯỢNG_TỬ and not cho_cổ_điển:
+                ws.close(); raise TLSCổĐiển(f"kết nối TLS dùng nhóm {nhóm} — KHÔNG phải lai hậu lượng tử, đã đóng")
+            return ws
+        bọc._giao_chốt_pq = True
+        po.PyOpenSSLContext.wrap_socket = bọc
+    return backend.openssl_version_text()
+
+def kiểm_tls_máy_chủ(hosts=MÁY_CHỦ_IBM, cho_cổ_điển=False):
+    "Bắt tay thử TRƯỚC khi gửi token. → [(host, nhóm, bản)]; máy chủ nào không lai ⇒ TLSCổĐiển."
+    ra = []
+    for h in hosts:
+        nhóm, bản = bắt_tay_nhóm(h)
+        ra.append((h, nhóm, bản))
+        if nhóm not in NHÓM_HẬU_LƯỢNG_TỬ and not cho_cổ_điển:
+            raise TLSCổĐiển(f"{h} chỉ thoả thuận {nhóm} ({bản}) — không gửi token qua kênh cổ điển")
+    return ra
 
 def gửi_ibm(qasm, máy, shots):
     token = os.environ.get("QISKIT_IBM_TOKEN")
@@ -97,6 +166,15 @@ def main():
 
     if not p_giả and not os.environ.get("QISKIT_IBM_TOKEN"):      # thiếu điều kiện thì dừng TRƯỚC khi niêm phong
         sys.exit("thiếu biến môi trường QISKIT_IBM_TOKEN (token IBM Quantum của BẠN) — không gửi, không niêm phong.")
+    if not p_giả:                                                  # TLS lai hậu lượng tử, kiểm TRƯỚC khi niêm phong/gửi
+        cổ_điển = "--cho-tls-cổ-điển" in a
+        try:
+            bản = bật_tls_hậu_lượng_tử(cổ_điển)
+            for h, nhóm, v in kiểm_tls_máy_chủ(cho_cổ_điển=cổ_điển):
+                print(f"[môi giới] TLS {h}: {nhóm} · {v}")
+            print(f"[môi giới] mọi kết nối tới IBM đi qua {bản}, chốt nhóm lai hậu lượng tử")
+        except TLSCổĐiển as e:
+            sys.exit(f"[môi giới] TỪ CHỐI: {e} — không gửi, không niêm phong. (Chấp nhận TLS cổ điển: --cho-tls-cổ-điển)")
 
     # 3. niêm phong dự đoán — SAU khi người duyệt, TRƯỚC khi gửi
     sổ = SổNiêmPhong()

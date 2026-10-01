@@ -48,6 +48,11 @@ chỉ là mã chạy trong cùng hộp cát. Vì vậy mọi lệnh chạy máy 
 `--preload argon2=wasm/argon2.wasm`. Trình thông dịch gọi đúng mã ấy qua `wasm/argon2_lenh.wasm` dưới
 wasmtime (không cấp thư mục), nên hai máy dùng **một** bản Argon2, không có bản Python nào.
 
+**Module thứ ba: `ky.wasm`** (v0.42). Builtin `kiểm_ký_kép` kiểm chữ ký kép ML-DSA-65 + Ed25519
+(mldsa-native + Monocypher, vendor nguyên văn) — HĐH dùng để kiểm mục lục kho (bản cập nhật). Module CHỈ
+KIỂM (không có hàm ký), không import gì. Lệnh chạy máy: `--preload argon2=wasm/argon2.wasm --preload
+ky=wasm/ky.wasm`; mọi vỏ (`vo_gvm64.py`, `tu_bien_dich.sh`, Node) kiểm ghim SHA-256 của CẢ HAI module.
+
 - **wasmtime** (Rust, Bytecode Alliance) là vỏ chính. Hộp cát mặc định chặt: không cấp thư mục thì
   không có tệp nào.
 - **Node** (`wasm/giao64.mjs`) chỉ là vỏ dự phòng để kiểm, **không phải hộp cát**. Chính Node cảnh báo

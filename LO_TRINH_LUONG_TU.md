@@ -32,15 +32,15 @@ Trạng thái ghi theo ngày; ✅ xong và có kiểm · 🟡 làm một phần 
 | Băm lại mật khẩu bị lỗi "16 muối" | ✅ 2026-09-30 | `xác_thực` băm lại khi đăng nhập đúng; `bóng_yếu()` liệt kê người phải buộc đặt lại |
 | Ghim SHA-256 của module Argon2, kiểm trước mỗi lần nạp | ✅ 2026-09-30 | `wasm/argon2.sha256` (bản dựng tái lập được); `kiem_ghim_argon2.py` |
 | Mật khẩu dùng **Argon2id** (mã tham chiếu, không tự viết) | ✅ 2026-09-30 | `ben_ngoai/argon2` → wasi-sdk → `wasm/argon2.wasm`; 3 vector RFC 9106 khớp (`kiem_argon2.giao`); `$g1/g2/g3$` băm lại khi đăng nhập |
-| Hàm `ngẫu_nhiên_an_toàn(n)` trả n byte | ⬜ | hiện có `ngẫu_hệ()` (31 bit/lần); bọc thành n byte là việc nhỏ |
+| Hàm `ngẫu_nhiên_an_toàn(n)` trả n byte | ✅ 2026-10-01 | `chuẩn.giao`; muối Argon2 dùng nó; `kiem_muoi_he.giao` (4096 byte phủ 256/256) |
 
 ## Giai đoạn 2 — Mật mã hậu lượng tử (cho chữ ký và trao đổi khoá, KHÔNG cho mật khẩu)
 
 | việc | trạng thái | ghi chú |
 |---|---|---|
 | Ký các mục của sổ niêm phong bằng ML-DSA + Ed25519 (ký kép) | ✅ 2026-09-30 | `niem_phong.py` + `ky_kep.py` → `wasm/ky_lenh.wasm`; `kiem_ky_kep.py` 17/17 |
-| Ký bản cập nhật HĐH bằng ML-DSA + Ed25519 | ⬜ | |
-| Kết nối mạng (môi giới, MCP qua mạng) dùng TLS lai X25519 + ML-KEM | ⬜ | MCP hiện chạy qua stdio cục bộ; ảnh hưởng chính là môi giới gọi IBM |
+| Ký bản cập nhật HĐH bằng ML-DSA + Ed25519 | ✅ 2026-10-01 | kho xa (kênh cập nhật) ký kép; HĐH kiểm bằng builtin `kiểm_ký_kép` (GVM-64: `--preload ky=wasm/ky.wasm`); chống hạ cấp về RSA; `kiem_kho_xa.py` 14/14 |
+| Kết nối mạng dùng TLS lai X25519 + ML-KEM | ✅ 2026-10-01 | môi giới → IBM: pyOpenSSL (OpenSSL 4.0.3), chốt nhóm lai ở MỌI kết nối; IBM thoả thuận X25519MLKEM768 (đo thật); `kiem_tls_pq.py` 7/7. MCP vẫn là stdio cục bộ (không có mạng để bảo vệ). Kho xa demo là TCP thô trên 127.0.0.1 — chưa có TLS |
 | Nguồn: biên dịch **mldsa-native v2.0.0** (ML-DSA-65) + **Monocypher 4.0.3** (Ed25519) sang WASM bằng wasi-sdk | ✅ 2026-10-01 | `wasm/dung_ky.sh`, ghim `wasm/ky.sha256`; thay PQClean (đã lưu trữ) — so chéo 40/40 trùng từng byte |
 | Vân tay khoá sổ ghim trong kho, độc lập với `.khoa/` | ✅ 2026-10-01 | `khoa_niem_phong.ghim`; tráo khoá / mất khoá ⇒ từ chối, không tự tạo khoá mới |
 | Kiểm bằng vector chính thức | ✅ 2026-09-30 | ML-DSA-65: NIST ACVP keyGen 25 · sigGen 15 · sigVer 15; Ed25519: RFC 8032 §7.1 (5) + ACVP sigVer (5) |
@@ -52,9 +52,9 @@ Trạng thái ghi theo ngày; ✅ xong và có kiểm · 🟡 làm một phần 
 | Mạch → OpenQASM 2/3, gộp cổng | ✅ | `lib_lượng_tử.giao` (`sang_qasm`, `sang_qasm3`, `hợp_nhất_cổng`) |
 | Kết quả đo là `tri` có γ; trước khi đo là `ẩn` | ✅ | `tạo_tri`, `chấm_mẫu` |
 | Bộ mô phỏng nội bộ ≤ 26 qubit, khớp Aer tới 1e-16 | ✅ | GVM-64 + SIMD; `bench_gvm64.py` |
-| Cú pháp khối `lượng_tử { … }` | ⬜ | chỉ là lớp vỏ trên thư viện; cần sửa bộ phân tích ở CẢ `giao.py` lẫn `giaoc64.giao` |
-| Đối tượng tác vụ (mạch, shots, nơi chạy, trạng thái `ẩn` khi đang chờ) | ⬜ | |
-| Quy tắc chọn nơi chạy: ≤ 26 qubit → GVM-64, lớn hơn → đám mây | ⬜ | |
+| Cú pháp khối `lượng_tử m (n) { … }` | ✅ 2026-10-01 | từ khoá NGỮ CẢNH, hạ lúc phân tích ở `giao.py` + `giaoc64.giao`; `kiem_luong_tu_khoi.giao` |
+| Đối tượng tác vụ (mạch, shots, nơi chạy, trạng thái `ẩn` khi đang chờ) | ✅ 2026-10-01 | `tác_vụ_lượng_tử`, `chạy_tác_vụ`, `nhận_kết_quả` (`lib_lượng_tử.giao`) |
+| Quy tắc chọn nơi chạy: ≤ 26 qubit → GVM-64, lớn hơn → đám mây | ✅ 2026-10-01 | `nơi_chạy`; > 26: QASM sẵn, trạng thái `chờ_môi_giới`, kết quả `ẩn` |
 
 ## Giai đoạn 4 — Kết nối máy lượng tử thật
 

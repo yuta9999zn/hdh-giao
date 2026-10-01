@@ -29,6 +29,31 @@
 @external("argon2", "a2_dat")  declare function a2_dat(i: i32, b: i32): i32;
 @external("argon2", "a2_lay")  declare function a2_lay(i: i32): i32;
 @external("argon2", "a2_chay") declare function a2_chay(kieu: i32, lpwd: i32, lsalt: i32, lsec: i32, lad: i32, t: i32, m: i32, p: i32, ltag: i32): i32;
+// KIỂM KÝ KÉP ML-DSA-65 + Ed25519 — module RIÊNG wasm/ky.wasm (mldsa-native + Monocypher, CHỈ KIỂM, 0 import),
+// nạp bằng --preload ky=wasm/ky.wasm. Dùng để HĐH kiểm mục lục kho (bản cập nhật) ký kép.
+@external("ky", "k_dat")      declare function k_dat(i: i32, b: i32): i32;
+@external("ky", "k_kiem_kep") declare function k_kiem_kep(lm: i32, lctx: i32, lml: i32): i32;
+// hex → đẩy từng byte vào module ký từ vị trí pos; trả số byte, -1 nếu không phải hex hợp lệ
+function hexVaoKy(s: string, pos: i32): i32 {
+  let n = s.length; if ((n & 1) != 0) return -1;
+  for (let i = 0; i < n; i += 2) {
+    let a = hexVal(s.charCodeAt(i)), b = hexVal(s.charCodeAt(i + 1));
+    if (a < 0 || b < 0) return -1;
+    if (k_dat(pos + (i >> 1), (a << 4) | b) != 0) return -1;
+  }
+  return n >> 1;
+}
+function hexVal(c: i32): i32 {
+  if (c >= 48 && c <= 57) return c - 48;
+  if (c >= 97 && c <= 102) return c - 87;
+  if (c >= 65 && c <= 70) return c - 55;
+  return -1;
+}
+function utf8VaoKy(s: string, pos: i32): i32 {
+  let b = Uint8Array.wrap(String.UTF8.encode(s, false));
+  for (let i = 0; i < b.length; i++) if (k_dat(pos + i, b[i]) != 0) return -1;
+  return b.length;
+}
 
 const IOV = new StaticArray<u32>(4); const NW = new StaticArray<u32>(2); const TBUF = new StaticArray<u64>(1);
 function ghiFd(fd: u32, ptr: usize, len: usize): void {
@@ -1125,6 +1150,23 @@ function builtin(id: i32, b: i32, n: i32): void {
     }
     case 65: { // __ném(thông_điệp) — CHỈ cho thư viện hạ tầng (_cdfl.giao): lỗi runtime như self.err của giao.py
       if (!need(n, 1, "__ném")) return; err(render(sk[b], sv[b], so[b])); return;
+    }
+    case 69: { // kiểm_ký_kép(khoá_ed_hex, khoá_ml_hex, nội_dung, ngữ_cảnh, ký_ed_hex, ký_ml_hex) → [ed?, ml?] (sáng/tối); hỏng → ẩn
+      if (!need(n, 6, "kiểm_ký_kép")) return;
+      for (let q = 0; q < 6; q++) if (sk[b + q] != K_STR) { RA(); return; }
+      let ked = (<SObj>so[b]).s, kml = (<SObj>so[b + 1]).s, nd = (<SObj>so[b + 2]).s, ctx = (<SObj>so[b + 3]).s;
+      let sed = (<SObj>so[b + 4]).s, sml = (<SObj>so[b + 5]).s;
+      if (ked.length != 64 || kml.length != 2 * 1952 || sed.length != 128) { RA(); return; }
+      let pos = 0;
+      if (hexVaoKy(ked, pos) != 32) { RA(); return; } pos += 32;
+      if (hexVaoKy(kml, pos) != 1952) { RA(); return; } pos += 1952;
+      let lm = utf8VaoKy(nd, pos); if (lm < 0) { RA(); return; } pos += lm;
+      let lc = utf8VaoKy(ctx, pos); if (lc < 0 || lc > 255) { RA(); return; } pos += lc;
+      if (hexVaoKy(sed, pos) != 64) { RA(); return; } pos += 64;
+      let lml = hexVaoKy(sml, pos); if (lml < 0) { RA(); return; }
+      let r = k_kiem_kep(lm, lc, lml); if (r < 0) { RA(); return; }
+      let ra = new LObj(); ra.push(K_STR, 0, (r & 1) != 0 ? S_SANG : S_TOI); ra.push(K_STR, 0, (r & 2) != 0 ? S_SANG : S_TOI);
+      RO(K_LIST, ra); return;
     }
     case 68: { // argon2(kiểu, mk, muối, bí_mật, kèm, t, m_kib, p, dài) — kiểu 0 d · 1 i · 2 id; các đầu vào là DANH SÁCH BYTE
       if (!need(n, 9, "argon2")) return;

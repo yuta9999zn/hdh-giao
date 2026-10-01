@@ -37,8 +37,13 @@ def kiểm_ghim(đường_dẫn, tên=None, tệp_ghim=None):
                        f"(dựng lại: sh wasm/dung_argon2.sh; cố ý đổi: --ghim)")
     return thật
 
-def lệnh_gvm64(cờ=(), argon2=None):
-    "argv chạy GVM-64 dưới wasmtime, SAU KHI kiểm ghim argon2.wasm. argon2= để thử với tệp khác (kiểm thử)."
+GHIM_KY = os.path.join(P, "wasm", "ky.sha256")
+
+def lệnh_gvm64(cờ=(), argon2=None, ky=None):
+    """argv chạy GVM-64 dưới wasmtime, SAU KHI kiểm ghim argon2.wasm (wasm/argon2.sha256) và ky.wasm
+    (wasm/ky.sha256). argon2=/ky= để thử với tệp khác (kiểm thử)."""
     a2 = argon2 or os.environ.get("GIAO_ARGON2_WASM") or os.path.join(P, "wasm", "argon2.wasm")
-    kiểm_ghim(a2, "argon2.wasm")
-    return [WASMTIME, "run", "--preload", "argon2=" + a2, os.path.join(P, "wasm", "gvm64.wasm"), "--", *cờ]
+    k = ky or os.environ.get("GIAO_KY_GVM_WASM") or os.path.join(P, "wasm", "ky.wasm")
+    kiểm_ghim(a2, "argon2.wasm"); kiểm_ghim(k, "ky.wasm", GHIM_KY)
+    return [WASMTIME, "run", "--preload", "argon2=" + a2, "--preload", "ky=" + k,
+            os.path.join(P, "wasm", "gvm64.wasm"), "--", *cờ]
