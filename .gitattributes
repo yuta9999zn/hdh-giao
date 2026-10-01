@@ -2,3 +2,5 @@
 *.sh text eol=lf
 # tệp ghim hash phải giữ LF (grep/sha256sum -c đọc từng dòng)
 *.sha256 text eol=lf
+# kho đã KÝ: thân gói phải giữ đúng từng byte (băm trong mục lục)
+kho_xa/** -text
