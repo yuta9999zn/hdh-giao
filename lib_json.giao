@@ -17,13 +17,22 @@ nhập "lib_chuoi.giao"
 đặt _SỐ_CHỮ = "0123456789"
 
 # ---------------- con-trỏ (cursor) ----------------
-hàm _ct(s) { đặt c = bản()  đặt_khoá(c, "s", s)  đặt_khoá(c, "i", 0)  trả c }
+hàm _ct(s) {                            # con trỏ: giữ DANH SÁCH ký tự (duyệt chuỗi một lần) — chỉ mục O(1);
+    đặt cs = []                          # s[i] trên chuỗi dài tốn theo i ⇒ parse chuỗi 7 KB thành O(n²)
+    lặp ch trong s { gom(cs, ch) }
+    đặt c = bản()  đặt_khoá(c, "s", cs)  đặt_khoá(c, "i", 0)  trả c
+}
 hàm _ký(c) {
     đặt i = lấy_khoá(c, "i")
     nếu i >= dài(lấy_khoá(c, "s")) { trả "" }
     trả lấy_khoá(c, "s")[i]
 }
 hàm _tiến(c) { đặt_khoá(c, "i", lấy_khoá(c, "i") + 1) }
+hàm _ký_sau(c, k) {                      # ký tự cách vị trí hiện tại k bước (không dời con trỏ); hết → ""
+    đặt i = lấy_khoá(c, "i") + k
+    nếu i >= dài(lấy_khoá(c, "s")) { trả "" }
+    trả lấy_khoá(c, "s")[i]
+}
 hàm _bỏ_trắng(c) {
     mãi {
         đặt k = _ký(c)
@@ -33,9 +42,31 @@ hàm _bỏ_trắng(c) {
 }
 
 # ---------------- chuỗi ----------------
+hàm _hex4(c) {                          # đọc 4 chữ số hex sau vị trí hiện tại → số (con trỏ dừng ở chữ số cuối)
+    đặt v = 0
+    lặp 4 {
+        _tiến(c)
+        đặt m = mã(_ký(c))
+        đặt d = m - 48
+        nếu m >= 97 { đặt d = m - 87 } khác { nếu m >= 65 { đặt d = m - 55 } }
+        đặt v = v * 16 + d
+    }
+    trả v
+}
+hàm _đọc_u(c) {                         # \uXXXX (con trỏ ở 'u') — ghép cặp thay thế UTF-16 😀 → 1 ký tự
+    đặt v = _hex4(c)
+    nếu v >= 55296 { nếu v < 56320 {
+        nếu _ký_sau(c, 1) == "\\" { nếu _ký_sau(c, 2) == "u" {
+            _tiến(c)  _tiến(c)
+            đặt w = _hex4(c)
+            trả ký_tự(65536 + (v - 55296) * 1024 + (w - 56320))
+        } }
+    } }
+    trả ký_tự(v)
+}
 hàm _đọc_chuỗi(c) {                     # _ký(c) == '"'
     _tiến(c)
-    đặt kq = ""
+    đặt kq = []                                   # gom rồi nối MỘT lần — O(n), không O(n²) với chuỗi dài (chữ ký hex)
     mãi {
         đặt k = _ký(c)
         nếu k == "" { dừng }                            # HẾT chuỗi (thiếu nháy đóng) → dừng êm, không lặp vô-hạn
@@ -43,13 +74,15 @@ hàm _đọc_chuỗi(c) {                     # _ký(c) == '"'
         nếu k == "\\" {                                 # ESCAPE: \n · \t · \" · \\ …
             _tiến(c)
             đặt e = _ký(c)
-            nếu e == "n" { đặt kq = kq + "\n" }
-            khác { nếu e == "t" { đặt kq = kq + "\t" } khác { đặt kq = kq + e } }
+            nếu e == "n" { gom(kq, "\n") }
+            khác { nếu e == "t" { gom(kq, "\t") } khác { nếu e == "r" { gom(kq, ký_tự(13)) } khác {
+            nếu e == "b" { gom(kq, ký_tự(8)) } khác { nếu e == "f" { gom(kq, ký_tự(12)) } khác {
+            nếu e == "u" { gom(kq, _đọc_u(c)) } khác { gom(kq, e) } } } } } }
             _tiến(c)
         }
-        khác { đặt kq = kq + k  _tiến(c) }
+        khác { gom(kq, k)  _tiến(c) }
     }
-    trả kq
+    trả nối(kq, "")
 }
 
 # ---------------- số (nguyên + âm + thập phân) ----------------
@@ -122,24 +155,24 @@ hàm phân_tích_json(s) { nếu loại(s) == "ẩn" { trả ẩn }  trả _giá
 # ---------------- SERIALIZE: giá-trị GIAO → json string ----------------
 # _thoát: nháy kép, gạch chéo ngược, xuống dòng, tab → dạng escape (BẮT BUỘC, không thì JSON hỏng)
 hàm _thoát(s) {
-    đặt kq = ""  đặt i = 0
+    đặt kq = []  đặt i = 0                         # gom rồi nối MỘT lần — O(n)
     mãi {
         nếu i >= dài(s) { dừng }
         đặt c = s[i]
-        nếu c == "\"" { đặt kq = kq + "\\\"" }
+        nếu c == "\"" { gom(kq, "\\\"") }
         khác {
-            nếu c == "\\" { đặt kq = kq + "\\\\" }
+            nếu c == "\\" { gom(kq, "\\\\") }
             khác {
-                nếu c == "\n" { đặt kq = kq + "\\n" }
+                nếu c == "\n" { gom(kq, "\\n") }
                 khác {
-                    nếu c == "\t" { đặt kq = kq + "\\t" }
-                    khác { đặt kq = kq + c }
+                    nếu c == "\t" { gom(kq, "\\t") }
+                    khác { gom(kq, c) }
                 }
             }
         }
         đặt i = i + 1
     }
-    trả kq
+    trả nối(kq, "")
 }
 
 hàm thành_json(v) {

@@ -30,3 +30,7 @@ rọi thành_json(b)                               # {"a":1,"b":[2,3]}
 đặt gốc = "{\"k\":[1,2],\"c\":true,\"n\":null}"
 đặt lại = thành_json(phân_tích_json(gốc))
 rọi lại                                          # {"k":[1,2],"c":true,"n":null}
+
+# 5) THOÁT đủ chuẩn khi ĐỌC: \r \b \f \uXXXX + cặp thay thế UTF-16 (2 mã \u → 1 ký tự)
+đặt u = phân_tích_json("\"x\\u00e9\\ud83d\\ude00\\r\"")
+rọi "thoát: " + dài(u) + " " + mã(u[1]) + " " + mã(u[2]) + " " + mã(u[3])   # thoát: 4 233 128512 13
