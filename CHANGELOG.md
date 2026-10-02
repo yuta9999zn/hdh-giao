@@ -5,6 +5,28 @@ Nền học thuyết: Nguyễn Trường An (DFCT / NNL-NTHT / CDFL).
 
 ---
 
+## v0.45.0 — Sổ niêm phong viết bằng GIAO; lib_json đọc đủ thoát chuẩn và hết O(n²) (2026-10-02)
+
+- **`niem_phong.giao` + `niem.sh`** (GIAO trên GVM-64): `niem` · `cham` · `kiem [--bat-buoc-ky]` · `thong_ke` ·
+  `khoa` · `cong` · `ghim_khoa` · `ky`. `niem.sh` chỉ gói sổ/khoá/ghim/đối số vào stdin, nối dòng `@@NỐI`
+  vào cuối sổ (chỉ-ghi-thêm) và ghi `@@TỆP` vào thư mục khoá/tệp ghim. Đồng hồ chỉ cấp cho công cụ này
+  (`--cho-giờ`; trường `lúc` là giây epoch).
+- **Định dạng sổ 2**: thứ tự trường cố định, `"phiên_sổ":2`. BĂM = SHA-256 của chính văn bản dòng trước
+  `,"băm":"` cộng `}` (không cần tuần tự hoá lại JSON). Ký kép trên `GIAO-NIEM-PHONG-v2|<băm>`, ngữ cảnh
+  `giao-niem-phong-v2`. Sổ định dạng 1 (`niem_phong.py` cũ) bị báo "định dạng CŨ". Khoá (`bi_mat.json`,
+  `cong_khai.json`) và GHIM giữ nguyên công thức, nên ghim đã commit `fc987b72…` vẫn hợp lệ.
+- `kiem` chỉ cần khoá CÔNG (`cong_khai.json`, vẫn so ghim); có khoá bí mật thì dựng lại khoá công để bắt tráo.
+- `niem_phong.py` thu thành lớp cầu mỏng giữ API (`SổNiêmPhong`, `KhoáSổ`, `ghim_khoá`, `KhoáLệchGhim`, `_băm`)
+  cho `giao_mcp.py`, `moi_gioi_luong_tu.py`, `vong_tu_sua.py`; thêm `dòng_sổ(mục)` cho bài kiểm.
+  Bài kiểm: sổ 8/8 · ký kép 21/21 · tự-sửa 5/5 · môi giới 6/6 (cả giả lập Aer).
+- **`lib_json.giao`**: đọc thêm `\r \b \f \uXXXX` và ghép cặp thay thế UTF-16; `_đọc_chuỗi`/`_thoát` gom rồi
+  nối một lần; con trỏ giữ danh sách ký tự. Trước đó đọc chuỗi 7 KB (chữ ký hex) là O(n²).
+  `kiem_lib_json.giao` thêm ca thoát và vào bộ đối chiếu GVM-64 ≡ thông dịch.
+- Ghi nhận hiệu năng GVM-64: `s[i]` trên chuỗi dài tốn theo i; duyệt `lặp ch trong s` hoặc `tách` của máy
+  nhanh hơn hàng chục lần. Bài kiểm sổ (12 mục ký kép): từ ~6 phút xuống ~28 giây.
+
+---
+
 ## v0.44.0 — Bỏ công cụ ký khoá bằng Python: kho nền, kho xa, khoá máy đều do goi.giao làm, ký kép (2026-10-01)
 
 - `lam_kho.py`, `lam_khoa.py`, `lam_dulieu_chu_ky.py` **đã xoá**. Thay bằng lệnh mới của `goi.giao` (GIAO trên
@@ -18,7 +40,7 @@ Nền học thuyết: Nguyễn Trường An (DFCT / NNL-NTHT / CDFL).
   khách (`khach_xa.py`) kiểm qua `wasm/ky_lenh.wasm` có ghim — neo khoá kép thì không nhận chữ ký RSA. Khoá
   RSA cũ vẫn đọc/kiểm được. `kiem_tu_xa.py` 37/37.
 - `kiem_goi.sh` 17/17 (thêm kho xa + kho nền). `kiem_toan_bo` 92/92.
-- Còn lại trong nhóm "công cụ dựng" chưa chuyển: `ky_kep.py`, `niem_phong.py` (bước tiếp). `ghi_cong.py`,
+- Còn lại trong nhóm "công cụ dựng" chưa chuyển: `ky_kep.py`, `niem_phong.py` (xong ở v0.45). `ghi_cong.py`,
   `vong_tu_sua.py` điều khiển git/tiến trình/LLM — thuộc nhóm cầu nối với máy chủ.
 
 ---

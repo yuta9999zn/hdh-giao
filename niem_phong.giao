@@ -1,0 +1,371 @@
+# ============================================================
+# niem_phong.giao — SỔ NIÊM PHONG DỰ ĐOÁN, VIẾT BẰNG GIAO, chạy trên GVM-64 (thay logic niem_phong.py, v0.45)
+# ============================================================
+# Mọi đề xuất của AI/LLM kèm một DỰ ĐOÁN được NIÊM PHONG (băm + ký kép) TRƯỚC khi làm, rồi CHẤM sau khi
+# biết kết quả, thống kê so với ĐƯỜNG NỀN (học từ D:\KIAI\con-thuyen). γ chỉ là thước hiệu chỉnh sau sự việc.
+#
+#   sh niem.sh niem <sổ> <ai> <việc> <dự_đoán JSON>     → in "BĂM <hex>", nối một dòng vào sổ
+#   sh niem.sh cham <sổ> <băm_niêm> <kết_quả JSON>      → in {"trúng":…,"lệch":…}, nối một dòng
+#   sh niem.sh kiem <sổ> [--bat-buoc-ky]                → "✓ …" / "✗ mục i: …" (mã thoát 1)
+#   sh niem.sh thong_ke <sổ>                            → JSON theo từng 'ai' (tỉ lệ trúng vs đường nền)
+#   sh niem.sh khoa · ghim_khoa · cong · ky <băm>       → khoá kép của sổ (thư mục GIAO_KHOA_NIEM_PHONG)
+#   Cờ: --khong-ky (không ký / không nạp khoá).
+#
+# ĐỊNH DẠNG SỔ 2 (JSONL chỉ-ghi-thêm), thứ tự trường CỐ ĐỊNH, mỗi dòng:
+#   {"phiên_sổ":2,"số":N,"băm_trước":"…","lúc":<giây epoch>,"loại":"niêm_phong","ai":"…","việc":"…",
+#    "dự_đoán":{…},"băm":"<sha256>","ký":{"vân_tay":"…","ed25519":"…","mldsa65":"…"}}
+#   (chấm: …"loại":"chấm","niêm":"<băm>","kết_quả":{…},"trúng":true|false,"lệch":{…},"băm":…,"ký":…)
+# BĂM = SHA-256 của CHÍNH VĂN BẢN dòng trước `,"băm":"` cộng "}" — không cần tuần tự hoá lại JSON nên không
+# phụ thuộc thứ tự khoá hay cách thoát chuỗi. `,"băm":"` không thể nằm TRONG một chuỗi JSON (dấu " trong chuỗi
+# luôn là \"), nên vị trí CUỐI của nó luôn là trường băm thật. Chuỗi băm: băm_trước = băm dòng trước.
+# KÝ KÉP ML-DSA-65 + Ed25519 trên văn bản "GIAO-NIEM-PHONG-v2|<băm>" (ngữ cảnh "giao-niem-phong-v2"); hợp lệ
+# khi CẢ HAI đúng. Từ mục ký đầu tiên trở đi, mục THIẾU chữ ký là lỗi; --bat-buoc-ky: MỌI mục phải ký.
+# KHOÁ: bi_mat.json {"mldsa_xi","ed_hat"} + cong_khai.json {"ed25519","mldsa65","vân_tay"} (giữ định dạng
+# của niem_phong.py cũ); GHIM khoa_niem_phong.ghim: SHA-256('GIAO-KHOA-v1' ‖ pk_Ed25519 ‖ pk_ML-DSA-65) — CÙNG
+# công thức cũ, nên ghim đã commit vẫn dùng được. Có ghim mà mất khoá ⇒ KHÔNG tự tạo khoá mới.
+# ============================================================
+nhập "lib_json.giao"
+nhập "lib_chuoi.giao"
+nhập "lib_sha256.giao"
+nhập "lib_base64.giao"
+
+đặt TAB = ký_tự(9)
+đặt NC_SỔ = "giao-niem-phong-v2"
+đặt GỐC_BĂM = "0000000000000000000000000000000000000000000000000000000000000000"
+
+# ---------------- vào/ra ----------------
+# Gói vào: mỗi mục NUL + số_byte + " " + đường + "\n" + nội dung. Mọi đầu vào của sổ là VĂN BẢN (JSON, khoá hex,
+# đối số dòng lệnh — không thể chứa NUL) ⇒ tách theo NUL bằng `tách` của máy, khỏi duyệt từng ký tự trong GVM
+# (vòng ký-tự ~40 µs/ký tự: sổ ký kép ~7 KB/dòng sẽ chậm cỡ giây mỗi dòng).
+hàm đọc_vào(s) {
+    đặt vào = bản()
+    đặt CRLF = ký_tự(13) + "\n"
+    đặt phần = tách(s, ký_tự(0))
+    nếu dài(phần[0]) > 0 { __ném("gói vào hỏng (không mở đầu bằng NUL)") }
+    lặp m trong lát(phần, 1, dài(phần)) {
+        đặt dòng = tách(m, "\n")
+        đặt sp = tách(dòng[0], " ")
+        nếu dài(sp) < 2 { __ném("gói vào hỏng: đầu mục '" + dòng[0] + "'") }
+        đặt nội = nối(lát(dòng, 1, dài(dòng)), "\n")
+        đặt_khoá(vào, nối(lát(sp, 1, dài(sp)), " "), nối(tách(nội, CRLF), "\n"))
+    }
+    trả vào
+}
+hàm ra_tệp(đường, nội) { rọi "@@TỆP" + TAB + đường + TAB + mã_hoá_b64(chuỗi_thành_byte(nội)) }
+hàm nối_sổ(dòng) { rọi "@@NỐI" + TAB + "@sổ" + TAB + mã_hoá_b64(chuỗi_thành_byte(dòng + "\n")) }
+
+# ---------------- tiện ích ----------------
+hàm _hex(bytes) {
+    đặt H = "0123456789abcdef"  đặt s = []
+    lặp x trong bytes { gom(s, H[x // 16])  gom(s, H[dư(x, 16)]) }
+    trả nối(s, "")
+}
+hàm _hv(c) {
+    đặt m = mã(c)
+    nếu m >= 97 { trả m - 87 }
+    nếu m >= 65 { trả m - 55 }
+    trả m - 48
+}
+hàm _hex_byte(h) {
+    đặt ra = []  đặt i = 0
+    lặp dài(h) // 2 { gom(ra, _hv(h[i]) * 16 + _hv(h[i + 1]))  đặt i = i + 2 }
+    trả ra
+}
+hàm sha256_byte_hex(bs) {
+    đặt ra = ""
+    lặp w trong sha256_bytes(bs) { đặt ra = ra + _s_hex32(w) }
+    trả ra
+}
+hàm json_chuỗi(s) {
+    "chuỗi → JSON (ensure_ascii=False): thoát \\ \" và ký tự điều khiển < 0x20"
+    đặt H = "0123456789abcdef"  đặt ra = ["\""]
+    lặp ch trong s {
+        đặt c = mã(ch)
+        nếu ch == "\"" { gom(ra, "\\\"") } khác { nếu ch == "\\" { gom(ra, "\\\\") } khác {
+            nếu c < 32 {
+                nếu c == 10 { gom(ra, "\\n") } khác { nếu c == 13 { gom(ra, "\\r") } khác { nếu c == 9 { gom(ra, "\\t") } khác {
+                    nếu c == 8 { gom(ra, "\\b") } khác { nếu c == 12 { gom(ra, "\\f") } khác {
+                    gom(ra, "\\u00" + H[c // 16] + H[dư(c, 16)])
+                } } } } }
+            } khác { gom(ra, ch) }
+        } }
+    }
+    gom(ra, "\"")
+    trả nối(ra, "")
+}
+hàm băm_dòng(dòng) {
+    "→ [băm tính lại, băm ghi trong dòng] · ẩn nếu dòng không đúng định dạng 2"
+    đặt NGĂN = ",\"băm\":\""
+    đặt p = tách(dòng, NGĂN)                       # tách (máy) nhanh; lần xuất hiện CUỐI = trường băm thật
+    nếu dài(p) < 2 { trả ẩn }
+    đặt ghi = lát_chuỗi(p[dài(p) - 1], 0, 64)
+    trả [sha256_hex(nối(lát(p, 0, dài(p) - 1), NGĂN) + "}"), ghi]
+}
+
+# ---------------- khoá ----------------
+hàm vân_tay_đủ(pk_ed, pk_ml) { trả sha256_byte_hex(ghép(ghép(utf8_mã("GIAO-KHOA-v1"), _hex_byte(pk_ed)), _hex_byte(pk_ml))) }
+hàm nạp_khoá(vào, tạo) {
+    "→ bản {ξ, hạt, ed, ml, vân_tay, vân_tay_đủ} · ném nếu lệch ghim / tráo khoá công / mất khoá khi có ghim"
+    đặt ghim = lấy_khoá(vào, "@ghim")  đặt vt_ghim = ẩn
+    nếu loại(ghim) == "chuỗi" { đặt vt_ghim = lấy_khoá(phân_tích_json(ghim), "vân_tay_đủ") }
+    đặt bí = lấy_khoá(vào, "@bí_mật")
+    nếu loại(bí) == "ẩn" {
+        nếu loại(vt_ghim) != "ẩn" { __ném("LỆCH GHIM: có ghim khoá (" + lát_chuỗi(vt_ghim, 0, 16) + "…) nhưng KHÔNG có khoá — không tự tạo khoá mới. Khôi phục thư mục khoá, hoặc (máy mới) sinh khoá rồi: sh niem.sh ghim_khoa và commit.") }
+        nếu tạo == tối { __ném("chưa có khoá sổ") }
+        đặt ξ = _hex(ngẫu_nhiên_an_toàn(32))  đặt hạt = _hex(ngẫu_nhiên_an_toàn(32))
+        đặt kc = khoá_kép_từ_hạt(ξ, hạt)
+        đặt vtđ = vân_tay_đủ(kc[0], kc[1])
+        ra_tệp("@khoá/bi_mat.json", "{\"mldsa_xi\": \"" + ξ + "\", \"ed_hat\": \"" + hạt + "\"}")
+        ra_tệp("@khoá/cong_khai.json", "{\"ed25519\": \"" + kc[0] + "\", \"mldsa65\": \"" + kc[1] + "\", \"vân_tay\": \"" + lát_chuỗi(vtđ, 0, 32) + "\"}")
+        đặt k = bản()  đặt_khoá(k, "ξ", ξ)  đặt_khoá(k, "hạt", hạt)  đặt_khoá(k, "ed", kc[0])  đặt_khoá(k, "ml", kc[1])
+        đặt_khoá(k, "vân_tay_đủ", vtđ)  đặt_khoá(k, "vân_tay", lát_chuỗi(vtđ, 0, 32))
+        trả k
+    }
+    đặt b = phân_tích_json(bí)  đặt c = phân_tích_json(lấy_khoá(vào, "@công"))
+    đặt ξ = lấy_khoá(b, "mldsa_xi")  đặt hạt = lấy_khoá(b, "ed_hat")
+    đặt kc = khoá_kép_từ_hạt(ξ, hạt)
+    nếu loại(kc) == "ẩn" { __ném("khoá bí mật hỏng") }
+    # dựng LẠI khoá công từ khoá bí mật — cong_khai.json bị tráo (hoặc lệch) là lộ ngay
+    nếu kc[0] != lấy_khoá(c, "ed25519") { __ném("LỆCH GHIM: cong_khai.json KHÔNG khớp khoá bí mật (bị tráo?)") }
+    nếu kc[1] != lấy_khoá(c, "mldsa65") { __ném("LỆCH GHIM: cong_khai.json KHÔNG khớp khoá bí mật (bị tráo?)") }
+    đặt vtđ = vân_tay_đủ(kc[0], kc[1])
+    nếu loại(vt_ghim) != "ẩn" { nếu vtđ != vt_ghim { __ném("LỆCH GHIM: khoá (vân tay " + lát_chuỗi(vtđ, 0, 16) + "…) KHÁC ghim " + lát_chuỗi(vt_ghim, 0, 16) + "… — từ chối ký/kiểm") } }
+    đặt k = bản()  đặt_khoá(k, "ξ", ξ)  đặt_khoá(k, "hạt", hạt)  đặt_khoá(k, "ed", kc[0])  đặt_khoá(k, "ml", kc[1])
+    đặt_khoá(k, "vân_tay_đủ", vtđ)  đặt_khoá(k, "vân_tay", lát_chuỗi(vtđ, 0, 32))
+    trả k
+}
+hàm nạp_công(vào) {
+    "khoá để KIỂM: có khoá bí mật ⇒ nạp đủ (kèm đối chiếu); chỉ có cong_khai.json ⇒ đủ để kiểm (vẫn so ghim)"
+    nếu loại(lấy_khoá(vào, "@bí_mật")) == "chuỗi" { trả nạp_khoá(vào, tối) }
+    đặt cs = lấy_khoá(vào, "@công")
+    nếu loại(cs) == "ẩn" {
+        nếu loại(lấy_khoá(vào, "@ghim")) == "chuỗi" { trả nạp_khoá(vào, tối) }     # có ghim mà mất khoá ⇒ báo
+        trả ẩn
+    }
+    đặt c = phân_tích_json(cs)
+    đặt vtđ = vân_tay_đủ(lấy_khoá(c, "ed25519"), lấy_khoá(c, "mldsa65"))
+    đặt ghim = lấy_khoá(vào, "@ghim")
+    nếu loại(ghim) == "chuỗi" {
+        đặt vt_ghim = lấy_khoá(phân_tích_json(ghim), "vân_tay_đủ")
+        nếu vtđ != vt_ghim { __ném("LỆCH GHIM: khoá công khai (vân tay " + lát_chuỗi(vtđ, 0, 16) + "…) KHÁC ghim " + lát_chuỗi(vt_ghim, 0, 16) + "… — từ chối kiểm") }
+    }
+    đặt k = bản()  đặt_khoá(k, "ed", lấy_khoá(c, "ed25519"))  đặt_khoá(k, "ml", lấy_khoá(c, "mldsa65"))
+    đặt_khoá(k, "vân_tay_đủ", vtđ)  đặt_khoá(k, "vân_tay", lát_chuỗi(vtđ, 0, 32))
+    trả k
+}
+hàm ký_băm(k, băm) {
+    đặt s = ký_kép(lấy_khoá(k, "ξ"), lấy_khoá(k, "hạt"), "GIAO-NIEM-PHONG-v2|" + băm, NC_SỔ, _hex(ngẫu_nhiên_an_toàn(32)))
+    nếu loại(s) == "ẩn" { __ném("ký kép thất bại") }
+    trả "{\"vân_tay\":" + json_chuỗi(lấy_khoá(k, "vân_tay")) + ",\"ed25519\":\"" + s[0] + "\",\"mldsa65\":\"" + s[1] + "\"}"
+}
+
+# ---------------- sổ ----------------
+hàm dòng_sổ(nội) {
+    đặt ra = []
+    nếu loại(nội) == "ẩn" { trả ra }
+    lặp d trong tách(nội, "\n") { nếu dài(d) > 0 { gom(ra, d) } }      # đọc_vào đã đổi CRLF → LF
+    trả ra
+}
+hàm ghi_mục(vào, thân, k) {
+    "thân = phần JSON SAU băm_trước/lúc (bắt đầu bằng ',\"loại\":…'). → [băm, dòng]"
+    đặt ds = dòng_sổ(lấy_khoá(vào, "@sổ"))
+    đặt trước = GỐC_BĂM
+    nếu dài(ds) > 0 { đặt bt = băm_dòng(ds[dài(ds) - 1])  nếu loại(bt) != "ẩn" { đặt trước = bt[1] } }
+    đặt lúc = nguyên(giờ_hệ())
+    đặt đầu = "{\"phiên_sổ\":2,\"số\":" + dài(ds) + ",\"băm_trước\":\"" + trước + "\",\"lúc\":" + lúc + thân
+    đặt băm = sha256_hex(đầu + "}")
+    đặt dòng = đầu + ",\"băm\":\"" + băm + "\""
+    nếu loại(k) != "ẩn" { đặt dòng = dòng + ",\"ký\":" + ký_băm(k, băm) }
+    trả [băm, dòng + "}"]
+}
+hàm mục_đã_đọc(ds) {
+    đặt ra = []
+    lặp d trong ds { gom(ra, phân_tích_json(d)) }
+    trả ra
+}
+# giá trị → JSON gọn, khớp json.dumps(ensure_ascii=False, separators=(',',':')) của Python; sắp=sáng: sắp khoá
+# (như sort_keys=True — để đếm kết quả trùng). Ba-trị: chuỗi "sáng"/"tối" CHÍNH LÀ sáng/tối ⇒ ghi true/false.
+hàm json_viết(x, sắp) {
+    nếu loại(x) == "ẩn" { trả "null" }
+    nếu x == sáng { trả "true" }
+    nếu x == tối { trả "false" }
+    nếu loại(x) == "số" { trả "" + x }
+    nếu loại(x) == "danh_sách" {
+        đặt ph = []
+        lặp y trong x { gom(ph, json_viết(y, sắp)) }
+        trả "[" + nối(ph, ",") + "]"
+    }
+    nếu loại(x) == "bản" {
+        đặt ks = khoá(x)
+        nếu sắp == sáng { đặt ks = sắp_xếp(ks) }
+        đặt ph = []
+        lặp kh trong ks { gom(ph, json_chuỗi("" + kh) + ":" + json_viết(lấy_khoá(x, kh), sắp)) }
+        trả "{" + nối(ph, ",") + "}"
+    }
+    trả json_chuỗi("" + x)
+}
+hàm _bằng(a, b) {
+    nếu loại(a) == "ẩn" { trả loại(b) == "ẩn" }
+    nếu loại(b) == "ẩn" { trả tối }
+    trả a == b
+}
+
+hàm kiểm_chuỗi(vào, k, bắt_buộc) {
+    "→ [sáng|tối, lý do]"
+    đặt ds = dòng_sổ(lấy_khoá(vào, "@sổ"))
+    đặt trước = GỐC_BĂM  đặt đã_niêm = bản()  đặt đã_ký = tối  đặt i = 0
+    lặp d trong ds {
+        đặt m = phân_tích_json(d)
+        nếu loại(m) != "bản" { trả [tối, "mục " + i + ": không phải JSON"] }
+        nếu lấy_khoá(m, "phiên_sổ") != 2 { trả [tối, "mục " + i + ": sổ định dạng CŨ (niem_phong.py, trước v0.45) — tạo sổ mới"] }
+        nếu lấy_khoá(m, "số") != i { trả [tối, "mục " + i + ": số thứ tự sai — có mục bị xoá/chèn"] }
+        nếu lấy_khoá(m, "băm_trước") != trước { trả [tối, "mục " + i + ": đứt chuỗi (băm_trước không khớp)"] }
+        đặt bt = băm_dòng(d)
+        nếu loại(bt) == "ẩn" { trả [tối, "mục " + i + ": thiếu trường băm"] }
+        nếu bt[0] != bt[1] { trả [tối, "mục " + i + ": nội dung bị SỬA (băm không khớp)"] }
+        nếu lấy_khoá(m, "loại") == "niêm_phong" { đặt_khoá(đã_niêm, bt[1], sáng) }
+        nếu lấy_khoá(m, "loại") == "chấm" { nếu có_khoá(đã_niêm, lấy_khoá(m, "niêm")) == tối { trả [tối, "mục " + i + ": chấm một niêm phong không có TRƯỚC nó"] } }
+        đặt ký = lấy_khoá(m, "ký")
+        nếu loại(ký) == "bản" {
+            nếu loại(k) == "ẩn" { trả [tối, "mục " + i + ": có chữ ký nhưng không có khoá công khai để kiểm"] }
+            nếu lấy_khoá(ký, "vân_tay") != lấy_khoá(k, "vân_tay") { trả [tối, "mục " + i + ": ký bằng KHOÁ LẠ (vân tay " + lát_chuỗi("" + lấy_khoá(ký, "vân_tay"), 0, 12) + "…)"] }
+            đặt r = kiểm_ký_kép(lấy_khoá(k, "ed"), lấy_khoá(k, "ml"), "GIAO-NIEM-PHONG-v2|" + bt[1], NC_SỔ, lấy_khoá(ký, "ed25519"), lấy_khoá(ký, "mldsa65"))
+            nếu loại(r) == "ẩn" { trả [tối, "mục " + i + ": chữ ký Ed25519 SAI"] }
+            nếu r[0] != sáng { trả [tối, "mục " + i + ": chữ ký Ed25519 SAI"] }
+            nếu r[1] != sáng { trả [tối, "mục " + i + ": chữ ký ML-DSA-65 SAI"] }
+            đặt đã_ký = sáng
+        } khác {
+            nếu đã_ký == sáng { trả [tối, "mục " + i + ": THIẾU chữ ký sau mục đã ký (chữ ký bị gỡ?)"] }
+            nếu bắt_buộc == sáng { trả [tối, "mục " + i + ": THIẾU chữ ký (sổ bắt buộc ký)"] }
+        }
+        đặt trước = bt[1]  đặt i = i + 1
+    }
+    nếu đã_ký == sáng { trả [sáng, "chuỗi nguyên vẹn · mọi chữ ký kép đúng"] }
+    trả [sáng, "chuỗi nguyên vẹn"]
+}
+
+hàm _thập_phân3(tử, mẫu) {
+    "tử/mẫu làm tròn 3 chữ số → văn bản số JSON (có dấu)"
+    đặt âm = tử < 0  đặt t = tử
+    nếu âm { đặt t = 0 - tử }
+    đặt q = (t * 2000 + mẫu) // (2 * mẫu)
+    đặt nguyên_ = q // 1000  đặt lẻ = q - nguyên_ * 1000
+    đặt s = "" + lẻ
+    mãi { nếu dài(s) >= 3 { dừng }  đặt s = "0" + s }
+    mãi { nếu dài(s) <= 1 { dừng }  nếu s[dài(s) - 1] == "0" { đặt s = lát_chuỗi(s, 0, dài(s) - 1) } khác { dừng } }
+    đặt kq = "" + nguyên_ + "." + s
+    nếu âm { nếu q > 0 { đặt kq = "-" + kq } }
+    trả kq
+}
+hàm thống_kê(vào) {
+    đặt ms = mục_đã_đọc(dòng_sổ(lấy_khoá(vào, "@sổ")))
+    đặt niêm = bản()  đặt thứ_tự_ai = []
+    lặp m trong ms { nếu lấy_khoá(m, "loại") == "niêm_phong" {
+        đặt_khoá(niêm, lấy_khoá(m, "băm"), m)
+        nếu chứa(thứ_tự_ai, lấy_khoá(m, "ai")) == tối { gom(thứ_tự_ai, lấy_khoá(m, "ai")) }
+    } }
+    đặt theo = bản()
+    lặp m trong ms { nếu lấy_khoá(m, "loại") == "chấm" {
+        đặt ai = lấy_khoá(lấy_khoá(niêm, lấy_khoá(m, "niêm")), "ai")
+        nếu có_khoá(theo, ai) == tối { đặt_khoá(theo, ai, [0, 0, []]) }
+        đặt a = lấy_khoá(theo, ai)
+        đặt a[0] = a[0] + 1
+        nếu lấy_khoá(m, "trúng") == sáng { đặt a[1] = a[1] + 1 }
+        gom(a[2], json_viết(lấy_khoá(m, "kết_quả"), sáng))
+    } }
+    đặt phần = []
+    lặp ai trong thứ_tự_ai {
+        đặt n_niêm = 0
+        lặp h trong khoá(niêm) { nếu lấy_khoá(lấy_khoá(niêm, h), "ai") == ai { đặt n_niêm = n_niêm + 1 } }
+        nếu có_khoá(theo, ai) {
+            đặt a = lấy_khoá(theo, ai)
+            đặt đếm = bản()  đặt phổ = 0
+            lặp x trong a[2] {
+                đặt c = 1
+                nếu có_khoá(đếm, x) { đặt c = lấy_khoá(đếm, x) + 1 }
+                đặt_khoá(đếm, x, c)
+                nếu c > phổ { đặt phổ = c }
+            }
+            đặt đầu_ = json_chuỗi(ai) + ":{\"niêm_phong\":" + n_niêm + ",\"đã_chấm\":" + a[0] + ",\"trúng\":" + a[1]
+            gom(phần, đầu_ + ",\"tỉ_lệ\":" + _thập_phân3(a[1], a[0]) + ",\"đường_nền\":" + _thập_phân3(phổ, a[0]) + ",\"hơn_nền\":" + _thập_phân3(a[1] - phổ, a[0]) + "}")
+        } khác {
+            gom(phần, json_chuỗi(ai) + ":{\"niêm_phong\":" + n_niêm + ",\"đã_chấm\":0}")
+        }
+    }
+    trả "{" + nối(phần, ",") + "}"
+}
+
+# ---------------- chạy ----------------
+đặt VÀO = đọc_vào(vào_còn())
+đặt VIỆC = cắt_lề(lấy_khoá(VÀO, "@lệnh"))
+đặt KÝ_BẬT = có_khoá(VÀO, "@không_ký") == tối
+đặt SỐ = 0
+hàm đối(i) {
+    đặt x = lấy_khoá(VÀO, "@đ" + i)
+    nếu loại(x) == "ẩn" { __ném("thiếu đối số thứ " + i + " cho '" + VIỆC + "'") }
+    trả x
+}
+hàm _khoá_nếu_ký(tạo) {
+    nếu KÝ_BẬT == sáng { trả nạp_khoá(VÀO, tạo) }
+    trả ẩn
+}
+
+nếu VIỆC == "niem" {
+    đặt dự = đối(3)
+    đặt pd = phân_tích_json(dự)
+    nếu loại(pd) != "bản" { __ném("dự đoán phải là bản JSON {khoá: giá_trị} không rỗng") }
+    nếu dài(pd) == 0 { __ném("dự đoán phải là bản JSON {khoá: giá_trị} không rỗng") }
+    đặt k = _khoá_nếu_ký(sáng)
+    đặt r = ghi_mục(VÀO, ",\"loại\":\"niêm_phong\",\"ai\":" + json_chuỗi(đối(1)) + ",\"việc\":" + json_chuỗi(đối(2)) + ",\"dự_đoán\":" + json_viết(pd, tối), k)
+    nối_sổ(r[1])
+    rọi "BĂM " + r[0]
+}
+nếu VIỆC == "cham" {
+    đặt băm_niêm = cắt_lề(đối(1))
+    đặt kq = phân_tích_json(đối(2))
+    nếu loại(kq) != "bản" { __ném("kết quả phải là bản JSON") }
+    đặt ms = mục_đã_đọc(dòng_sổ(lấy_khoá(VÀO, "@sổ")))
+    đặt niêm = ẩn
+    lặp m trong ms {
+        nếu lấy_khoá(m, "loại") == "niêm_phong" { nếu lấy_khoá(m, "băm") == băm_niêm { đặt niêm = m } }
+        nếu lấy_khoá(m, "loại") == "chấm" { nếu lấy_khoá(m, "niêm") == băm_niêm { __ném("niêm phong này ĐÃ được chấm — không chấm lại (chống sửa điểm)") } }
+    }
+    nếu loại(niêm) == "ẩn" { __ném("không có niêm phong " + lát_chuỗi(băm_niêm, 0, 12) + "… trong sổ") }
+    đặt lệch = []  đặt dự = lấy_khoá(niêm, "dự_đoán")
+    lặp kh trong khoá(dự) {
+        đặt thật = lấy_khoá(kq, kh)
+        nếu _bằng(lấy_khoá(dự, kh), thật) == tối {
+            gom(lệch, json_chuỗi(kh) + ":{\"đoán\":" + json_viết(lấy_khoá(dự, kh), tối) + ",\"thật\":" + json_viết(thật, tối) + "}")
+        }
+    }
+    đặt trúng = "true"
+    nếu dài(lệch) > 0 { đặt trúng = "false" }
+    đặt lệch_j = "{" + nối(lệch, ",") + "}"
+    đặt k = _khoá_nếu_ký(sáng)
+    đặt r = ghi_mục(VÀO, ",\"loại\":\"chấm\",\"niêm\":\"" + băm_niêm + "\",\"kết_quả\":" + json_viết(kq, tối) + ",\"trúng\":" + trúng + ",\"lệch\":" + lệch_j, k)
+    nối_sổ(r[1])
+    rọi "{\"trúng\":" + trúng + ",\"lệch\":" + lệch_j + "}"
+}
+nếu VIỆC == "kiem" {
+    đặt k = ẩn
+    nếu KÝ_BẬT == sáng { đặt k = nạp_công(VÀO) }
+    đặt r = kiểm_chuỗi(VÀO, k, có_khoá(VÀO, "@bắt_buộc_ký"))
+    nếu r[0] == sáng { rọi "✓ " + r[1] } khác { rọi "✗ " + r[1]  đặt SỐ = 1 }
+    đặt ds = dòng_sổ(lấy_khoá(VÀO, "@sổ"))  đặt n_ký = 0
+    lặp d trong ds { nếu dài(tách(d, ",\"ký\":{")) > 1 { đặt n_ký = n_ký + 1 } }
+    rọi "ký kép (ML-DSA-65 + Ed25519): " + n_ký + "/" + dài(ds) + " mục"
+    nếu SỐ == 1 { __ném("sổ hỏng") }
+}
+nếu VIỆC == "thong_ke" { rọi thống_kê(VÀO) }
+nếu VIỆC == "khoa" { đặt k = nạp_khoá(VÀO, sáng)  rọi "VÂN_TAY " + lấy_khoá(k, "vân_tay_đủ") }
+nếu VIỆC == "cong" {
+    đặt k = nạp_khoá(VÀO, tối)
+    rọi "{\"ed25519\":\"" + lấy_khoá(k, "ed") + "\",\"mldsa65\":\"" + lấy_khoá(k, "ml") + "\",\"vân_tay\":\"" + lấy_khoá(k, "vân_tay") + "\",\"vân_tay_đủ\":\"" + lấy_khoá(k, "vân_tay_đủ") + "\"}"
+}
+nếu VIỆC == "ky" { rọi ký_băm(nạp_khoá(VÀO, tối), cắt_lề(đối(1))) }
+nếu VIỆC == "ghim_khoa" {
+    đặt k = nạp_khoá(VÀO, sáng)
+    ra_tệp("@ghim", "{\n \"vân_tay_đủ\": \"" + lấy_khoá(k, "vân_tay_đủ") + "\",\n \"thuật_toán\": \"SHA-256('GIAO-KHOA-v1' ‖ pk_Ed25519 ‖ pk_ML-DSA-65)\",\n \"ed25519\": \"" + lấy_khoá(k, "ed") + "\"\n}\n")
+    rọi "đã GHIM khoá sổ niêm phong: " + lấy_khoá(k, "vân_tay_đủ") + " — hãy COMMIT tệp ghim."
+}
+nếu chứa(["niem", "cham", "kiem", "thong_ke", "khoa", "cong", "ky", "ghim_khoa"], VIỆC) == tối { __ném("lệnh '" + VIỆC + "' lạ") }

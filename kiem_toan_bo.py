@@ -212,7 +212,7 @@ kỳ = ["[y, z]", "ẩn", "22", "sáng", "tối", "[[x, 1], [z, 3]]", "[1, ẩn,
 mục("lib_bản (Hash đợt1-4: +từ_khoá_giá/đảo_nhóm/cặp_sắp_giá)", ok and all(k in o for k in kỳ),
     "thiếu: "+", ".join(k for k in kỳ if k not in o))
 ok,o = chạy("lib_json", ["giao.py","kiem_lib_json.giao"])
-kỳ = ['{"a":1,"b":[2,3]}', '{"k":[1,2],"c":true,"n":null}', "ẩn", "3.5"]   # null↔ẩn, round-trip
+kỳ = ['{"a":1,"b":[2,3]}', '{"k":[1,2],"c":true,"n":null}', "ẩn", "3.5", "thoát: 4 233 128512 13"]   # null↔ẩn, round-trip, thoát u+cặp UTF-16
 mục("lib_json (JSON parse/serialize, null↔ẩn)", ok and all(k in o for k in kỳ),
     "thiếu: "+", ".join(k for k in kỳ if k not in o))
 ok,o = chạy("lib_regex", ["giao.py","kiem_lib_regex.giao"])
@@ -418,7 +418,7 @@ _wt = shutil.which("wasmtime") or (r"D:\wasmtime\wasmtime.exe" if os.path.exists
 if _wt:
     _ds = ["lượng_tử_bell.giao", "lượng_tử_grover.giao", "lượng_tử_dịch_chuyển.giao", "lượng_tử_hilbert.giao",
            "lượng_tử_xeb.giao", "kiem_lib_sha256.giao", "kiem_lib_mật_khẩu.giao", "kiem_muoi_he.giao", "kiem_luong_tu_khoi.giao", "kiem_ky_kep_giao.giao", "kiem_vo_doi_so.giao", "kiem_argon2.giao", "kiem_cdfl_gvm64.giao", "examples/hilbert.giao", "kiem_lib_bit.giao",
-           "kiem_lib_thập_phân.giao", "kiem_lib_chuoi.giao", "kiem_lib_bản.giao", "kiem_lib_duyet.giao"]
+           "kiem_lib_thập_phân.giao", "kiem_lib_chuoi.giao", "kiem_lib_bản.giao", "kiem_lib_duyet.giao", "kiem_lib_json.giao"]
     ok, o = chạy("kiem_gvm64", ["kiem_gvm64.py"] + _ds, "KẾT QUẢ")
     _kq = [d for d in o.splitlines() if d.startswith("KẾT QUẢ")]
     mục(f"GVM-64 ≡ trình thông dịch, từng ký tự ({_kq[0][9:40] if _kq else '?'}, vỏ wasmtime)", ok and " 0 lệch" in o, o[-400:])

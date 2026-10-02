@@ -59,3 +59,16 @@ sh kiem_goi.sh                         # nghiệm thu bộ công cụ (trong CI)
 | Bản phát hành tải về chạy được: GVM-64 + bộ gói cơ bản + kho ký kép | ⬜ |
 | Trang tài liệu (công cụ theo nhóm, cách viết gói, chính sách) sinh từ manifest | ⬜ |
 | Kênh phát hành (lăn / ổn định), mirror | ⬜ |
+
+## Song song — chuyển công cụ Python sang GIAO (Python chỉ là ngôn ngữ mồi)
+
+`giao.py` giữ làm trình thông dịch mồi/tham chiếu. Logic chạy trên GVM-64; Python chỉ còn ở **cầu nối máy chủ**
+(cần mạng/SDK/tiến trình: MCP, desktop, kho xa phục vụ tệp, khách đăng nhập xa, môi giới IBM + Qiskit, LLM).
+
+| nhóm | việc | trạng thái |
+|---|---|---|
+| 1 · công cụ dựng | `lam_kho.py` · `lam_khoa.py` · `lam_dulieu_chu_ky.py` → `goi.giao` (`nen`, `nen_kiem`, `khoa_may`) | ✅ v0.44 |
+| 1 · công cụ dựng | `niem_phong.py` → `niem_phong.giao` + `niem.sh`; `.py` còn là lớp cầu mỏng giữ API | ✅ v0.45 |
+| 2 · bài kiểm | `kiem_*.py`, `kiem_toan_bo.py` → GIAO + sh dần dần (`ky_kep.py` chỉ còn phục vụ kiểm vector) | ⬜ |
+| 3 · GVM 16/32 + FPGA | **giữ nguyên** (quyết định của chủ dự án) | — |
+| 4 · cầu nối máy chủ | giữ Python; `ghi_cong.py`, `vong_tu_sua.py` cũng thuộc nhóm này | — |

@@ -49,7 +49,7 @@ ca(f"ACVP sigVer: {len(E['acvp_sigVer']) - len(sai)}/{len(E['acvp_sigVer'])} k�
 
 # ---------------- sổ niêm phong ký kép: kẻ CÓ quyền ghi tệp nhưng KHÔNG có khoá ----------------
 import tempfile, shutil
-from niem_phong import SổNiêmPhong, KhoáSổ, _băm
+from niem_phong import SổNiêmPhong, KhoáSổ, _băm, dòng_sổ
 print("\n[sổ niêm phong ký kép — kẻ ghi được tệp nhưng không có khoá]")
 tm = tempfile.mkdtemp()
 try:
@@ -61,12 +61,12 @@ try:
     ok, lý = sổ.kiểm_chuỗi()
     ca(f"3 mục mới đều ký kép, kiểm đúng: {lý}", ok and all("ký" in m for m in sổ.đọc()), lý)
     ca("khoá bí mật (ξ) không lọt vào sổ",
-       khoá._ξ.hex() not in open(sổ_tệp, encoding="utf-8").read())
+       json.load(open(os.path.join(tm, "khoa", "bi_mat.json")))["mldsa_xi"] not in open(sổ_tệp, encoding="utf-8").read())
 
     gốc = open(sổ_tệp, encoding="utf-8").read().splitlines()
     def thử(tên, sửa, cụm):
         ds = [json.loads(d) for d in gốc]; sửa(ds)
-        with open(sổ_tệp, "w", encoding="utf-8") as f: f.write("".join(json.dumps(m, ensure_ascii=False, sort_keys=True) + "\n" for m in ds))
+        with open(sổ_tệp, "w", encoding="utf-8") as f: f.write("".join(dòng_sổ(m) + "\n" for m in ds))
         ok, lý = SổNiêmPhong(sổ_tệp, ký=True, khoá=khoá).kiểm_chuỗi()
         ca(f"{tên} ⇒ phát hiện: {lý}", not ok and cụm in lý, lý)
     def viết_lại(ds):                                   # sửa nội dung RỒI dựng lại cả chuỗi băm (không có khoá)
@@ -82,7 +82,7 @@ try:
     def gỡ_hết(ds):
         for m in ds: m.pop("ký")
     ds = [json.loads(d) for d in gốc]; gỡ_hết(ds)
-    with open(sổ_tệp, "w", encoding="utf-8") as f: f.write("".join(json.dumps(m, ensure_ascii=False, sort_keys=True) + "\n" for m in ds))
+    with open(sổ_tệp, "w", encoding="utf-8") as f: f.write("".join(dòng_sổ(m) + "\n" for m in ds))
     ok1, _ = SổNiêmPhong(sổ_tệp, ký=True, khoá=khoá).kiểm_chuỗi()
     ok2, lý = SổNiêmPhong(sổ_tệp, ký=True, khoá=khoá).kiểm_chuỗi(bắt_buộc_ký=True)
     ca(f"gỡ SẠCH mọi chữ ký: quy tắc mặc định không thấy (sổ cũ chưa ký trông y hệt) — bắt_buộc_ký=True ⇒ phát hiện: {lý}",

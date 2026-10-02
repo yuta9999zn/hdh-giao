@@ -3,7 +3,7 @@
 không chấm niêm phong không tồn tại; không chấm lại; thống kê so với ĐƯỜNG NỀN."""
 import os, sys, json, tempfile, shutil
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from niem_phong import SổNiêmPhong
+from niem_phong import SổNiêmPhong, dòng_sổ
 
 T = R = 0
 def kiểm(tên, đk, ct=""):
@@ -25,11 +25,11 @@ try:
         f = os.path.join(thư, "hong.jsonl"); open(f, "w", encoding="utf-8").write("\n".join(dòng_mới) + "\n")
         ok, lý = SổNiêmPhong(f).kiểm_chuỗi(); kiểm(tên, not ok, lý); return lý
     m = json.loads(dòng[9]); m["trúng"] = True                                  # sửa điểm lần chấm TRƯỢT (i=3) thành trúng
-    thử_sửa("SỬA kết quả một lần chấm → phát hiện", dòng[:9] + [json.dumps(m, ensure_ascii=False, sort_keys=True)] + dòng[10:])
+    thử_sửa("SỬA kết quả một lần chấm → phát hiện", dòng[:9] + [dòng_sổ(m)] + dòng[10:])
     thử_sửa("XOÁ một mục → phát hiện", dòng[:4] + dòng[5:])
     thử_sửa("ĐỔI THỨ TỰ hai mục → phát hiện", dòng[:2] + [dòng[3], dòng[2]] + dòng[4:])
     m = json.loads(dòng[1]); m["dự_đoán"] = {"thành_công": False}; m["băm"] = __import__("niem_phong")._băm(m)
-    thử_sửa("SỬA dự đoán rồi TÍNH LẠI băm của mục đó → vẫn đứt chuỗi ở mục sau", dòng[:1] + [json.dumps(m, ensure_ascii=False, sort_keys=True)] + dòng[2:])
+    thử_sửa("SỬA dự đoán rồi TÍNH LẠI băm của mục đó → vẫn đứt chuỗi ở mục sau", dòng[:1] + [dòng_sổ(m)] + dòng[2:])
 
     try: sổ.chấm("f" * 64, {"thành_công": True}); kiểm("chấm niêm phong không tồn tại → từ chối", False)
     except ValueError: kiểm("chấm niêm phong không tồn tại → từ chối", True)
