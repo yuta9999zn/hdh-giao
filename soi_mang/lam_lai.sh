@@ -1,7 +1,7 @@
 #!/bin/bash
 # lam_lai.sh — LAM LAI TU DAU: build + don dep + quet. Chay 1 lenh trong Kali:
-#   bash /mnt/d/HeDieuHanh/GIAO/soi_mang/lam_lai.sh
-cd /mnt/d/HeDieuHanh/GIAO/soi_mang || { echo "khong vao duoc thu muc"; exit 9; }
+#   bash /mnt/e/HeDieuHanh/GIAO/soi_mang/lam_lai.sh
+cd /mnt/e/HeDieuHanh/GIAO/soi_mang || { echo "khong vao duoc thu muc"; exit 9; }
 
 echo "===== [1/4] DUNG PHIEN CU + DON KET QUA CU ====="
 sudo pkill -TERM -f 'soi_mang chen' 2>/dev/null

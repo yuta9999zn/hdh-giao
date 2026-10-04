@@ -792,24 +792,24 @@ hàm _nội_trú(máy, tid, đối, vào) {
     nếu lệnh == "theo-dõi" {                                   # ★ bật bắt gói 1 máy (qua wsl → Kali)
         đặt ip = _từ_thứ(đối, 1)
         nếu loại(ip) == "ẩn" { trả _kết(1, "theo-dõi: cần `theo-dõi <ip>` (vd theo-dõi 192.168.1.46)") }
-        đặt r = chạy("wsl", ["-d", "kali-linux", "--", "bash", "/mnt/d/HeDieuHanh/GIAO/soi_mang/start_soi.sh", ip, "600"])
+        đặt r = chạy("wsl", ["-d", "kali-linux", "--", "bash", "/mnt/e/HeDieuHanh/GIAO/soi_mang/start_soi.sh", ip, "600"])
         nếu loại(r) == "ẩn" { trả _kết(1, "theo-dõi: KHÔNG chạy được (thiếu năng lực chạy, hoặc soi_mang chưa build)") }
         trả _kết(0, r + "→ Gõ `xem-vào` để xem họ vào gì · `tắt-dõi` để dừng.")
     }
     nếu lệnh == "tắt-dõi" {                                    # ★ dừng bắt gói + vá ARP trả mạng
-        đặt r = chạy("wsl", ["-d", "kali-linux", "--", "bash", "/mnt/d/HeDieuHanh/GIAO/soi_mang/tat_soi.sh"])
+        đặt r = chạy("wsl", ["-d", "kali-linux", "--", "bash", "/mnt/e/HeDieuHanh/GIAO/soi_mang/tat_soi.sh"])
         nếu loại(r) == "ẩn" { trả _kết(1, "tắt-dõi: KHÔNG chạy được (thiếu năng lực chạy)") }
         trả _kết(0, r)
     }
     nếu lệnh == "đá" {                                         # ★ cho máy dùng 5 phút rồi CẮT, lặp mãi
         đặt ip = _từ_thứ(đối, 1)
         nếu loại(ip) == "ẩn" { trả _kết(1, "đá: cần `đá <ip>` (vd đá 192.168.1.32). Mặc định: dùng 5 phút, cắt 20 giây.") }
-        đặt r = chạy("wsl", ["-d", "kali-linux", "--", "bash", "/mnt/d/HeDieuHanh/GIAO/soi_mang/start_ngat.sh", ip, "5", "20"])
+        đặt r = chạy("wsl", ["-d", "kali-linux", "--", "bash", "/mnt/e/HeDieuHanh/GIAO/soi_mang/start_ngat.sh", ip, "5", "20"])
         nếu loại(r) == "ẩn" { trả _kết(1, "đá: KHÔNG chạy được (thiếu năng lực chạy, hoặc chưa build binary)") }
         trả _kết(0, r)
     }
     nếu lệnh == "thôi-đá" {                                    # ★ dừng đá + trả mạng
-        đặt r = chạy("wsl", ["-d", "kali-linux", "--", "bash", "/mnt/d/HeDieuHanh/GIAO/soi_mang/tat_soi.sh"])
+        đặt r = chạy("wsl", ["-d", "kali-linux", "--", "bash", "/mnt/e/HeDieuHanh/GIAO/soi_mang/tat_soi.sh"])
         nếu loại(r) == "ẩn" { trả _kết(1, "thôi-đá: KHÔNG chạy được (thiếu năng lực chạy)") }
         trả _kết(0, r)
     }

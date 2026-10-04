@@ -541,6 +541,9 @@ class Runtime:
         # Mặc định RỖNG ⇒ KHÔNG builtin I/O nào tồn tại ⇒ sandbox tuyệt đối (như trước).
         # Host cấp quyền tường minh qua cấp_quyền(); chương trình GIAO KHÔNG tự nới được.
         self.caps = {}            # tên_quyền → cấu hình phạm vi (gốc thư mục / allowlist lệnh)
+        self.hỏi_chạy = None      # hook DUYỆT-TỪNG-LẦN cho `chạy`: fn(full_cmd)→bool. Host đặt (vd --kali)
+                                  # để lệnh host NGOÀI allowlist phải được người dùng duyệt tay mỗi lần;
+                                  # None ⇒ KHÔNG hỏi, lệnh ngoài allowlist bị từ chối thẳng (mặc định kín).
         # --- module `nhập` (cấu trúc nguồn lúc nạp; chỉ .giao trong cây dự án) ---
         self.base_dir = os.getcwd()  # gốc cây cho phép nhập (main() đặt = thư mục tệp chính)
         self.đã_nhập = set()         # realpath đã nạp → idempotent
@@ -1295,8 +1298,14 @@ class Runtime:
                 # (subprocess.run dạng LIST, không injection metachar) + có timeout. ⚠ Độ-hạt:
                 # cấp "git" ⇒ cho MỌI `git ...` (vd `git push --force`). Host NÊN cấp chuỗi ĐẦY-ĐỦ
                 # (vd "git status") để hẹp nhất; chỉ cấp tên-lệnh-trần khi thật sự muốn mở rộng.
-                if "*" not in cho and not any(full==c or full.startswith(c+" ") for c in cho):
-                    self.err(f"chạy '{full}' KHÔNG trong danh sách cho phép")
+                khớp = ("*" in cho) or any(full==c or full.startswith(c+" ") for c in cho)
+                if not khớp:
+                    # NGOÀI allowlist tĩnh: chỉ chạy nếu host gắn hook DUYỆT-TỪNG-LẦN và người
+                    # dùng đồng ý CHÍNH chuỗi lệnh đầy đủ này. Không hook ⇒ từ chối (mặc định kín).
+                    # TỪ CHỐI ⇒ trả ẩn (AN), KHÔNG ném lỗi: vỏ xem ẩn là "không chạy được" và báo
+                    #   sạch, không làm sập phiên — cùng cách xử lý lỗi/quá-giờ bên dưới.
+                    if self.hỏi_chạy is None or not self.hỏi_chạy(full):
+                        return AN
                 try:
                     r = subprocess.run([a[0]] + [self._s(x) for x in đối],
                                        capture_output=True, text=True, timeout=hạn)

@@ -4,7 +4,7 @@
 # khi lệnh gọi từ Windows kết thúc.
 IP="${1:-192.168.1.46}"
 GIAY="${2:-600}"
-cd /mnt/d/HeDieuHanh/GIAO/soi_mang || exit 9
+cd /mnt/e/HeDieuHanh/GIAO/soi_mang || exit 9
 
 if [ ! -x target/release/soi_mang ]; then
   echo "LOI: chua build binary. Chay: bash soi_mang/build_kali.sh"

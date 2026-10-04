@@ -4,7 +4,7 @@
 IP="${1:-192.168.1.32}"
 PHUT="${2:-5}"       # cho dùng bao nhiêu phút
 CAT="${3:-20}"      # rồi cắt bao nhiêu giây
-cd /mnt/d/HeDieuHanh/GIAO/soi_mang || exit 9
+cd /mnt/e/HeDieuHanh/GIAO/soi_mang || exit 9
 
 if [ ! -x target/release/soi_mang ]; then
   echo "LOI: chua build binary. Chay: bash soi_mang/build_kali.sh"

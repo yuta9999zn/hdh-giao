@@ -43,34 +43,18 @@ class Máy:
         #   soi_mang, CHỈ hai lệnh wsl cụ thể. (object-capability — không nới rộng.)
         self.rt.cấp_quyền("đọc_tệp", gốc=[os.path.join(HERE, "soi_mang")])
         _lệnh_chạy = [
-            "wsl -d kali-linux -- bash /mnt/d/HeDieuHanh/GIAO/soi_mang/start_soi.sh",
-            "wsl -d kali-linux -- bash /mnt/d/HeDieuHanh/GIAO/soi_mang/tat_soi.sh",
-            "wsl -d kali-linux -- bash /mnt/d/HeDieuHanh/GIAO/soi_mang/start_ngat.sh",
+            "wsl -d kali-linux -- bash /mnt/e/HeDieuHanh/GIAO/soi_mang/start_soi.sh",
+            "wsl -d kali-linux -- bash /mnt/e/HeDieuHanh/GIAO/soi_mang/tat_soi.sh",
+            "wsl -d kali-linux -- bash /mnt/e/HeDieuHanh/GIAO/soi_mang/start_ngat.sh",
         ]
-        if kali:
-            # ★ Chế độ --kali: cho lệnh vỏ `chạy_thật` / trợ lý gọi được các lệnh hệ nền cơ bản
-            #   (bằng TÊN-LỆNH-TRẦN ⇒ mọi đối số). Cổng `phê_duyệt` cho việc BẤT-KHẢ-HỒI vẫn nguyên.
-            _lệnh_chạy += [
-                # điều tra hệ / tệp
-                "whoami","id","uname","hostname","pwd","ls","cat","head","tail","grep","find","which",
-                "ps","df","du","free","uptime","date","echo","env","wc","sort","cut","awk","sed",
-                # mạng cơ bản
-                "ip","ifconfig","ss","netstat","ping","traceroute","tracepath","arp","route",
-                "dig","nslookup","host","whois","curl","wget",
-                # gói / dịch vụ / phát triển
-                "apt","dpkg","systemctl","service","python3","pip3","git","ssh","scp",
-            ]
-            # ★ Bộ tool bảo mật/tấn công của Kali (bạn chủ ý bật). Thêm/bớt tuỳ ý:
-            _lệnh_chạy += [
-                "nmap","masscan","arp-scan","netdiscover","tcpdump","tshark","dumpcap",
-                "aircrack-ng","airmon-ng","airodump-ng","aireplay-ng","wifite","reaver","bettercap",
-                "sqlmap","nikto","gobuster","dirb","feroxbuster","wpscan","whatweb","wafw00f","ffuf",
-                "hydra","john","hashcat","medusa","crunch","cewl",
-                "msfconsole","msfvenom","searchsploit","setoolkit",
-                "enum4linux","smbclient","smbmap","rpcclient","nbtscan","crackmapexec","responder",
-                "nc","ncat","netcat","socat","proxychains","iwconfig","iw","mtr",
-            ]
         self.rt.cấp_quyền("chạy", lệnh=_lệnh_chạy)
+        if kali:
+            # ★ Chế độ --kali: KHÔNG còn cấp quyền theo TÊN-LỆNH-TRẦN nữa (cách cũ ⇒ `nmap`
+            #   cho mọi `nmap …`, `git` cho cả `git push --force` — một đường thoát ra host quá
+            #   rộng). Thay vào đó: mọi lệnh host NGOÀI allowlist tĩnh ở trên phải được người
+            #   dùng DUYỆT TAY TỪNG LẦN, thấy nguyên chuỗi lệnh đầy đủ trước khi nó chạy.
+            #   Lệnh nội trú (vỏ) và soi-mạng vẫn chạy bình thường vì không đi qua cổng này.
+            self.rt.hỏi_chạy = self._duyệt_chạy_host
         nền = os.path.join(HERE, "hdh_nền.giao")
         with open(nền, encoding="utf-8") as f:
             self.rt.exec_block(Parser(tokenize(f.read())).parse())
@@ -91,6 +75,15 @@ class Máy:
                   f"nhịp máy = {self.rt.glob['M'].d.get('nhịp') if hasattr(self.rt.glob['M'],'d') else '?'}")
         if gốc:                                   # đăng nhập bằng quyền gốc thay vì 'an'
             self._chạy_giao('đặt V = sinh_tt(M, "vỏ", 1, 0, "/")')
+
+    def _duyệt_chạy_host(self, full):
+        "Hỏi người dùng duyệt MỘT chuỗi lệnh host đầy đủ (chế độ --kali). Trả True nếu đồng ý."
+        try:
+            trả_lời = input(f"\n⚠ Cho chạy lệnh HOST ngoài danh sách?\n    {full}\n  [y/N] ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return False
+        return trả_lời in ("y", "yes", "c", "có", "co")
 
     def chụp(self):
         self._chạy_giao("đặt __ảnh_ra = chụp_máy(M)")
