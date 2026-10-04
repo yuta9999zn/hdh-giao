@@ -93,7 +93,7 @@ hàm kiểm_sudo(nội) {
 # ---- /hệ/định_dạng — "tên|magic|trình|năng_lực" (B2, hình dạng binfmt_misc) ----
 # Đây đúng là chỗ `binfmt_misc` của Linux hở nhất: ghi thẳng vào /proc, không ai kiểm, sai một mục
 # là mọi tệp khớp magic ấy hết chạy mà chỉ báo "Exec format error". Bộ kiểm này chặn từ lúc GHI.
-đặt CH_TRÌNH = ["nội_trú", "tiến_trình", "mã_máy", "kịch_bản"]
+đặt CH_TRÌNH = ["nội_trú", "tiến_trình", "mã_máy", "kịch_bản", "từ_chối"]
 
 hàm kiểm_định_dạng(nội) {
     đặt ds = _ch_dòng_sạch(nội)

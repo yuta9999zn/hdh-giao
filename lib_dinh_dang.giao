@@ -40,6 +40,7 @@ hàm dạng_mặc_định() {
     trả [["nội_trú",   "#nội-trú", "nội_trú",   "-"],
          ["tiến_trình", "#tt ",     "tiến_trình", "-"],
          ["mã_máy",     "#!mã-máy", "mã_máy",     "máy"],
+         ["pe_windows", "MZ",       "từ_chối",    "-"],
          ["kịch_bản",   "*",        "kịch_bản",   "-"]]
 }
 

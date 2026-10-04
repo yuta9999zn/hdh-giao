@@ -1,0 +1,308 @@
+# ============================================================
+# lib_soi_hành_vi.giao — LỚP SOI HÀNH VI ("EDR" của HĐH-GIAO)
+# ------------------------------------------------------------
+# VÌ SAO: thí nghiệm thả EFFECTIVE_DOLPHIN.exe (implant Sliver, Go + garble) cho thấy HĐH-GIAO
+# CHẶN được mã độc PE — nhưng chặn vì KHÔNG HIỂU mã máy x86, chứ KHÔNG PHẢI vì NHẬN RA nó độc.
+# Ba lỗ hổng lộ ra:
+#   ① Nhị phân lạ (MZ/ELF) rơi vào ngả lui `*` → bị THÔNG DỊCH NHƯ KỊCH BẢN. Kẻ tấn công nhét
+#      một dòng `\nxoá …\n` vào giữa tệp nhị phân là vỏ chạy đúng dòng ấy (chèn lệnh).
+#   ② Nhận tệp 45 MB không một lời cảnh báo, không quét, không cách ly.
+#   ③ Một tệp độc đốt 200 triệu bước (~90 s) rồi mới bị cắt — từ chối dịch vụ.
+#
+# TRIẾT LÝ (khác EDR thương mại, hợp object-capability của GIAO):
+#   • OUT-OF-BAND: lớp này sống TRONG NHÂN, soi qua SỔ GỌI-HỆ. Tiến trình khách KHÔNG cầm năng lực
+#     nào chạm được nó ⇒ KHÔNG phát hiện, KHÔNG vô hiệu hoá được nó. Đây là cách chống "anti-EDR":
+#     không có tác-nhân trong không-gian khách để mà gỡ.
+#   • KHÔNG giả vờ là máy thật: GIAO vốn không có khoá registry, tên máy VMware, tệp mồi... nên
+#     chả có "dấu hiệu sandbox" để lộ. Trống rỗng CHÍNH LÀ tàng hình (xem `dấu_mồi_lộ`).
+#   • PASSIVE trước, ACTIVE sau: mặc định chỉ GHI CẢNH BÁO. Chặn thì đi qua đúng cổng `duyệt` sẵn có.
+#
+# CHỐNG ANTI-PHÂN-TÍCH-ĐỘNG:
+#   Implant trưởng thành hay DÒ môi trường rồi NGỦ/QUAY VÒNG để câu giờ hết nhiên liệu phân tích.
+#   GIAO không đánh lại từng mẹo một; nó bắt CHÍNH HÀNH VI NÉ TRÁNH:
+#   • `hv_câu_giờ`  — đốt nhiều bước/nhịp mà hầu như không gọi-hệ hữu ích (dấu hiệu spin/sleep né).
+#   • `hv_dò_mồi`   — đọc dồn dập các tệp "chỉ-điểm-sandbox" (nếu sau này có cài mồi).
+#   Hai luật này KHÔNG dựa vào mã khách hợp tác, nên khách có chống-debug bao nhiêu cũng vô ích.
+# ============================================================
+nhập "lib_gọi_hệ.giao"
+nhập "lib_chuoi.giao"
+
+# ---- NGƯỠNG (chỉnh được; để ngay đây cho dễ soi) ----
+đặt HV_NGƯỠNG_DÒ_LỆNH = 24      # số lần liên tiếp tra /lệnh/<rác> ⇒ nghi "chạy nhị phân như kịch bản"
+đặt HV_NGƯỠNG_CÂU_GIỜ = 50      # số lát CPU tiêu mà <2 gọi-hệ hữu ích ⇒ nghi câu giờ né phân tích
+đặt HV_CỠ_NHỊ_PHÂN    = 1048576 # tệp > 1 MB mang magic nhị phân ⇒ cảnh báo "khối lạ cỡ lớn"
+đặt HV_NGƯỠNG_MÃ_HOÁ  = 10      # số tệp KHÁC NHAU bị ghi đè/đổi tên/xoá trong cửa sổ ⇒ nghi ransomware
+đặt HV_CỬA_SỔ_MÃ_HOÁ  = 400     # cửa sổ tính bằng NHỊP (đồng hồ gọi-hệ của GIAO, không mượn giờ host)
+đặt HV_NGƯỠNG_NP      = 3       # ★ TRỌNG SỐ: ≥ 3 lần ghi biến văn bản → NHỊ PHÂN trong đợt ⇒ cách ly ngay
+đặt HV_NGƯỠNG_CỨNG    = 40      # sửa/xoá ≥ 40 tệp khác nhau dù chỉ là văn bản ⇒ cách ly (kiểu wiper)
+
+hàm soi_hv_khởi(máy) {
+    "Dựng trạng thái soi-hành-vi. Gọi MỘT LẦN lúc boot, sau khởi_máy."
+    đặt_khoá(máy, "hv_cảnh", [])        # [nhịp, tid, loại, chi_tiết] — sổ cảnh báo, soi được
+    đặt_khoá(máy, "hv_dò", bản())       # tid → số lần tra-lệnh-rác liên tiếp
+    đặt_khoá(máy, "hv_bật", sáng)       # tắt được để đo chi phí / chạy đối chứng
+    đặt_khoá(máy, "hv_sửa", bản())      # tid → [[nhịp, đường, thành_nhị_phân], …] trong cửa sổ
+    đặt_khoá(máy, "hv_cách_ly", bản())  # tid → sáng : tiến trình bị CÁCH LY (cấm ghi, vẫn được đọc)
+    đặt_khoá(máy, "hv_lý_do", "")       # lý do chặn gần nhất — gọi() đưa ra làm lỗi
+    đặt_khoá(máy, "hv_đã_báo", bản())   # tid → sáng : đã cảnh báo "sửa hàng loạt" (báo MỘT lần mỗi đợt)
+    đặt_khoá(máy, "hv_tin_cậy", [])     # [[tên chương trình, uid], …] — chỉ GỐC-QUYỀN thêm được
+    trả máy
+}
+
+hàm _hv_cảnh(máy, tid, loại, chi_tiết) {
+    "Ghi MỘT cảnh báo vào sổ (đọc bằng `hv_cảnh_gần` / lệnh `soi-hv`). Nhân GIAO không in trực tiếp —
+    chương trình xuất bằng GIÁ TRỊ TRẢ VỀ, nên cảnh báo nằm trong sổ, người soi lấy ra khi cần."
+    gom(lấy_khoá(máy, "hv_cảnh"), [lấy_khoá(máy, "nhịp"), tid, loại, chi_tiết])
+    trả máy
+}
+
+hàm _là_nhị_phân(nội) {
+    "Nội dung có phải NHỊ PHÂN không: có byte NUL trong 256 ký tự đầu, hoặc mở đầu MZ / ELF."
+    nếu bắt_đầu(nội, "MZ") { trả sáng }             # PE (Windows .exe/.dll)
+    nếu dài(nội) >= 4 {
+        # ELF: byte 0x7f rồi "ELF". 0x7f khó gõ trong nguồn ⇒ so bằng mã ký tự.
+        nếu mã(nội[0]) == 127 {
+            nếu nội[1] == "E" { nếu nội[2] == "L" { nếu nội[3] == "F" { trả sáng } } }
+        }
+    }
+    đặt n = dài(nội)
+    nếu n > 256 { đặt n = 256 }
+    đặt i = 0
+    mãi {
+        nếu i >= n { dừng }
+        nếu mã(nội[i]) == 0 { trả sáng }      # byte NUL giữa "văn bản" ⇒ không phải văn bản
+        đặt i = i + 1
+    }
+    trả tối
+}
+
+hàm _đuôi_đường(đ) {
+    "Lấy phần sau dấu '/' cuối — để nhận ra tra trong /lệnh."
+    đặt p = tách(đ, "/")
+    nếu dài(p) == 0 { trả đ }
+    trả p[dài(p) - 1]
+}
+
+hàm _tra_lệnh_rác(số, đối) {
+    "Có phải đang SOI một tên lệnh KHÔNG-IN-ĐƯỢC trong /lệnh? (dấu hiệu nhị phân bị cắt làm 'lệnh')"
+    nếu số == GH_SOI { } khác { trả tối }
+    nếu dài(đối) == 0 { trả tối }
+    nếu loại(đối[0]) == "chuỗi" { } khác { trả tối }
+    đặt đ = đối[0]
+    nếu bắt_đầu(đ, "/lệnh/") { } khác { trả tối }
+    đặt tên = _đuôi_đường(đ)
+    # tên lệnh thật toàn ký tự in được; có ký tự điều khiển ⇒ là rác cắt ra từ nhị phân
+    đặt i = 0
+    mãi {
+        nếu i >= dài(tên) { dừng }
+        đặt c = mã(tên[i])
+        nếu c < 32 { trả sáng }
+        nếu c == 127 { trả sáng }
+        đặt i = i + 1
+    }
+    trả tối
+}
+
+# ============================================================
+# MÓC CHÍNH — nhân gọi hàm này cho MỖI gọi-hệ (ngay sau _ghi_nhật_ký trong gọi()).
+# Rẻ: chỉ xét vài số-hiệu; còn lại trả ngay. KHÔNG được ném lỗi (chạy trong đường nóng của nhân).
+# ============================================================
+hàm soi_hành_vi(máy, tid, số, đối) {
+    nếu lấy_khoá(máy, "hv_bật") == sáng { } khác { trả "qua" }
+
+    # ⓪ CÁCH LY: tiến trình đã bị bắt mã-hoá-hàng-loạt thì MỌI việc sửa đổi đều bị từ chối.
+    #   Đọc vẫn cho (để điều tra / để chính người dùng sao lưu), chỉ khoá tay ghi.
+    nếu có_khoá(lấy_khoá(máy, "hv_cách_ly"), tid) {
+        nếu _là_gọi_sửa(số) == sáng {
+            đặt_khoá(máy, "hv_lý_do", "SOI-HV: tiến-trình " + tid + " đang bị CÁCH LY vì nghi RANSOMWARE — cấm " + tên_gọi_hệ(số) + ". Gốc-quyền xét xong thì thả bằng hv_thả(M, " + tid + ").")
+            trả "chặn"
+        }
+    }
+
+    # ① NHỊ PHÂN LẠ ĐÁP XUỐNG HỆ-TỆP: tạo/ghi/thêm một tệp mang magic PE/ELF.
+    nếu số == GH_TẠO { đặt _n = 2 } khác { nếu số == GH_GHI { đặt _n = 1 } khác {
+        nếu số == GH_THÊM { đặt _n = 1 } khác { đặt _n = 0 - 1 } } }
+    nếu _n >= 0 {
+        nếu dài(đối) > _n {
+            nếu loại(đối[_n]) == "chuỗi" {
+                nếu _là_nhị_phân(đối[_n]) == sáng {
+                    đặt cỡ = dài(đối[_n])
+                    đặt loại_c = "nhị-phân-lạ"
+                    nếu cỡ > HV_CỠ_NHỊ_PHÂN { đặt loại_c = "nhị-phân-lạ-cỡ-lớn" }
+                    đặt nhãn = "tệp "
+                    nếu dài(đối) > 0 { nếu loại(đối[0]) == "chuỗi" { đặt nhãn = đối[0] + " " } }
+                    _hv_cảnh(máy, tid, loại_c, nhãn + "(" + cỡ + " byte, magic PE/ELF) — HĐH không chạy được mã x86 này; coi như KHỐI LẠ, nên quét/cách ly trước khi mở")
+                }
+            }
+        }
+    }
+
+    # ② CHẠY NHỊ PHÂN NHƯ KỊCH BẢN: đếm chuỗi tra /lệnh/<rác> liên tiếp theo từng tiến trình.
+    đặt dò = lấy_khoá(máy, "hv_dò")
+    nếu _tra_lệnh_rác(số, đối) == sáng {
+        đặt n = lấy_khoá(dò, tid)
+        nếu loại(n) == "ẩn" { đặt n = 0 }
+        đặt n = n + 1
+        đặt_khoá(dò, tid, n)
+        nếu n == HV_NGƯỠNG_DÒ_LỆNH {        # == : cảnh báo ĐÚNG MỘT LẦN mỗi đợt
+            _hv_cảnh(máy, tid, "thực-thi-nhị-phân-như-kịch-bản", "tt" + tid + " tra " + n + " 'lệnh' rác liên tiếp — gần như chắc chắn một NHỊ PHÂN đang bị ngả-lui '*' thông dịch như shell. Nên TỪ CHỐI kiểu ENOEXEC (xem lib_dinh_dang: trình `từ_chối`).")
+        }
+    } khác {
+        # một gọi-hệ "bình thường" xen vào ⇒ reset đợt (tránh báo nhầm khi dùng máy thật)
+        nếu số == GH_SOI { } khác { nếu có_khoá(dò, tid) { đặt_khoá(dò, tid, 0) } }
+    }
+
+    # ③ MỞ Ổ CẮM RA NGOÀI: GH_NGHE với đối "ngoài" = socket thật rời loopback.
+    nếu số == GH_NGHE {
+        nếu dài(đối) > 2 {
+            nếu đối[2] == "ngoài" {
+                _hv_cảnh(máy, tid, "mạng-ra-ngoài", "tt" + tid + " mở cổng THẬT ra host — nếu lặp theo chu kỳ đều thì là BEACON C2. mạng_host mặc định ghim 127.0.0.1; nới allowlist mới ra Internet được.")
+            }
+        }
+    }
+
+    # ④ MÃ HOÁ HÀNG LOẠT (ransomware): một tiến trình ghi đè / đổi tên / xoá NHIỀU TỆP KHÁC NHAU
+    #   trong thời gian ngắn. Không cần biết nó viết bằng gì hay mã hoá bằng thuật toán nào —
+    #   bắt đúng HÀNH VI. Ghi biến văn bản thành nhị phân là dấu hiệu nặng thêm (nêu trong cảnh báo).
+    nếu _là_gọi_mã_hoá(số) == sáng {
+        nếu dài(đối) > 0 {
+            nếu loại(đối[0]) == "chuỗi" {
+                đặt thành_np = tối
+                nếu số == GH_GHI { nếu dài(đối) > 1 { nếu loại(đối[1]) == "chuỗi" { đặt thành_np = _là_nhị_phân(đối[1]) } } }
+                nếu _hv_ghi_sửa(máy, tid, đối[0], thành_np) == "chặn" { trả "chặn" }
+            }
+        }
+    }
+    trả "qua"
+}
+
+hàm _là_gọi_sửa(số) {
+    "Gọi-hệ làm THAY ĐỔI dữ liệu (bị cấm khi đang cách ly)."
+    nếu số == GH_GHI { trả sáng }   nếu số == GH_TẠO { trả sáng }   nếu số == GH_THÊM { trả sáng }
+    nếu số == GH_XOÁ { trả sáng }   nếu số == GH_BỎ { trả sáng }    nếu số == GH_CHUYỂN { trả sáng }
+    nếu số == GH_CHÉP { trả sáng }  nếu số == GH_GHI_NẾU { trả sáng } nếu số == GH_ĐỔI_QUYỀN { trả sáng }
+    nếu số == GH_DỌN_RÁC { trả sáng }
+    trả tối
+}
+
+hàm _là_gọi_mã_hoá(số) {
+    "Gọi-hệ đặc trưng của ransomware: ghi ĐÈ, đổi tên (→ .locked), xoá bản gốc."
+    nếu số == GH_GHI { trả sáng }   nếu số == GH_GHI_NẾU { trả sáng }   nếu số == GH_CHUYỂN { trả sáng }
+    nếu số == GH_XOÁ { trả sáng }   nếu số == GH_BỎ { trả sáng }
+    trả tối
+}
+
+hàm _hv_ghi_sửa(máy, tid, đường, thành_np) {
+    "Ghi một lần sửa vào cửa sổ của tid, đếm TỆP KHÁC NHAU + số lần biến thành nhị phân, rồi XÉT theo trọng số."
+    nếu có_khoá(lấy_khoá(máy, "hv_cách_ly"), tid) { trả "chặn" }      # đã cách ly: chặn, KHÔNG báo trùng
+    đặt bảng = lấy_khoá(máy, "hv_sửa")
+    đặt ds = lấy_khoá(bảng, tid)
+    nếu loại(ds) == "ẩn" { đặt ds = [] }
+    đặt bây = lấy_khoá(máy, "nhịp")
+    đặt mới = []
+    lặp m trong ds { nếu m[0] > bây - HV_CỬA_SỔ_MÃ_HOÁ { gom(mới, m) } }
+    gom(mới, [bây, đường, thành_np])
+    đặt_khoá(bảng, tid, mới)
+    đặt tập = bản()
+    đặt số_np = 0
+    lặp m trong mới {
+        đặt_khoá(tập, m[1], sáng)
+        nếu m[2] == sáng { đặt số_np = số_np + 1 }
+    }
+    đặt n = dài(khoá(tập))
+    nếu n < HV_NGƯỠNG_MÃ_HOÁ { trả "qua" }
+
+    # ★ DANH SÁCH TIN CẬY: chương trình gốc-quyền đã khai (khớp CẢ tên LẪN uid) — không cách ly,
+    #   nhưng vẫn để lại MỘT dòng trong sổ để còn kiểm toán được.
+    nếu hv_được_tin(máy, tid) == sáng {
+        _hv_báo_một_lần(máy, tid, "sửa-hàng-loạt-tin-cậy", "tt" + tid + " ('" + _hv_tên(máy, tid) + "', trong danh sách tin cậy) sửa " + n + " tệp — cho qua, chỉ ghi sổ.")
+        trả "qua"
+    }
+
+    # ★ TRỌNG SỐ: mã hoá thật sự để lại dấu — văn bản bị ghi đè thành NHỊ PHÂN.
+    đặt lý = ""
+    nếu số_np >= HV_NGƯỠNG_NP { đặt lý = "RANSOMWARE-mã-hoá-hàng-loạt" }
+    nếu n >= HV_NGƯỠNG_CỨNG { nếu lý == "" { đặt lý = "WIPER-sửa-xoá-hàng-loạt" } }
+    nếu lý == "" {
+        # chỉ sửa văn bản, chưa tới ngưỡng cứng ⇒ CẢNH BÁO thôi (tìm-thay, đổi tên hàng loạt… là việc thường)
+        _hv_báo_một_lần(máy, tid, "sửa-hàng-loạt", "tt" + tid + " sửa " + n + " tệp văn bản khác nhau trong " + HV_CỬA_SỔ_MÃ_HOÁ + " nhịp, không biến tệp nào thành nhị phân — CHỈ CẢNH BÁO. Sẽ cách ly nếu ≥ " + HV_NGƯỠNG_NP + " tệp bị biến thành nhị phân hoặc ≥ " + HV_NGƯỠNG_CỨNG + " tệp bị sửa/xoá.")
+        trả "qua"
+    }
+    đặt_khoá(lấy_khoá(máy, "hv_cách_ly"), tid, sáng)
+    _hv_cảnh(máy, tid, lý, "tt" + tid + " sửa/đổi tên/xoá " + n + " tệp khác nhau trong " + HV_CỬA_SỔ_MÃ_HOÁ + " nhịp, " + số_np + " lần biến văn bản thành NHỊ PHÂN. ĐÃ CÁCH LY: chặn từ lần ghi này, đọc vẫn được. Tệp gần nhất: " + đường)
+    đặt_khoá(máy, "hv_lý_do", "SOI-HV: CHẶN tt" + tid + " — " + lý + " (" + n + " tệp, " + số_np + " thành nhị phân). Tiến trình đã bị cách ly.")
+    trả "chặn"
+}
+
+hàm _hv_báo_một_lần(máy, tid, loại, chi_tiết) {
+    đặt đb = lấy_khoá(máy, "hv_đã_báo")
+    nếu có_khoá(đb, tid) { trả máy }
+    đặt_khoá(đb, tid, sáng)
+    trả _hv_cảnh(máy, tid, loại, chi_tiết)
+}
+
+hàm _hv_tên(máy, tid) { trả tên_của(lấy_khoá(lấy_khoá(máy, "nhân"), "bảng"), tid) }
+
+hàm hv_được_tin(máy, tid) {
+    đặt tên = _hv_tên(máy, tid)
+    đặt uid = uid_của(máy, tid)
+    lặp t trong lấy_khoá(máy, "hv_tin_cậy") {
+        nếu t[0] == tên { nếu t[1] == uid { trả sáng } }
+    }
+    trả tối
+}
+
+hàm hv_tin(máy, tid_gọi, tên, uid) {
+    "Thêm [tên chương trình, uid] vào danh sách tin cậy. CHỈ gốc-quyền; trả tối + lý do nếu không đủ quyền."
+    nếu uid_của(máy, tid_gọi) == 0 { } khác {
+        đặt_khoá(máy, "lỗi", "chỉ gốc-quyền mới thêm được chương trình tin cậy")
+        _hv_cảnh(máy, tid_gọi, "thử-đổi-soi-hv-bị-chặn", "tt" + tid_gọi + " (" + tên_người(máy, uid_của(máy, tid_gọi)) + ", uid " + uid_của(máy, tid_gọi) + ") cố tự thêm '" + tên + "' (uid " + uid + ") vào danh sách TIN CẬY — bị từ chối")
+        trả tối
+    }
+    gom(lấy_khoá(máy, "hv_tin_cậy"), [tên, uid])
+    _hv_cảnh(máy, tid_gọi, "thêm-tin-cậy", "gốc-quyền tin '" + tên + "' (uid " + uid + ") được sửa hàng loạt")
+    trả sáng
+}
+
+hàm hv_thả(máy, tid) {
+    "Gốc-quyền xét xong ⇒ thả tiến trình khỏi cách ly và xoá cửa sổ đếm của nó."
+    xoá_khoá(lấy_khoá(máy, "hv_cách_ly"), tid)
+    xoá_khoá(lấy_khoá(máy, "hv_sửa"), tid)
+    xoá_khoá(lấy_khoá(máy, "hv_đã_báo"), tid)
+    trả sáng
+}
+
+# ============================================================
+# ⑤ CÂU GIỜ NÉ PHÂN TÍCH — gọi từ bộ lập lịch, KHÔNG từ gọi-hệ.
+# Implant né phân tích hay NGỦ/QUAY VÒNG cho hết nhiên liệu. Ở GIAO điều đó hiện ra là: tiêu nhiều
+# LÁT CPU mà sổ gọi-hệ gần như đứng yên. Bắt đúng cái bất-đối-xứng ấy.
+# Gọi định kỳ (vd mỗi 10 lát) với mốc "đếm_gọi" đầu kỳ.
+# ============================================================
+hàm soi_câu_giờ(máy, tid, lát_đã_tiêu, gọi_đầu_kỳ) {
+    nếu lấy_khoá(máy, "hv_bật") == sáng { } khác { trả tối }
+    nếu lát_đã_tiêu < HV_NGƯỠNG_CÂU_GIỜ { trả tối }
+    đặt gọi_giờ = lấy_khoá(máy, "đếm_gọi")
+    nếu gọi_giờ - gọi_đầu_kỳ < 2 {
+        _hv_cảnh(máy, tid, "câu-giờ-né-phân-tích", "tt" + tid + " tiêu " + lát_đã_tiêu + " lát CPU mà chỉ " + (gọi_giờ - gọi_đầu_kỳ) + " gọi-hệ — dấu hiệu NGỦ/QUAY-VÒNG để câu giờ. Nên hạ credit (lịch γ) hoặc xin_thoát.")
+        trả sáng
+    }
+    trả tối
+}
+
+# ============================================================
+# ⑥ ĐỐI-MỒI: báo cho người soi biết GIAO KHÔNG lộ dấu hiệu sandbox.
+# (Không có logic động; là lời khai thiết kế, soi bằng lệnh `soi-hv mồi`.)
+# ============================================================
+hàm dấu_mồi_lộ(máy) {
+    trả "HĐH-GIAO không mang khoá registry, tên máy ảo, MAC hãng ảo, tệp mồi hay tiến trình debugger trong không-gian khách. Mã khách CÓ dò cũng không thấy 'dấu sandbox' nào — trống rỗng là tàng hình. Nếu sau này cài MỒI (honeyfile) thì luật hv_dò_mồi sẽ bắt kẻ đọc dồn chúng."
+}
+
+# ---- SOI SỔ CẢNH BÁO ----
+hàm hv_cảnh_gần(máy, n) {
+    đặt s = lấy_khoá(máy, "hv_cảnh")
+    đặt kq = []
+    đặt i = dài(s) - n
+    nếu i < 0 { đặt i = 0 }
+    mãi { nếu i >= dài(s) { dừng }  gom(kq, s[i])  đặt i = i + 1 }
+    trả kq
+}

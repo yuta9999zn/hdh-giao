@@ -70,6 +70,7 @@ hàm _chuẩn_tên(t) {
     nếu t == "grep"   { trả "tìm" }       nếu t == "wc"    { trả "đếm" }
     nếu t == "ai"     { trả "nhờ" }       nếu t == "help"  { trả "giúp" }
     nếu t == "exit"   { trả "thoát" }     nếu t == "sudo"  { trả "duyệt" }
+    nếu t == "edr"    { trả "soi-hv" }
     nếu t == "dmesg"  { trả "nhật_ký" }   nếu t == "chown" { trả "đổichủ" }
     nếu t == "mknod"  { trả "gắntb" }     nếu t == "id"    { trả "tôi" }
     nếu t == "run"    { trả "chạy" }      nếu t == "tick"  { trả "nhịp" }
@@ -190,6 +191,7 @@ hàm tên_lệnh_nội_trú() {
          "xin_thoát", "bộ_nhớ", "dọn_dẹp", "kiểm_cấu_hình", "gói", "chuyển", "chép",
          "dịch", "định_dạng", "đĩa",
          "soi-mạng", "xem-vào", "theo-dõi", "tắt-dõi", "đá", "thôi-đá",   # ★ soi/đá wifi ngay trong vỏ
+         "soi-hv",                                                      # ★ lớp SOI HÀNH VI ("EDR")
          "chạy_thật"]   # ★ gọi lệnh THẬT của hệ nền (Kali): nmap, ip, cat… — cần bật HĐH bằng `--kali`
     # (`rác` KHÔNG dùng được: đã là tên một kịch bản mẫu có sẵn ở /lệnh/rác — nó sẽ đè lên.)
 }
@@ -262,7 +264,30 @@ hàm chạy_một_lệnh(máy, tid, đối, vào) {
         trả _phóng_tt(máy, tid, tên_ct, đối)
     }
     nếu trình == "mã_máy" { trả _chạy_mã_máy(máy, tid, tên, đường, nội, đối) }
+    # ★ TỪ CHỐI nhị phân ngoài (PE/ELF…): sổ định dạng khai 'từ_chối' cho magic nhị phân.
+    nếu trình == "từ_chối" {
+        trả _kết(126, "vỏ: " + đường + ": nhị phân '" + dạng[0] + "' — HĐH-GIAO KHÔNG chạy mã máy ngoài. TỪ CHỐI (ENOEXEC). Mở bằng trình phân tích, đừng chạy.")
+    }
+    # ★ CHỐT CHẶN CHUNG (vá lỗ hổng chèn-lệnh): nội dung NHỊ PHÂN không bao giờ được thông dịch như
+    #   kịch bản. Trước bản này, ngả-lui '*' đem mã máy cắt theo '\n' tra như lệnh — kẻ tấn công nhét
+    #   một dòng lệnh vào giữa nhị phân là vỏ chạy đúng dòng ấy. Giờ: thấy byte NUL ⇒ ENOEXEC.
+    nếu _vỏ_là_nhị_phân(nội) == sáng {
+        trả _kết(126, "vỏ: " + đường + ": nội dung NHỊ PHÂN (byte NUL trong 256 byte đầu) — TỪ CHỐI chạy như kịch bản (ENOEXEC).")
+    }
     trả _chạy_kịch_bản(máy, tid, nội, đối)              # còn lại: KỊCH BẢN vỏ
+}
+
+hàm _vỏ_là_nhị_phân(nội) {
+    "Có byte NUL trong 256 ký tự đầu ⇒ coi là nhị phân (không phải văn bản/kịch bản)."
+    đặt n = dài(nội)
+    nếu n > 256 { đặt n = 256 }
+    đặt i = 0
+    mãi {
+        nếu i >= n { dừng }
+        nếu mã(nội[i]) == 0 { trả sáng }
+        đặt i = i + 1
+    }
+    trả tối
 }
 
 hàm _phóng_tt(máy, tid, tên_ct, đối) {
@@ -757,6 +782,7 @@ hàm _nội_trú(máy, tid, đối, vào) {
         bật_lịch_γ(máy, tối)
         trả _kết(0, "đã về lịch ưu-tiên cổ điển")
     }
+    nếu lệnh == "soi-hv" { trả _soi_hv_lệnh(máy, tid, đối) }
     nếu lệnh == "soi-mạng" {                                   # ★ ai đang nối wifi (đọc host)
         trả _kết(0, bảng_thiết_bị("soi_mang/so_thiet_bi.jsonl"))
     }
@@ -825,6 +851,98 @@ hàm số_hoá(s) {                              # "755" → 755 (vỏ nhận đ
     trả n
 }
 
+# ---------------- ★ soi-hv: XEM & ĐIỀU KHIỂN lớp SOI HÀNH VI ("EDR") ----------------
+# Xem thì ai cũng xem được (minh bạch). Đổi trạng thái (thả, tin, tắt…) CHỈ gốc-quyền, và MỌI lần đổi
+# đều tự ghi vào sổ cảnh báo — kẻ chiếm được gốc-quyền rồi tắt EDR vẫn để lại dấu.
+hàm _soi_hv_lệnh(máy, tid, đối) {
+    nếu có_khoá(máy, "hv_bật") { } khác { trả _kết(1, "soi-hv: máy này CHƯA bật lớp soi hành vi (thiếu lib_soi_hành_vi / soi_hv_khởi)") }
+    đặt việc = _từ_thứ(đối, 1)
+    nếu loại(việc) == "ẩn" { đặt việc = "cảnh" }
+    đặt là_gốc = tối
+    nếu uid_của(máy, tid) == 0 { đặt là_gốc = sáng }
+    đặt CẦN_GỐC = "soi-hv " + việc + ": chỉ GỐC-QUYỀN làm được (đăng nhập gốc hoặc `thành gốc`)"
+
+    nếu việc == "cảnh" {
+        đặt n = 15
+        nếu loại(_từ_thứ(đối, 2)) == "chuỗi" { đặt n = số_hoá(đối[2]) }
+        nếu loại(n) == "số" { } khác { trả _kết(2, "soi-hv cảnh [n]: n phải là số") }
+        đặt ds = []
+        lặp c trong hv_cảnh_gần(máy, n) { gom(ds, "nhịp " + c[0] + "  tt" + c[1] + "  [" + c[2] + "]  " + c[3]) }
+        nếu dài(ds) == 0 { trả _kết(0, "soi-hv: chưa có cảnh báo nào") }
+        trả _kết(0, _dòng_hoá(ds))
+    }
+    nếu việc == "trạng" {
+        đặt bật = "BẬT"
+        nếu lấy_khoá(máy, "hv_bật") == sáng { } khác { đặt bật = "TẮT (!)" }
+        trả _kết(0, _dòng_hoá([
+            "lớp soi hành vi: " + bật,
+            "cảnh báo trong sổ: " + dài(lấy_khoá(máy, "hv_cảnh")),
+            "tiến trình đang cách ly: " + dài(khoá(lấy_khoá(máy, "hv_cách_ly"))),
+            "chương trình tin cậy: " + dài(lấy_khoá(máy, "hv_tin_cậy")),
+            "ngưỡng: ≥" + HV_NGƯỠNG_MÃ_HOÁ + " tệp/" + HV_CỬA_SỔ_MÃ_HOÁ + " nhịp kèm ≥" + HV_NGƯỠNG_NP + " tệp thành nhị phân ⇒ cách ly · ≥" + HV_NGƯỠNG_CỨNG + " tệp ⇒ cách ly"]))
+    }
+    nếu việc == "cách-ly" {
+        đặt ds = []
+        lặp t trong khoá(lấy_khoá(máy, "hv_cách_ly")) { gom(ds, "tt" + t + "  " + _hv_tên(máy, t) + "  — cấm ghi, đọc vẫn được") }
+        nếu dài(ds) == 0 { trả _kết(0, "soi-hv: không tiến trình nào đang bị cách ly") }
+        trả _kết(0, _dòng_hoá(ds))
+    }
+    nếu việc == "ds-tin" {
+        đặt ds = []
+        lặp t trong lấy_khoá(máy, "hv_tin_cậy") { gom(ds, t[0] + "  (uid " + t[1] + ")") }
+        nếu dài(ds) == 0 { trả _kết(0, "soi-hv: danh sách tin cậy trống") }
+        trả _kết(0, _dòng_hoá(ds))
+    }
+    nếu việc == "mồi" { trả _kết(0, dấu_mồi_lộ(máy)) }
+    nếu việc == "thả" {
+        nếu là_gốc == sáng { } khác { trả _soi_hv_từ_chối(máy, tid, việc, CẦN_GỐC) }
+        đặt t = số_hoá(_từ_thứ(đối, 2))
+        nếu loại(t) == "số" { } khác { trả _kết(2, "cách dùng: soi-hv thả <tid>") }
+        nếu có_khoá(lấy_khoá(máy, "hv_cách_ly"), t) { } khác { trả _kết(1, "soi-hv: tt" + t + " không bị cách ly") }
+        hv_thả(máy, t)
+        _hv_cảnh(máy, tid, "thả-cách-ly", "gốc-quyền thả tt" + t + " khỏi cách ly")
+        trả _kết(0, "✔ đã thả tt" + t + " — nó ghi được trở lại")
+    }
+    nếu việc == "tin" {
+        đặt u = số_hoá(_từ_thứ(đối, 3))
+        nếu loại(u) == "số" { } khác { trả _kết(2, "cách dùng: soi-hv tin <chương-trình> <uid>") }
+        nếu hv_tin(máy, tid, đối[2], u) == sáng { trả _kết(0, "✔ tin '" + đối[2] + "' (uid " + u + ") được sửa hàng loạt — vẫn ghi sổ mỗi đợt") }
+        trả _kết(1, "soi-hv tin: " + _báo_lỗi(máy))
+    }
+    nếu việc == "bỏ-tin" {
+        nếu là_gốc == sáng { } khác { trả _soi_hv_từ_chối(máy, tid, việc, CẦN_GỐC) }
+        đặt u = số_hoá(_từ_thứ(đối, 3))
+        nếu loại(u) == "số" { } khác { trả _kết(2, "cách dùng: soi-hv bỏ-tin <chương-trình> <uid>") }
+        đặt cũ = lấy_khoá(máy, "hv_tin_cậy")
+        đặt mới = []
+        lặp e trong cũ { nếu e[0] == đối[2] { nếu e[1] == u { } khác { gom(mới, e) } } khác { gom(mới, e) } }
+        nếu dài(mới) == dài(cũ) { trả _kết(1, "soi-hv: không có '" + đối[2] + "' (uid " + u + ") trong danh sách tin cậy") }
+        đặt_khoá(máy, "hv_tin_cậy", mới)
+        _hv_cảnh(máy, tid, "bỏ-tin-cậy", "gốc-quyền bỏ tin '" + đối[2] + "' (uid " + u + ")")
+        trả _kết(0, "✔ đã bỏ '" + đối[2] + "' khỏi danh sách tin cậy")
+    }
+    nếu việc == "tắt" {
+        nếu là_gốc == sáng { } khác { trả _soi_hv_từ_chối(máy, tid, việc, CẦN_GỐC) }
+        _hv_cảnh(máy, tid, "TẮT-SOI-HV", "gốc-quyền TẮT lớp soi hành vi — từ giờ KHÔNG còn chặn ransomware/cách ly")
+        đặt_khoá(máy, "hv_bật", tối)
+        trả _kết(0, "⚠ đã TẮT lớp soi hành vi (đã ghi sổ). Bật lại: soi-hv bật")
+    }
+    nếu việc == "bật" {
+        nếu là_gốc == sáng { } khác { trả _soi_hv_từ_chối(máy, tid, việc, CẦN_GỐC) }
+        đặt_khoá(máy, "hv_bật", sáng)
+        _hv_cảnh(máy, tid, "bật-soi-hv", "gốc-quyền bật lại lớp soi hành vi")
+        trả _kết(0, "✔ lớp soi hành vi đã BẬT")
+    }
+    trả _kết(2, "soi-hv: việc lạ '" + việc + "' — dùng: cảnh [n] · trạng · cách-ly · ds-tin · mồi · thả <tid> · tin <ct> <uid> · bỏ-tin <ct> <uid> · bật · tắt")
+}
+
+hàm _soi_hv_từ_chối(máy, tid, việc, lý_do) {
+    "Người không phải gốc cố ĐỔI lớp soi ⇒ từ chối VÀ ghi sổ: đây là tín hiệu đáng ngờ nhất (mã độc / dò quyền)."
+    đặt u = uid_của(máy, tid)
+    _hv_cảnh(máy, tid, "thử-đổi-soi-hv-bị-chặn", "tt" + tid + " (" + tên_người(máy, u) + ", uid " + u + ") cố '" + việc + "' — bị từ chối vì không phải gốc-quyền")
+    trả _kết(1, lý_do)
+}
+
 hàm _giúp() {
     trả _dòng_hoá([
         "LỆNH VỎ GIAO (tên Việt · bí danh Linux):",
@@ -845,6 +963,8 @@ hàm _giúp() {
         "  Ống `|`, chuyển hướng `>` `>>`, nối `&&`, đường-dẫn `.` `..` đều dùng được.",
         "  ★ dịch|cc <nguồn> <đích> — dịch ra TỆP LỆNH mang chính BYTECODE (chạy không dịch lại)",
         "  ★ định_dạng|file [tệp] — sổ /hệ/định_dạng: magic nào chạy bằng trình nào, cần năng lực gì",
+        "  ★ soi-hv|edr [cảnh [n] | trạng | cách-ly | ds-tin | mồi] — lớp SOI HÀNH VI (chặn ransomware, nhị phân lạ)",
+        "    gốc-quyền: soi-hv thả <tid> · tin <chương-trình> <uid> · bỏ-tin <chương-trình> <uid> · bật · tắt",
         "  ★ MỌI lệnh đều là TỆP trong /lệnh (xem `liệt /lệnh`, `xem /lệnh/soi_hệ`).",
         "    Viết lệnh mới lúc đang chạy:  ghi /nhà/an/lệnh/<tên> <các dòng lệnh, có $1 $2 $*>",
         "    rồi  quyền /nhà/an/lệnh/<tên> 755  — $PATH nằm ở /hệ/đường_lệnh."

@@ -8,9 +8,11 @@
 nhập "lib_trợ_lý.giao"
 nhập "lib_người_dùng.giao"   # sổ người dùng + đăng nhập thật
 nhập "lib_chương_trình.giao"   # chương trình THẬT chạy dưới bộ lập lịch
+nhập "lib_soi_hành_vi.giao"  # ★ lớp SOI HÀNH VI ("EDR") — soi gọi-hệ out-of-band, bắt nhị phân lạ / câu giờ
 nhập "kho_nen.giao"          # kho gói nhúng sẵn, ký kép (sinh bằng `sh goi.sh nen`)
 
 đặt M = khởi_máy()
+soi_hv_khởi(M)               # ★ dựng sổ cảnh báo + bộ đếm dò-lệnh (phải SAU khởi_máy)
 
 hàm dựng_nền(im_lặng) {
     thêm_người(M, 0, "gốc")

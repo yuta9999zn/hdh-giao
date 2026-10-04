@@ -1171,6 +1171,12 @@ hàm gọi(máy, tid, số, đối) {
     nếu trạng(nhân, tid) == "chết" { trả _lỗi(máy, "tiến-trình " + tid + " đã chết") }
     nếu loại(tên_gọi_hệ(số)) == "ẩn" { trả _không(máy, "số hiệu gọi-hệ lạ: " + số) }
     _ghi_nhật_ký(máy, tid, số, đối)
+    # ★ SOI HÀNH VI ("EDR"): quan sát OUT-OF-BAND mọi gọi-hệ. Chỉ chạy khi đã dựng trạng thái
+    #   (soi_hv_khởi lúc boot) — nên các entrypoint không nạp lib_soi_hành_vi vẫn chạy y nguyên.
+    #   Lớp soi có quyền PHỦ QUYẾT: trả "chặn" (vd ransomware bị cách ly) ⇒ gọi-hệ bị từ chối ngay.
+    nếu có_khoá(máy, "hv_bật") {
+        nếu soi_hành_vi(máy, tid, số, đối) == "chặn" { trả _lỗi(máy, lấy_khoá(máy, "hv_lý_do")) }
+    }
 
     # --- TỪ CHỐI THẲNG (không thèm hỏi phê duyệt): việc không đời nào cho phép ---
     nếu số == GH_GIẾT {
