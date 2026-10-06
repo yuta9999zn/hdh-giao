@@ -1134,6 +1134,32 @@ class Runtime:
                 mã=ra.split()[1] if ra.startswith("LOI") and len(ra.split())>1 else "?"
                 self.err(f"argon2: lỗi mã {mã}" + (" (vượt trần tham số)" if mã=="-1000" else ""))
             return list(bytes.fromhex(ra))
+        def b_bam_sha256(a):                              # băm_sha256(chuỗi, là_byte) → hex 64 · ẩn nếu thiếu wasmtime/module
+            # KHÔNG có SHA-256 viết bằng Python: gọi wasm/bam_lenh.wasm (wasm/bam_lenh.c, ghim wasm/bam.sha256) dưới
+            # wasmtime, không cấp thư mục. Python chỉ đổi chuỗi GIAO ra byte: là_byte=sáng ⇒ mỗi ký tự 0..255 là MỘT
+            # byte (nhị phân từ host); tối ⇒ UTF-8 (văn bản). Ẩn ⇒ bên gọi lùi về lib_sha256 thông dịch.
+            need(a,2,"băm_sha256"); s=a[0]
+            if not isinstance(s,str): self.err(f"băm_sha256 cần chuỗi, gặp {self._loai(s)}")
+            if a[1]==SANG:
+                try: vào=s.encode("latin-1")
+                except UnicodeEncodeError: self.err("băm_sha256: là_byte=sáng nhưng có ký tự > 255")
+            else: vào=s.encode("utf-8")
+            import subprocess as _sp, shutil as _sh, hashlib as _hl
+            gốc=os.path.dirname(os.path.abspath(__file__))
+            wt=os.environ.get("GIAO_WASMTIME") or _sh.which("wasmtime") or (r"D:\wasmtime\wasmtime.exe" if os.path.exists(r"D:\wasmtime\wasmtime.exe") else None)
+            mod=os.path.join(gốc,"wasm","bam_lenh.wasm")
+            if wt is None or not os.path.exists(mod): return AN
+            if not getattr(self,"_bam_đã_ghim",False):        # ghim LUÔN lấy từ cây mã; khác ghim ⇒ từ chối chạy
+                kỳ=None
+                for d in open(os.path.join(gốc,"wasm","bam.sha256"),encoding="utf-8"):
+                    if d.strip().endswith("bam_lenh.wasm"): kỳ=d.split()[0].lower()
+                if kỳ!=_hl.sha256(open(mod,"rb").read()).hexdigest(): self.err("băm_sha256: bam_lenh.wasm KHÁC ghim — từ chối chạy")
+                self._bam_đã_ghim=True
+            try: r=_sp.run([wt,"run",mod],input=vào,capture_output=True,timeout=600)
+            except (OSError,_sp.TimeoutExpired): return AN       # wasmtime hỏng/không chạy được ⇒ bên gọi lùi về thông dịch
+            ra=r.stdout.decode("utf-8","replace").strip()
+            if r.returncode!=0 or len(ra)!=64: return AN
+            return ra
         def b_kiem_ky_kep(a):                             # kiểm_ký_kép(ed_hex, ml_hex, nội_dung, ngữ_cảnh, ký_ed_hex, ký_ml_hex)
             # → [sáng/tối Ed25519, sáng/tối ML-DSA-65]; đầu vào hỏng → ẩn. Mã kiểm là mldsa-native + Monocypher
             # (wasm/ky_lenh.wasm, ghim wasm/ky.sha256) — cùng mã với GVM-64 (--preload ky=wasm/ky.wasm).
@@ -1210,7 +1236,7 @@ class Runtime:
         reg={"dài":b_dai,"dai":b_dai, "đầu":b_dau,"dau":b_dau, "đuôi":b_duoi,"duoi":b_duoi,
              "tạo_tri":b_tao_tri,"tao_tri":b_tao_tri, "γ_của":b_gamma_cua,"gamma_cua":b_gamma_cua,
              "ngẫu_hệ":b_ngau_he,"ngau_he":b_ngau_he,
-             "vào_còn":b_vao_con,"vao_con":b_vao_con, "ra_byte":b_ra_byte, "argon2":b_argon2, "kiểm_ký_kép":b_kiem_ky_kep,"kiem_ky_kep":b_kiem_ky_kep,
+             "vào_còn":b_vao_con,"vao_con":b_vao_con, "ra_byte":b_ra_byte, "argon2":b_argon2, "băm_sha256":b_bam_sha256,"bam_sha256":b_bam_sha256, "kiểm_ký_kép":b_kiem_ky_kep,"kiem_ky_kep":b_kiem_ky_kep,
              "khoá_kép_từ_hạt":b_khoa_kep_tu_hat,"khoa_kep_tu_hat":b_khoa_kep_tu_hat, "ký_kép":b_ky_kep,"ky_kep":b_ky_kep,
              "thêm":b_them,"them":b_them, "ghép":b_ghep,"ghep":b_ghep,
              "gom":b_gom, "đảo":b_dao,"dao":b_dao, "nối":b_noi,"noi":b_noi, "tách":b_tach,"tach":b_tach,

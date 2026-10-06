@@ -12,9 +12,10 @@
 #   ② PHÂN LOẠI  — magic đầu tệp (PE · ELF · nhị phân có NUL · nén · `#!` lạ · bytecode GIAO · văn bản),
 #                  tên tệp (đuôi kép giả dạng, ký tự đảo chiều U+202E, tên hỏng), nội dung kịch bản (lệnh
 #                  thoát ra host, đụng lớp soi, cấy vào /lệnh /hệ, tự `duyệt`…).
-#   ③ BĂM        — SHA-256 thuần GIAO, so với SỔ CHẶN /hệ/chặn_băm và SỔ TIN /hệ/tin_băm (gốc giữ).
-#                  ⚠ TRUNG THỰC: SHA-256 ở đây chạy trên đường THÔNG DỊCH (~16 KB/giây) nên chỉ băm tệp
-#                  ≤ NT_CỠ_BĂM. Tệp lớn hơn KHÔNG có băm — không tin được theo băm, chỉ xét theo magic/tên.
+#   ③ BĂM        — SHA-256 so với SỔ CHẶN /hệ/chặn_băm và SỔ TIN /hệ/tin_băm (gốc giữ). Chạy trên máy WASM
+#                  (builtin băm_sha256 → wasm/bam_lenh.wasm, ~140 MB/giây) nên băm được mọi tệp tới trần nhận.
+#                  Máy không có wasmtime ⇒ lùi về lib_sha256 THÔNG DỊCH (~16 KB/giây), chỉ tệp ≤ NT_CỠ_BĂM_CHẬM;
+#                  tệp lớn hơn khi ấy KHÔNG có băm — phiếu ghi rõ, chỉ xét theo magic/tên.
 #   ④ CHẤM ĐIỂM  — cộng điểm từng dấu hiệu, mỗi dấu hiệu GHI RÕ LÝ DO (người xem `nhận-tệp xem` thấy hết).
 #   ⑤ PHÁN       — thả (ghi ra đích với quyền 644 — KHÔNG BAO GIỜ kèm bit x, như Mark-of-the-Web) ·
 #                  giữ (nằm ở /cách_ly, gốc-quyền xét rồi `thả`) · chặn (không bao giờ thả; gốc đọc để
@@ -30,7 +31,8 @@ nhập "lib_sha256.giao"
 đặt NT_SỔ_CHẶN    = "/hệ/chặn_băm"
 đặt NT_SỔ_TIN     = "/hệ/tin_băm"
 đặt NT_CỠ_TRẦN    = 67108864    # > 64 MB ⇒ TỪ CHỐI ngay ở cổng, không lưu
-đặt NT_CỠ_BĂM     = 65536       # ≤ 64 KB mới băm SHA-256 (đường thông dịch — xem ③)
+đặt NT_BĂM_NHANH  = sáng        # băm bằng wasm/bam_lenh.wasm (builtin băm_sha256) — mọi cỡ tới trần
+đặt NT_CỠ_BĂM_CHẬM = 65536     # máy KHÔNG có WASM ⇒ lùi về lib_sha256 thông dịch, chỉ băm tệp ≤ 64 KB
 đặt NT_CỠ_SOI_VB  = 262144      # chỉ soi nội dung kịch bản ≤ 256 KB (soi theo dòng)
 đặt NT_CỠ_LỚN     = 1048576     # nhị phân > 1 MB: thêm điểm "khối lạ cỡ lớn"
 đặt NT_NGƯỠNG_GIỮ  = 30         # điểm ≥ 30  ⇒ GIỮ ở cách ly chờ gốc xét
@@ -198,6 +200,21 @@ hàm _nt_dạng_nhị_phân(dạng) {
 }
 
 hàm _nt_băm(nội, dạng, là_byte) {
+    "→ hex 64 · \"\" nếu không băm được (máy không có đường WASM và tệp quá NT_CỠ_BĂM_CHẬM)."
+    # ① ĐƯỜNG NHANH: builtin băm_sha256 chạy wasm/bam_lenh.wasm (~140 MB/giây) — mọi cỡ tới trần nhận.
+    nếu NT_BĂM_NHANH == sáng {
+        đặt b = ẩn
+        nếu loại(là_byte) == "ẩn" {
+            # tự đoán: dạng nhị phân ⇒ thử coi là chuỗi-byte; có ký tự > 255 thì builtin báo lỗi ⇒ là văn bản.
+            #   (KHÔNG lặp từng ký tự ở đây — trên tệp vài chục MB, vòng lặp thông dịch mất hàng phút.)
+            nếu _nt_dạng_nhị_phân(dạng) == sáng {
+                thử { đặt b = băm_sha256(nội, sáng) } bắt (_l) { đặt b = băm_sha256(nội, tối) }
+            } khác { đặt b = băm_sha256(nội, tối) }
+        } khác { đặt b = băm_sha256(nội, là_byte) }
+        nếu loại(b) == "chuỗi" { trả b }
+    }
+    # ② ĐƯỜNG THÔNG DỊCH (lib_sha256, ~16 KB/giây): chỉ khi không có WASM, và chỉ tệp nhỏ.
+    nếu dài(nội) > NT_CỠ_BĂM_CHẬM { trả "" }
     nếu loại(là_byte) == "ẩn" {
         đặt là_byte = tối
         nếu _nt_dạng_nhị_phân(dạng) == sáng {
@@ -282,9 +299,8 @@ hàm nt_phân_tích(máy, tên, nội, là_byte) {
     }
 
     # ③ BĂM rồi so hai sổ (sổ đọc bằng tiến-trình gốc của đường ống)
-    đặt băm = ""
-    nếu cỡ <= NT_CỠ_BĂM { đặt băm = _nt_băm(nội, dạng, là_byte) }
-    khác { gom(lý, [0, "không băm (cỡ > " + NT_CỠ_BĂM + " byte; SHA-256 đang chạy đường thông dịch) — không so được sổ chặn/tin"]) }
+    đặt băm = _nt_băm(nội, dạng, là_byte)
+    nếu băm == "" { gom(lý, [0, "không băm (máy thiếu wasm/bam_lenh.wasm và cỡ > " + NT_CỠ_BĂM_CHẬM + " byte — đường thông dịch quá chậm) — không so được sổ chặn/tin"]) }
 
     đặt điểm = 0
     lặp x trong lý { đặt điểm = điểm + x[0] }

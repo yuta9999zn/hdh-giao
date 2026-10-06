@@ -19,13 +19,18 @@ Nền học thuyết: Nguyễn Trường An (DFCT / NNL-NTHT / CDFL).
   với quyền 644, không bao giờ kèm bit x, không đè) · **giữ** (gốc xét rồi `thả`) · **chặn** (không bao giờ thả).
   Mỗi lần nhận ghi một dòng vào sổ cảnh báo soi-hv; người thường cố thả / sửa sổ băm ⇒ từ chối và ghi sổ.
 - SHA-256 tính trên **byte gốc**: nội dung nhị phân (chuỗi-byte latin-1 từ host) băm từng byte, văn bản băm
-  UTF-8 — khớp hashlib, nên sổ chặn lấy từ nguồn ngoài dùng được. Chỉ băm tệp ≤ 64 KB (đường thông dịch
-  ~16 KB/giây); tệp lớn hơn chỉ xét magic/tên và phiếu ghi rõ "không băm". Trần nhận 64 MB.
+  UTF-8 — khớp hashlib, nên sổ chặn lấy từ nguồn ngoài dùng được. Trần nhận 64 MB.
+- **SHA-256 trên máy WASM**: `wasm/bam_lenh.c` (FIPS 180-4, đọc stdin theo khúc) → `wasm/bam_lenh.wasm`, dựng tái lập
+  bằng `sh wasm/dung_bam.sh`, ghim `wasm/bam.sha256`. Builtin mới `băm_sha256(chuỗi, là_byte)` của `giao.py` gọi
+  nó dưới wasmtime (không cấp thư mục; khác ghim ⇒ từ chối) — ~140 MB/giây, khoảng 8.000 lần đường thông dịch
+  `lib_sha256` (~16 KB/giây). Đường ống băm được mọi tệp tới trần (40 MB ≈ 0,3 s). Máy không có wasmtime ⇒
+  builtin trả `ẩn`, đường ống lùi về thông dịch và chỉ băm tệp ≤ 64 KB, phiếu ghi rõ "không băm".
 - Lệnh vỏ **`nhận-tệp`/`intake`**: `ds` · `xem <số>` · `quét <tệp>` (soi tại chỗ, không cất) · `ds-chặn` · `ds-tin`;
   gốc: `thả <số> [đích]` · `chặn <số|sha256> [ghi chú]` · `tin <số|sha256> [ghi chú]`. Vỏ không chạy tệp nằm
   trong `/cách_ly` kể cả với gốc. Host: `chay_hdh_giao.py --nhận <tệp>` (lặp được) và lệnh `nhận-host <tệp> [đích]`
   trong phiên. soi-hv không còn báo "nhị-phân-lạ" cho chính ghi của gốc vào `/cách_ly`.
-- `kiem_nhan_tep.giao` 46/46, vào `kiem_toan_bo.py`.
+- `kiem_nhan_tep.giao` 49/49 (thiếu wasmtime: 46/46, bỏ qua 3 ca WASM), vào `kiem_toan_bo.py`. Đường WASM khớp
+  hashlib ở 16 độ dài biên (55/56/64/65 byte, ranh giới khúc 64 KB) và 48 MB ngẫu nhiên; ≡ `lib_sha256` thông dịch.
 
 ---
 

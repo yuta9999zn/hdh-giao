@@ -110,12 +110,29 @@ rọi "── ⑦ trần cỡ · tệp lớn không băm · đích đã có ─�
 kỳ("vượt trần ⇒ chặn, không lưu", phán(p) == "chặn")
 kỳ("không có bản cách ly", lấy_khoá(p, "nơi") == "")
 đặt NT_CỠ_TRẦN = _cũ
-đặt _cũ = NT_CỠ_BĂM
-đặt NT_CỠ_BĂM = 4
+đặt CÓ_WASM = loại(băm_sha256("abc", tối)) == "chuỗi"   # wasmtime + wasm/bam_lenh.wasm (ghim) có mặt?
+nếu CÓ_WASM == sáng {
+    # tệp 256 KB (gấp 4 trần cũ 64 KB) — đường WASM băm được, đúng byte gốc
+    đặt z = ký_tự(0)
+    lặp 17 { đặt z = z + z }                            # 131072 byte NUL
+    đặt lớn = "MZ" + z + z
+    đặt p = nhận_tệp(M, V, "lớn.bin", lớn, ẩn)
+    kỳ("256 KB nhị phân CÓ băm, khớp hashlib", lấy_khoá(p, "băm") == "888c1cb5ee03ae1a7b9e54352f8e6f0d430191660c13ceee8b282cd151e8a195")
+    # đường nhanh (WASM) ≡ đường thông dịch (lib_sha256) trên cùng nội dung: văn bản UTF-8 và chuỗi-byte
+    đặt nhanh_vb = _nt_băm("xin chào thế giới", "văn_bản", ẩn)
+    đặt nhanh_np = _nt_băm(pe, "pe_windows", ẩn)
+    đặt NT_BĂM_NHANH = tối
+    kỳ("WASM ≡ thông dịch (văn bản UTF-8)", nhanh_vb == _nt_băm("xin chào thế giới", "văn_bản", ẩn))
+    kỳ("WASM ≡ thông dịch (chuỗi-byte)", nhanh_np == _nt_băm(pe, "pe_windows", ẩn))
+} khác { rọi "  (bỏ qua 3 ca đường WASM — máy chưa có wasmtime/wasm/bam_lenh.wasm)" }
+# máy THIẾU WASM: tệp quá trần thông dịch thì không băm, phiếu nói rõ
+đặt _cũ = NT_CỠ_BĂM_CHẬM
+đặt NT_CỠ_BĂM_CHẬM = 4
 đặt p = nhận_tệp(M, V, "dài.txt", "nhiều hơn bốn byte", ẩn)
-kỳ("quá NT_CỠ_BĂM ⇒ không băm, vẫn thả theo magic", phán(p) == "thả")
+kỳ("thiếu WASM + quá trần thông dịch ⇒ không băm, vẫn thả theo magic", phán(p) == "thả")
 kỳ("băm rỗng", lấy_khoá(p, "băm") == "")
-đặt NT_CỠ_BĂM = _cũ
+đặt NT_CỠ_BĂM_CHẬM = _cũ
+đặt NT_BĂM_NHANH = sáng
 đặt p = nhận_tệp(M, V, "x.txt", "một", "/tạm/ghi_chú.txt")
 kỳ("đích đã có ⇒ không đè, để lại cách ly (" + phán(p) + ")", phán(p) == "giữ")
 kỳ("nội dung cũ còn nguyên", gọi(M, K, GH_ĐỌC, ["/tạm/ghi_chú.txt"]) == "xin chào")
