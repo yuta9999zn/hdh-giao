@@ -1,0 +1,426 @@
+# ============================================================
+# lib_nhận_tệp.giao — ĐƯỜNG ỐNG NHẬN TỆP (cổng · cách ly · phân loại · băm · chấm điểm · thả/giữ/chặn)
+# ------------------------------------------------------------
+# VÌ SAO: lớp soi hành vi (lib_soi_hành_vi) bắt được kẻ ĐANG LÀM BẬY, nhưng thí nghiệm cho thấy lỗ ②:
+# một tệp 45 MB rơi thẳng vào hệ-tệp không một lời cảnh báo, không quét, không cách ly. EDR chỉ thấy nó
+# khi nó đã nằm sẵn đó. Tệp này đóng lỗ ấy: MỌI tệp đến từ ngoài phải đi qua MỘT cổng, và cổng ấy
+# KHÔNG BAO GIỜ đặt thẳng nội dung lạ vào chỗ người dùng định để.
+#
+#   ① CỔNG       — nội dung vào /cách_ly/<số> (thư mục 700 của gốc, tệp 600: KHÔNG ai chạy được, người
+#                  thường không đọc được). Nhân làm việc này bằng tiến-trình gốc đã ghi lúc khởi — đúng vai
+#                  một dịch vụ setuid, người gửi không cầm năng lực nào chạm vào /cách_ly.
+#   ② PHÂN LOẠI  — magic đầu tệp (PE · ELF · nhị phân có NUL · nén · `#!` lạ · bytecode GIAO · văn bản),
+#                  tên tệp (đuôi kép giả dạng, ký tự đảo chiều U+202E, tên hỏng), nội dung kịch bản (lệnh
+#                  thoát ra host, đụng lớp soi, cấy vào /lệnh /hệ, tự `duyệt`…).
+#   ③ BĂM        — SHA-256 thuần GIAO, so với SỔ CHẶN /hệ/chặn_băm và SỔ TIN /hệ/tin_băm (gốc giữ).
+#                  ⚠ TRUNG THỰC: SHA-256 ở đây chạy trên đường THÔNG DỊCH (~16 KB/giây) nên chỉ băm tệp
+#                  ≤ NT_CỠ_BĂM. Tệp lớn hơn KHÔNG có băm — không tin được theo băm, chỉ xét theo magic/tên.
+#   ④ CHẤM ĐIỂM  — cộng điểm từng dấu hiệu, mỗi dấu hiệu GHI RÕ LÝ DO (người xem `nhận-tệp xem` thấy hết).
+#   ⑤ PHÁN       — thả (ghi ra đích với quyền 644 — KHÔNG BAO GIỜ kèm bit x, như Mark-of-the-Web) ·
+#                  giữ (nằm ở /cách_ly, gốc-quyền xét rồi `thả`) · chặn (không bao giờ thả; gốc đọc để
+#                  phân tích được). Mỗi lần nhận đều để lại một dòng trong sổ cảnh báo của soi-hv.
+#
+# Không có gì ở đây chạy nội dung tệp. Phân loại chỉ ĐỌC byte; không giải nén, không thông dịch.
+# ============================================================
+nhập "lib_gọi_hệ.giao"
+nhập "lib_chuoi.giao"
+nhập "lib_sha256.giao"
+
+đặt NT_THƯ        = "/cách_ly"
+đặt NT_SỔ_CHẶN    = "/hệ/chặn_băm"
+đặt NT_SỔ_TIN     = "/hệ/tin_băm"
+đặt NT_CỠ_TRẦN    = 67108864    # > 64 MB ⇒ TỪ CHỐI ngay ở cổng, không lưu
+đặt NT_CỠ_BĂM     = 65536       # ≤ 64 KB mới băm SHA-256 (đường thông dịch — xem ③)
+đặt NT_CỠ_SOI_VB  = 262144      # chỉ soi nội dung kịch bản ≤ 256 KB (soi theo dòng)
+đặt NT_CỠ_LỚN     = 1048576     # nhị phân > 1 MB: thêm điểm "khối lạ cỡ lớn"
+đặt NT_NGƯỠNG_GIỮ  = 30         # điểm ≥ 30  ⇒ GIỮ ở cách ly chờ gốc xét
+đặt NT_NGƯỠNG_CHẶN = 100        # điểm ≥ 100 ⇒ CHẶN, không bao giờ thả
+
+hàm nhận_tệp_khởi(máy, tid_gốc) {
+    "Gọi MỘT LẦN lúc boot (sau khi có /hệ): dựng /cách_ly, hai sổ băm và trạng thái phiếu."
+    gọi(máy, tid_gốc, GH_TẠO_THƯ, [NT_THƯ, 700])
+    gọi(máy, tid_gốc, GH_TẠO, [NT_SỔ_CHẶN, 644, "# /hệ/chặn_băm — SHA-256 bị CHẶN khi nhận tệp: <hex64> <ghi chú>"])
+    gọi(máy, tid_gốc, GH_TẠO, [NT_SỔ_TIN, 644, "# /hệ/tin_băm — SHA-256 gốc-quyền đã xét là TIN được: <hex64> <ghi chú>"])
+    đặt_khoá(máy, "nt_gốc", tid_gốc)     # tiến-trình gốc làm việc cách ly (vai dịch vụ setuid)
+    đặt_khoá(máy, "nt_phiếu", [])        # mỗi lần nhận = một phiếu (bản)
+    trả máy
+}
+
+# ---------------- tiện ích ----------------
+hàm _nt_ghi_cảnh(máy, tid, loại_c, chi_tiết) {
+    "Ghi vào sổ cảnh báo của soi-hv nếu lớp ấy có mặt — mọi lần nhận đều để lại dấu kiểm toán."
+    nếu có_khoá(máy, "hv_cảnh") { gom(lấy_khoá(máy, "hv_cảnh"), [lấy_khoá(máy, "nhịp"), tid, loại_c, chi_tiết]) }
+    trả máy
+}
+
+hàm _nt_đuôi(tên) {
+    "Phần sau dấu chấm cuối, chữ thường · \"\" nếu không có."
+    đặt p = tách(tên, ".")
+    nếu dài(p) < 2 { trả "" }
+    trả thường(p[dài(p) - 1])
+}
+
+hàm _nt_đuôi_áp_chót(tên) {
+    đặt p = tách(tên, ".")
+    nếu dài(p) < 3 { trả "" }
+    trả thường(p[dài(p) - 2])
+}
+
+hàm _nt_trong(x, ds) {
+    lặp y trong ds { nếu y == x { trả sáng } }
+    trả tối
+}
+
+đặt NT_ĐUÔI_CHẠY = ["exe", "dll", "scr", "com", "pif", "bat", "cmd", "ps1", "vbs", "vbe", "js", "jse",
+                    "wsf", "hta", "jar", "msi", "lnk", "elf", "so", "sh", "py", "bin", "run", "appimage"]
+đặt NT_ĐUÔI_TÀI_LIỆU = ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "md", "rtf", "csv",
+                        "jpg", "jpeg", "png", "gif", "bmp", "mp3", "mp4", "mov", "avi", "html", "htm"]
+
+hàm _nt_ký_đảo_chiều(c) {
+    "Ký tự điều khiển hướng chữ Unicode (U+202A..202E, U+2066..2069, U+200E/200F) — dùng để giấu đuôi thật."
+    đặt m = mã(c)
+    nếu m >= 8234 { nếu m <= 8238 { trả sáng } }       # 202A..202E (RLO = 202E)
+    nếu m >= 8294 { nếu m <= 8297 { trả sáng } }       # 2066..2069
+    nếu m == 8206 { trả sáng }                        # 200E
+    nếu m == 8207 { trả sáng }                        # 200F
+    trả tối
+}
+
+# ---------------- ② PHÂN LOẠI ----------------
+hàm _nt_magic(nội) {
+    "→ [tên_dạng, điểm, lý_do] theo byte đầu. Chỉ ĐỌC, không chạy gì."
+    đặt n = dài(nội)
+    nếu bắt_đầu(nội, "MZ") { trả ["pe_windows", 70, "magic 'MZ' — chương trình Windows (PE). HĐH-GIAO không chạy mã x86; coi là KHỐI LẠ"] }
+    nếu n >= 4 {
+        nếu mã(nội[0]) == 127 { nếu nội[1] == "E" { nếu nội[2] == "L" { nếu nội[3] == "F" {
+            trả ["elf", 70, "magic 0x7f 'ELF' — chương trình Linux (ELF). HĐH-GIAO không chạy mã máy ngoài; coi là KHỐI LẠ"]
+        } } } }
+        nếu nội[0] == "P" { nếu nội[1] == "K" { nếu mã(nội[2]) == 3 { nếu mã(nội[3]) == 4 {
+            trả ["nén_zip", 20, "magic 'PK 03 04' — tệp NÉN (zip/jar/docx…): bên trong KHÔNG được soi"]
+        } } } }
+    }
+    nếu bắt_đầu(nội, "%PDF") { trả ["pdf", 0, ""] }
+    nếu bắt_đầu(nội, "#!mã-máy") { trả ["mã_máy_giao", 10, "bytecode GIAO (#!mã-máy) — chạy được nếu máy cấp năng lực 'máy'"] }
+    nếu bắt_đầu(nội, "#!") {
+        trả ["kịch_bản_ngoài", 20, "dòng '#!' trỏ tới trình thông dịch NGOÀI — HĐH-GIAO sẽ chạy nó như KỊCH BẢN VỎ GIAO (bí danh rm/cp/sh vẫn có nghĩa)"]
+    }
+    # NUL trong 256 byte đầu ⇒ nhị phân lạ (cùng luật với vỏ và soi-hv)
+    đặt k = n
+    nếu k > 256 { đặt k = 256 }
+    đặt i = 0
+    mãi {
+        nếu i >= k { dừng }
+        nếu mã(nội[i]) == 0 { trả ["nhị_phân_lạ", 50, "có byte NUL trong 256 byte đầu — nhị phân không rõ loại"] }
+        đặt i = i + 1
+    }
+    trả ["văn_bản", 0, ""]
+}
+
+hàm _nt_soi_tên(tên, dạng) {
+    "→ danh sách [điểm, lý_do] về TÊN tệp."
+    đặt ra = []
+    lặp c trong tên {
+        nếu _nt_ký_đảo_chiều(c) == sáng {
+            gom(ra, [60, "tên chứa ký tự ĐẢO CHIỀU CHỮ (U+" + _nt_hex4(mã(c)) + ") — mẹo giấu đuôi thật (vd 'hoá_đơn‮fdp.exe' hiện thành 'hoá_đơnexe.pdf')"])
+            dừng
+        }
+    }
+    đặt đ = _nt_đuôi(tên)
+    đặt đ2 = _nt_đuôi_áp_chót(tên)
+    nếu _nt_trong(đ, NT_ĐUÔI_CHẠY) == sáng {
+        nếu _nt_trong(đ2, NT_ĐUÔI_TÀI_LIỆU) == sáng {
+            gom(ra, [40, "ĐUÔI KÉP giả dạng: '." + đ2 + "." + đ + "' — trông như tài liệu nhưng đuôi thật là chương trình"])
+        }
+    }
+    # đuôi nói "tài liệu" mà magic là chương trình ⇒ giả dạng
+    nếu _nt_trong(đ, NT_ĐUÔI_TÀI_LIỆU) == sáng {
+        nếu dạng == "pe_windows" { gom(ra, [50, "đuôi '." + đ + "' nhưng NỘI DUNG là chương trình PE — GIẢ DẠNG tài liệu"]) }
+        nếu dạng == "elf"        { gom(ra, [50, "đuôi '." + đ + "' nhưng NỘI DUNG là chương trình ELF — GIẢ DẠNG tài liệu"]) }
+    }
+    trả ra
+}
+
+hàm _nt_hex4(m) {
+    đặt H = "0123456789ABCDEF"
+    trả H[dư(nguyên(m / 4096), 16)] + H[dư(nguyên(m / 256), 16)] + H[dư(nguyên(m / 16), 16)] + H[dư(m, 16)]
+}
+
+hàm _nt_soi_kịch_bản(nội) {
+    "Văn bản sẽ chạy được như KỊCH BẢN VỎ ⇒ soi từng dòng lệnh. → danh sách [điểm, lý_do] (mỗi loại báo một lần)."
+    đặt ra = []
+    đặt đã = bản()
+    đặt số_xoá = 0
+    lặp dòng trong tách(nội, "\n") {
+        đặt d = cắt_lề(dòng)
+        nếu dài(d) == 0 { } khác { nếu d[0] == "#" { } khác {
+            đặt từ = tách(d, " ")
+            đặt lệnh = _chuẩn_tên(từ[0])
+            nếu lệnh == "chạy_thật" { _nt_một_lần(ra, đã, "host", 40, "kịch bản gọi LỆNH HOST ('" + từ[0] + "') — đường thoát ra ngoài HĐH") }
+            nếu lệnh == "soi-hv" { _nt_một_lần(ra, đã, "soihv", 60, "kịch bản đụng tới LỚP SOI HÀNH VI ('" + d + "') — mã độc hay tìm cách tắt EDR") }
+            nếu lệnh == "duyệt" { _nt_một_lần(ra, đã, "duyệt", 40, "kịch bản TỰ `duyệt` việc bất khả hồi — cổng duyệt là để NGƯỜI bấm, không phải kịch bản") }
+            nếu lệnh == "dọn_rác" { _nt_một_lần(ra, đã, "dọn", 30, "kịch bản DỌN RÁC (huỷ hẳn, không lấy lại được)") }
+            nếu lệnh == "thành" { _nt_một_lần(ra, đã, "thành", 20, "kịch bản đổi danh tính ('thành') — leo quyền") }
+            nếu lệnh == "đổichủ" { _nt_một_lần(ra, đã, "chủ", 15, "kịch bản đổi CHỦ tệp") }
+            nếu lệnh == "xoá" { đặt số_xoá = số_xoá + 1 }
+            nếu lệnh == "quyền" {
+                nếu chứa_chuỗi(d, "777") { _nt_một_lần(ra, đã, "777", 20, "kịch bản mở quyền 777 (ai cũng ghi được)") }
+            }
+            # cấy vào chỗ hệ thống: /lệnh (đường lệnh — chiếm lệnh) hoặc /hệ (cấu hình)
+            nếu _nt_trong(lệnh, ["ghi", "chép", "chuyển", "sờ", "quyền", "xoá", "bỏ"]) == sáng {
+                nếu chứa_chuỗi(d, "/lệnh") { _nt_một_lần(ra, đã, "cấy_lệnh", 30, "kịch bản ĐỤNG /lệnh ('" + d + "') — chiếm/đè tên lệnh để bám trụ") }
+                nếu chứa_chuỗi(d, "/hệ/") { _nt_một_lần(ra, đã, "cấy_hệ", 30, "kịch bản ĐỤNG /hệ ('" + d + "') — sửa cấu hình hệ thống") }
+            }
+            nếu chứa_chuỗi(d, ">") {
+                nếu chứa_chuỗi(d, "/lệnh") { _nt_một_lần(ra, đã, "cấy_lệnh", 30, "kịch bản CHUYỂN HƯỚNG vào /lệnh ('" + d + "') — chiếm/đè tên lệnh") }
+                nếu chứa_chuỗi(d, "/hệ/") { _nt_một_lần(ra, đã, "cấy_hệ", 30, "kịch bản CHUYỂN HƯỚNG vào /hệ ('" + d + "')") }
+            }
+        } }
+    }
+    nếu số_xoá >= 5 { gom(ra, [30, "kịch bản XOÁ " + số_xoá + " lần — kiểu wiper"]) }
+    khác { nếu số_xoá > 0 { gom(ra, [5, "kịch bản có " + số_xoá + " lệnh xoá"]) } }
+    trả ra
+}
+
+hàm _nt_một_lần(ra, đã, khoá_l, điểm, lý) {
+    nếu có_khoá(đã, khoá_l) { trả ra }
+    đặt_khoá(đã, khoá_l, sáng)
+    gom(ra, [điểm, lý])
+    trả ra
+}
+
+# ---------------- ③ BĂM & SỔ BĂM ----------------
+# Hệ-tệp GIAO chứa CHUỖI. Tệp NHỊ PHÂN từ host vào dạng "mỗi byte ↦ một ký tự 0..255" (latin-1), còn
+# văn bản vào dạng chữ Unicode. Băm phải ra ĐÚNG SHA-256 của byte trên đĩa gốc (để so được với sổ chặn
+# lấy từ nguồn ngoài), nên: chuỗi-byte ⇒ băm từng mã ký tự như một byte; văn bản ⇒ mã hoá UTF-8 rồi băm.
+# là_byte: sáng/tối do HOST nói (nó biết đã giải mã kiểu nào) · ẩn ⇒ đoán: dạng nhị phân + mọi ký tự ≤ 255.
+hàm _nt_dạng_nhị_phân(dạng) {
+    trả _nt_trong(dạng, ["pe_windows", "elf", "nén_zip", "nhị_phân_lạ"])
+}
+
+hàm _nt_băm(nội, dạng, là_byte) {
+    nếu loại(là_byte) == "ẩn" {
+        đặt là_byte = tối
+        nếu _nt_dạng_nhị_phân(dạng) == sáng {
+            đặt là_byte = sáng
+            lặp c trong nội { nếu mã(c) > 255 { đặt là_byte = tối  dừng } }
+        }
+    }
+    nếu là_byte == sáng { } khác { trả sha256_hex(nội) }
+    đặt bs = []
+    lặp c trong nội { gom(bs, mã(c)) }
+    đặt ra = ""
+    lặp w trong sha256_bytes(bs) { đặt ra = ra + _s_hex32(w) }
+    trả ra
+}
+
+hàm _nt_trong_sổ(máy, tid_gốc, sổ, băm) {
+    "→ ghi chú (chuỗi) nếu băm có trong sổ · ẩn nếu không. Sổ đọc bằng tiến-trình gốc."
+    nếu băm == "" { trả ẩn }
+    đặt nội = gọi(máy, tid_gốc, GH_ĐỌC, [sổ])
+    nếu loại(nội) == "chuỗi" { } khác { trả ẩn }
+    lặp dòng trong tách(nội, "\n") {
+        đặt d = cắt_lề(dòng)
+        nếu dài(d) >= 64 { nếu d[0] == "#" { } khác {
+            nếu thường(lát_chuỗi(d, 0, 64)) == băm { trả cắt_lề(lát_chuỗi(d, 64, dài(d))) }
+        } }
+    }
+    trả ẩn
+}
+
+hàm _nt_là_hex64(s) {
+    nếu loại(s) == "chuỗi" { } khác { trả tối }
+    nếu dài(s) == 64 { } khác { trả tối }
+    lặp c trong thường(s) {
+        nếu chứa_chuỗi("0123456789abcdef", c) { } khác { trả tối }
+    }
+    trả sáng
+}
+
+hàm nt_thêm_sổ(máy, tid, sổ, băm, ghi_chú) {
+    "Gốc-quyền thêm một băm vào sổ chặn/tin. Người thường ⇒ tối (+ ghi sổ cảnh báo)."
+    nếu uid_của(máy, tid) == 0 { } khác {
+        _nt_ghi_cảnh(máy, tid, "thử-đổi-sổ-băm-bị-chặn", "tt" + tid + " (uid " + uid_của(máy, tid) + ") cố thêm " + băm + " vào " + sổ)
+        trả tối
+    }
+    nếu _nt_là_hex64(băm) == sáng { } khác { trả tối }
+    gọi(máy, tid, GH_THÊM, [sổ, "\n" + thường(băm) + " " + ghi_chú])
+    _nt_ghi_cảnh(máy, tid, "sổ-băm", "gốc-quyền thêm " + thường(băm) + " vào " + sổ + " (" + ghi_chú + ")")
+    trả sáng
+}
+
+# ============================================================
+# ★ PHÂN TÍCH (không cất, không ghi gì): nt_phân_tích(máy, tên, nội, là_byte)
+#   là_byte: xem _nt_băm (ẩn = tự đoán)
+# → bản: dạng · điểm · lý_do [[điểm, lý], …] · băm · phán ("thả" | "giữ" | "chặn")
+# Dùng chung cho cổng nhận (nhận_tệp) và cho `nhận-tệp quét` (soi tệp đã nằm trong máy).
+# ============================================================
+hàm nt_phân_tích(máy, tên, nội, là_byte) {
+    đặt kq = bản()
+    đặt lý = []
+    nếu loại(nội) == "chuỗi" { } khác { đặt nội = "" + nội }
+    đặt cỡ = dài(nội)
+    đặt xấu = lý_do_tên_xấu(tên)
+    nếu loại(xấu) == "ẩn" { } khác { gom(lý, [10, "tên gốc hỏng (" + xấu + ")"]) }
+
+    # ② PHÂN LOẠI theo magic · tên · nội dung kịch bản
+    đặt mg = _nt_magic(nội)
+    đặt dạng = mg[0]
+    nếu mg[1] > 0 { gom(lý, [mg[1], mg[2]]) }
+    nếu cỡ > NT_CỠ_LỚN {
+        nếu dạng == "văn_bản" { } khác { nếu dạng == "pdf" { } khác {
+            gom(lý, [10, "khối nhị phân cỡ lớn (" + cỡ + " byte) — thường là mã độc đóng gói/làm rối"])
+        } }
+    }
+    lặp x trong _nt_soi_tên(tên, dạng) { gom(lý, x) }
+    # văn bản / kịch bản ngoài sẽ được vỏ THÔNG DỊCH ⇒ soi dòng lệnh
+    đặt vb = tối
+    nếu dạng == "văn_bản" { đặt vb = sáng }
+    nếu dạng == "kịch_bản_ngoài" { đặt vb = sáng }
+    nếu vb == sáng {
+        nếu cỡ <= NT_CỠ_SOI_VB { lặp x trong _nt_soi_kịch_bản(nội) { gom(lý, x) } }
+        khác { gom(lý, [10, "văn bản > " + NT_CỠ_SOI_VB + " byte — không soi hết từng dòng"]) }
+    }
+
+    # ③ BĂM rồi so hai sổ (sổ đọc bằng tiến-trình gốc của đường ống)
+    đặt băm = ""
+    nếu cỡ <= NT_CỠ_BĂM { đặt băm = _nt_băm(nội, dạng, là_byte) }
+    khác { gom(lý, [0, "không băm (cỡ > " + NT_CỠ_BĂM + " byte; SHA-256 đang chạy đường thông dịch) — không so được sổ chặn/tin"]) }
+
+    đặt điểm = 0
+    lặp x trong lý { đặt điểm = điểm + x[0] }
+    đặt phán = "thả"
+    nếu điểm >= NT_NGƯỠNG_GIỮ { đặt phán = "giữ" }
+    nếu điểm >= NT_NGƯỠNG_CHẶN { đặt phán = "chặn" }
+
+    đặt gốc = lấy_khoá(máy, "nt_gốc")
+    nếu loại(gốc) == "ẩn" { } khác {
+        đặt gc_chặn = _nt_trong_sổ(máy, gốc, NT_SỔ_CHẶN, băm)
+        nếu loại(gc_chặn) == "ẩn" {
+            đặt gc_tin = _nt_trong_sổ(máy, gốc, NT_SỔ_TIN, băm)
+            nếu loại(gc_tin) == "ẩn" { } khác {
+                gom(lý, [0, "SHA-256 nằm trong SỔ TIN (" + gc_tin + ") — gốc-quyền đã xét ĐÚNG nội dung này"])
+                đặt phán = "thả"
+            }
+        } khác {
+            gom(lý, [1000, "SHA-256 nằm trong SỔ CHẶN (" + gc_chặn + ")"])
+            đặt điểm = điểm + 1000
+            đặt phán = "chặn"
+        }
+    }
+    đặt_khoá(kq, "dạng", dạng)
+    đặt_khoá(kq, "cỡ", cỡ)
+    đặt_khoá(kq, "điểm", điểm)
+    đặt_khoá(kq, "lý_do", lý)
+    đặt_khoá(kq, "băm", băm)
+    đặt_khoá(kq, "phán", phán)
+    trả kq
+}
+
+# ============================================================
+# ★ ĐIỂM VÀO: nhận_tệp(máy, tid, tên, nội, đích)
+#   tid  — ai đưa tệp vào (quyền của người này dùng khi THẢ ra đích)
+#   tên  — tên gốc của tệp (chỉ để phân loại + hiển thị; KHÔNG dùng làm đường dẫn)
+#   đích — nơi muốn đặt tệp nếu được thả (ẩn ⇒ /tạm/<tên sạch>)
+# → phiếu (bản): số · tên · đích · cỡ · băm · dạng · điểm · lý_do · phán · nơi · ẩn nếu cổng hỏng
+# nhận_tệp_byte(…, là_byte): cho HOST — nó biết nội dung là chuỗi-byte (latin-1) hay văn bản UTF-8.
+# ============================================================
+hàm nhận_tệp(máy, tid, tên, nội, đích) { trả nhận_tệp_byte(máy, tid, tên, nội, đích, ẩn) }
+
+hàm nhận_tệp_byte(máy, tid, tên, nội, đích, là_byte) {
+    đặt gốc = lấy_khoá(máy, "nt_gốc")
+    nếu loại(gốc) == "ẩn" { đặt_khoá(máy, "lỗi", "nhận-tệp: máy chưa dựng đường ống nhận tệp (nhận_tệp_khởi)")  trả ẩn }
+    nếu loại(tên) == "chuỗi" { } khác { đặt tên = "" + tên }
+    nếu loại(nội) == "chuỗi" { } khác { đặt nội = "" + nội }
+    đặt ds = lấy_khoá(máy, "nt_phiếu")
+    đặt số = dài(ds) + 1
+    đặt cỡ = dài(nội)
+    đặt p = bản()
+    đặt_khoá(p, "số", số)
+    đặt_khoá(p, "tên", tên)
+    đặt_khoá(p, "người", uid_của(máy, tid))
+    đặt_khoá(p, "nhịp", lấy_khoá(máy, "nhịp"))
+    đặt_khoá(p, "cỡ", cỡ)
+
+    # tên hỏng (điều khiển, '/', rỗng…) ⇒ KHÔNG dùng làm tên đích
+    đặt tên_sạch = tên
+    nếu loại(lý_do_tên_xấu(tên)) == "ẩn" { } khác { đặt tên_sạch = "tệp_nhận_" + số }
+    nếu loại(đích) == "ẩn" { đặt đích = "/tạm/" + tên_sạch }
+    đặt_khoá(p, "đích", đích)
+
+    # quá trần ⇒ từ chối ngay ở cổng, KHÔNG lưu
+    nếu cỡ > NT_CỠ_TRẦN {
+        đặt_khoá(p, "dạng", "?")  đặt_khoá(p, "băm", "")  đặt_khoá(p, "điểm", 1000)
+        đặt_khoá(p, "lý_do", [[1000, "cỡ " + cỡ + " byte vượt trần " + NT_CỠ_TRẦN + " — TỪ CHỐI ở cổng, không lưu"]])
+        đặt_khoá(p, "phán", "chặn")  đặt_khoá(p, "nơi", "")
+        gom(ds, p)
+        _nt_ghi_cảnh(máy, tid, "nhận-tệp-chặn", "phiếu " + số + " '" + tên_sạch + "' (" + cỡ + " byte) — vượt trần, không lưu")
+        trả p
+    }
+
+    # ① CỔNG: vào cách ly TRƯỚC mọi phân tích — 600, chủ gốc, không ai chạy được
+    đặt nơi = NT_THƯ + "/" + số
+    nếu gọi(máy, gốc, GH_TẠO, [nơi, 600, nội]) == sáng { } khác {
+        đặt_khoá(máy, "lỗi", "nhận-tệp: không ghi được vào cách ly (" + lỗi_cuối(máy) + ")")
+        trả ẩn
+    }
+    đặt_khoá(p, "nơi", nơi)
+
+    # ②③④ phân tích
+    đặt pt = nt_phân_tích(máy, tên, nội, là_byte)
+    lặp k trong ["dạng", "điểm", "lý_do", "băm", "phán"] { đặt_khoá(p, k, lấy_khoá(pt, k)) }
+    gom(ds, p)
+
+    # ⑤ PHÁN
+    nếu lấy_khoá(p, "phán") == "thả" {
+        đặt tk = _nt_thả_ra(máy, tid, p)
+        nếu tk == sáng { } khác {
+            đặt_khoá(p, "phán", "giữ")
+            gom(lấy_khoá(p, "lý_do"), [0, "thả ra " + đích + " không được: " + tk + " — để lại cách ly"])
+        }
+    }
+    _nt_ghi_cảnh(máy, tid, "nhận-tệp-" + lấy_khoá(p, "phán"), "phiếu " + số + " '" + tên_sạch + "' (" + cỡ + " byte, " + lấy_khoá(p, "dạng") + ", điểm " + lấy_khoá(p, "điểm") + ") → " + lấy_khoá(p, "phán"))
+    trả p
+}
+
+hàm _nt_thả_ra(máy, tid, p) {
+    "Chép từ cách ly ra đích bằng QUYỀN CỦA tid, quyền 644 (không bit x). Không đè. → sáng · chuỗi lỗi."
+    đặt gốc = lấy_khoá(máy, "nt_gốc")
+    đặt đích = lấy_khoá(p, "đích")
+    nếu loại(gọi(máy, tid, GH_SOI, [đích])) == "danh_sách" { trả "đích đã có — không đè" }
+    đặt nội = gọi(máy, gốc, GH_ĐỌC, [lấy_khoá(p, "nơi")])
+    nếu loại(nội) == "chuỗi" { } khác { trả "bản cách ly đã mất" }
+    nếu gọi(máy, tid, GH_TẠO, [đích, 644, nội]) == sáng { } khác { trả lỗi_cuối(máy) }
+    # Bản cách ly GIỮ LẠI làm chứng (điều tra sau này so được). Không xoá ở đây: xoá hàng loạt từ
+    # tiến-trình gốc sẽ tự vấp luật "wiper" của soi-hv — và đúng là nó nên vấp.
+    đặt_khoá(p, "thả_bởi", uid_của(máy, tid))
+    trả sáng
+}
+
+hàm nt_phiếu(máy, số) {
+    đặt ds = lấy_khoá(máy, "nt_phiếu")
+    nếu loại(ds) == "ẩn" { trả ẩn }
+    nếu loại(số) == "số" { } khác { trả ẩn }
+    nếu số < 1 { trả ẩn }
+    nếu số > dài(ds) { trả ẩn }
+    trả ds[số - 1]
+}
+
+hàm nt_thả(máy, tid, số, đích) {
+    "Gốc-quyền thả một phiếu đang GIỮ. Phiếu CHẶN không bao giờ thả. → sáng · chuỗi lỗi."
+    nếu uid_của(máy, tid) == 0 { } khác {
+        _nt_ghi_cảnh(máy, tid, "thử-thả-cách-ly-bị-chặn", "tt" + tid + " (uid " + uid_của(máy, tid) + ") cố thả phiếu " + số + " khỏi cách ly")
+        trả "chỉ GỐC-QUYỀN thả được tệp khỏi cách ly"
+    }
+    đặt p = nt_phiếu(máy, số)
+    nếu loại(p) == "ẩn" { trả "không có phiếu " + số }
+    nếu lấy_khoá(p, "phán") == "chặn" { trả "phiếu " + số + " bị CHẶN — không thả; muốn phân tích thì đọc " + lấy_khoá(p, "nơi") + " với gốc-quyền" }
+    nếu lấy_khoá(p, "phán") == "thả" { trả "phiếu " + số + " đã được thả rồi (" + lấy_khoá(p, "đích") + ")" }
+    nếu lấy_khoá(p, "nơi") == "" { trả "phiếu " + số + " không có bản cách ly" }
+    nếu loại(đích) == "ẩn" { } khác { đặt_khoá(p, "đích", đích) }
+    đặt r = _nt_thả_ra(máy, tid, p)
+    nếu r == sáng {
+        đặt_khoá(p, "phán", "thả")
+        _nt_ghi_cảnh(máy, tid, "nhận-tệp-thả-tay", "gốc-quyền thả phiếu " + số + " (điểm " + lấy_khoá(p, "điểm") + ") ra " + lấy_khoá(p, "đích"))
+    }
+    trả r
+}

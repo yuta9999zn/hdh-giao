@@ -5,6 +5,30 @@ Nền học thuyết: Nguyễn Trường An (DFCT / NNL-NTHT / CDFL).
 
 ---
 
+## v0.46.0 — An toàn HĐH: soi hành vi, đóng đường thoát ra host, đường ống nhận tệp (2026-10-06)
+
+- **`lib_soi_hành_vi.giao` + lệnh `soi-hv`/`edr`** (đã commit 9a49644): soi gọi-hệ ngoài băng, có quyền phủ quyết —
+  nhị phân lạ đáp xuống hệ-tệp, nhị phân bị chạy như kịch bản, mở cổng ra ngoài, sửa/xoá hàng loạt (ransomware/
+  wiper) ⇒ cách ly tiến trình. Sổ định dạng thêm `pe_windows|MZ|từ_chối`; vỏ từ chối nội dung có NUL (ENOEXEC).
+- **Đóng đường thoát ra host** (834c05b): `chạy` ngoài allowlist phải được duyệt ĐÚNG chuỗi lệnh từng lần;
+  không có hook ⇒ chặn. Bỏ cấp quyền theo tên lệnh trần ở `--kali`. `kiem_thoat_host.py` 21 ca.
+- **`lib_nhận_tệp.giao` — đường ống nhận tệp** (mới): mọi tệp từ ngoài vào `/cách_ly/<số>` (thư mục 700, tệp 600,
+  chủ gốc) TRƯỚC khi phân tích → phân loại magic (PE · ELF · zip · NUL · `#!` lạ · bytecode GIAO), tên (đuôi kép
+  `.pdf.exe`, ký tự đảo chiều U+202E, tên hỏng), dòng lệnh trong kịch bản (gọi host, đụng soi-hv, tự `duyệt`,
+  cấy vào `/lệnh` `/hệ`, xoá hàng loạt) → SHA-256 so `/hệ/chặn_băm` và `/hệ/tin_băm` → điểm → **thả** (ra đích
+  với quyền 644, không bao giờ kèm bit x, không đè) · **giữ** (gốc xét rồi `thả`) · **chặn** (không bao giờ thả).
+  Mỗi lần nhận ghi một dòng vào sổ cảnh báo soi-hv; người thường cố thả / sửa sổ băm ⇒ từ chối và ghi sổ.
+- SHA-256 tính trên **byte gốc**: nội dung nhị phân (chuỗi-byte latin-1 từ host) băm từng byte, văn bản băm
+  UTF-8 — khớp hashlib, nên sổ chặn lấy từ nguồn ngoài dùng được. Chỉ băm tệp ≤ 64 KB (đường thông dịch
+  ~16 KB/giây); tệp lớn hơn chỉ xét magic/tên và phiếu ghi rõ "không băm". Trần nhận 64 MB.
+- Lệnh vỏ **`nhận-tệp`/`intake`**: `ds` · `xem <số>` · `quét <tệp>` (soi tại chỗ, không cất) · `ds-chặn` · `ds-tin`;
+  gốc: `thả <số> [đích]` · `chặn <số|sha256> [ghi chú]` · `tin <số|sha256> [ghi chú]`. Vỏ không chạy tệp nằm
+  trong `/cách_ly` kể cả với gốc. Host: `chay_hdh_giao.py --nhận <tệp>` (lặp được) và lệnh `nhận-host <tệp> [đích]`
+  trong phiên. soi-hv không còn báo "nhị-phân-lạ" cho chính ghi của gốc vào `/cách_ly`.
+- `kiem_nhan_tep.giao` 46/46, vào `kiem_toan_bo.py`.
+
+---
+
 ## v0.45.0 — Sổ niêm phong viết bằng GIAO; lib_json đọc đủ thoát chuẩn và hết O(n²) (2026-10-02)
 
 - **`niem_phong.giao` + `niem.sh`** (GIAO trên GVM-64): `niem` · `cham` · `kiem [--bat-buoc-ky]` · `thong_ke` ·

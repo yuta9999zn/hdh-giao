@@ -111,7 +111,7 @@ ca("vỏ có vòng đời thật (đang xử lý = 'chạy')", "vỏ  \tchạy" 
 # ---------------- 7. /lệnh là thư mục lệnh thật ----------------
 print("\n[7] ★ /lệnh — lệnh cũng chỉ là TỆP (tra $PATH · bit x · kịch bản · bệ phóng tiến trình)")
 mã, o = chạy(["giao.py", "hdh_giao.giao"])
-ca("mỗi lệnh vỏ là một tệp trong /lệnh", "liệt /lệnh | đếm" in o and "\n69\n" in o)
+ca("mỗi lệnh vỏ là một tệp trong /lệnh", "liệt /lệnh | đếm" in o and "\n71\n" in o)   # 69 + soi-hv + nhận-tệp
 ca("tệp lệnh KỊCH BẢN đọc được như văn bản", "# soi_hệ — xem nhanh tình trạng máy" in o)
 ca("kịch bản chạy được (nhiều dòng)", "── máy ──" in o and "giao-01" in o)
 ca("kịch bản nhận đối số $1", "lỗi đĩa" in o and "đĩa: /tạm đầy 91%" in o)
@@ -737,7 +737,7 @@ mã0, o0 = chạy(["giao.py", "kiem_dinh_dang.giao", "--bước", "900000000"])
 mã1, o1 = chạy(["giao.py", "kiem_dinh_dang.giao", "--bước", "900000000", "--cho-máy"])
 ca("chạy sạch cả hai chế độ (chưa cấp `máy` / đã cấp)", mã0 == 0 and mã1 == 0, (o0 + o1)[-300:])
 ca("sổ /hệ/định_dạng có thật, dòng cuối là NGẢ LUI '*'",
-   "số dòng trong sổ: 4" in o0 and "dòng cuối là ngả lui: sáng" in o0)
+   "số dòng trong sổ: 5" in o0 and "dòng cuối là ngả lui: sáng" in o0)
 
 ca("★★ ① sổ sai cú pháp → TỪ CHỐI từ lúc GHI, tệp cũ CÒN NGUYÊN (binfmt_misc ghi thẳng /proc, "
    "không ai kiểm)",
@@ -751,7 +751,7 @@ ca("★★ THIẾU ngả lui → chặn (kẻo tệp lạ không chạy nổi m�
 ca("trình không có thật → chặn, kèm danh sách trình có thật", "'trình_ma' không có thật" in o0)
 ca("★★★ ① XOÁ HẲN sổ đi máy VẪN chạy lệnh — ngả lui nằm TRONG MÃ, không nằm trên đĩa "
    "(binfmt_misc: phá sổ là làm câm cả máy)",
-   "sổ đã bị xoá, đọc /hệ/định_dạng: ẩn" in o0 and "vẫn có ngả lui: 4" in o0
+   "sổ đã bị xoá, đọc /hệ/định_dạng: ẩn" in o0 and "vẫn có ngả lui: 5" in o0
    and "máy vẫn nói được" in o0)
 
 ca("★★★★ /lệnh mang CHÍNH BYTECODE: `dịch` sinh tệp mở đầu '#!mã-máy 32', KHÔNG còn mã nguồn",

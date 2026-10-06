@@ -158,7 +158,9 @@ kiểm("ngoài phạm vi → chặn sạch", isinstance(e, GiaoError) and "NGOÀ
 
 cấp_chạy = lambda rt: rt.cấp_quyền("chạy", lệnh=["python --version"])
 out, e = chạy('rọi chạy("git", ["push"])', cấp=cấp_chạy)         # lệnh ngoài allowlist
-kiểm("chạy ngoài allowlist → chặn", isinstance(e, GiaoError) and "trong danh sách" in e.msg, f"e={e}")
+# Từ "an toàn Bước 1" (834c05b): bị chặn ⇒ trả ẩn, KHÔNG ném lỗi (vỏ báo sạch, không sập phiên) —
+# cùng hợp đồng với kiem_thoat_host.py. Lệnh không hề chạy.
+kiểm("chạy ngoài allowlist → chặn (→ ẩn)", e is None and out.strip() == "ẩn", f"out={out!r} e={e}")
 
 out, e = chạy('ghi_tệp("x.txt","hi")', cấp=cấp_đọc)              # chỉ cấp đọc, không cấp ghi
 kiểm("chỉ cấp đọc → ghi_tệp vẫn không tồn tại", isinstance(e, GiaoError) and "chưa định nghĩa" in e.msg, f"e={e}")

@@ -413,8 +413,17 @@ for tệp, kỳ in [("lượng_tử_bell.giao",       ["0.7071|00⟩ + 0.7071|11
     ok,o = chạy(tệp, ["giao.py", tệp])
     mục(f"{tệp}", ok and all(k in o for k in kỳ), "thiếu: "+", ".join(k for k in kỳ if k not in o))
 
+print("\n[★ An toàn — đường thoát ra host · đường ống NHẬN TỆP (lib_nhận_tệp.giao)]")
+ok, o = chạy("thoat_host", ["kiem_thoat_host.py"], "KẾT QUẢ")
+mục(f"thoát host: `chạy` ngoài allowlist bị chặn (→ ẩn), --kali duyệt TỪNG chuỗi lệnh ({(o.strip().splitlines() or ['?'])[-2].replace('KẾT QUẢ: ','')})",
+    ok and "✗" not in o, o[-300:])
+ok, o = chạy("nhan_tep", ["giao.py", "kiem_nhan_tep.giao", "--bước", "400000000"])
+_kq = [d for d in o.splitlines() if d.startswith("NHẬN TỆP:")]
+mục(f"nhận tệp: cổng → /cách_ly → magic/tên/kịch bản → SHA-256 byte thô vs sổ chặn/tin → thả·giữ·chặn ({_kq[0][10:] if _kq else '?'})",
+    ok and "✗" not in o and bool(_kq), o[-400:])
+
 print("\n[★ GVM-64 — máy tính toán của GIAO (WASM/WASI, không Python lúc chạy)]")
-_wt = shutil.which("wasmtime") or (r"D:\wasmtime\wasmtime.exe" if os.path.exists(r"D:\wasmtime\wasmtime.exe") else None)
+_wt =shutil.which("wasmtime") or (r"D:\wasmtime\wasmtime.exe" if os.path.exists(r"D:\wasmtime\wasmtime.exe") else None)
 if _wt:
     _ds = ["lượng_tử_bell.giao", "lượng_tử_grover.giao", "lượng_tử_dịch_chuyển.giao", "lượng_tử_hilbert.giao",
            "lượng_tử_xeb.giao", "kiem_lib_sha256.giao", "kiem_lib_mật_khẩu.giao", "kiem_muoi_he.giao", "kiem_luong_tu_khoi.giao", "kiem_ky_kep_giao.giao", "kiem_vo_doi_so.giao", "kiem_argon2.giao", "kiem_cdfl_gvm64.giao", "examples/hilbert.giao", "kiem_lib_bit.giao",

@@ -1,0 +1,139 @@
+# kiem_nhan_tep.giao — nghiệm thu ĐƯỜNG ỐNG NHẬN TỆP (lib_nhận_tệp.giao)
+#  cổng → /cách_ly (700/600) → phân loại magic/tên/kịch bản → SHA-256 vs sổ chặn/tin → điểm → thả/giữ/chặn
+#  Mẫu "độc" ở đây là CHUỖI GIẢ dựng ngay trong bài (vài byte magic + đệm) — không có mã độc thật nào.
+nhập "lib_vỏ.giao"
+nhập "lib_soi_hành_vi.giao"
+nhập "lib_nhận_tệp.giao"
+đặt M = khởi_máy()
+soi_hv_khởi(M)
+thêm_người(M, 0, "gốc")  thêm_người(M, 1000, "an")
+đặt K = sinh_tt(M, "khởi", 0, 0, "/")
+lặp d trong ["/hệ", "/lệnh", "/nhà", "/nhà/an"] { gọi(M, K, GH_TẠO_THƯ, [d, 755]) }
+gọi(M, K, GH_TẠO_THƯ, ["/tạm", 777])  gọi(M, K, GH_TẠO_THƯ, ["/thùng_rác", 777])
+cài_lệnh(M, K)
+nhận_tệp_khởi(M, K)
+gọi(M, K, GH_TẠO, ["/hệ/đường_lệnh", 644, "/lệnh"])
+đặt V = gọi(M, K, GH_SINH, ["vỏ", 5])
+đặt_khoá(lấy_khoá(lấy_khoá(M, "cred"), V), "uid", 1000)
+đặt G = gọi(M, K, GH_SINH, ["vỏ_gốc", 5])           # phiên vỏ của GỐC (uid 0)
+
+đặt ĐẾM = [0, 0]                                    # [đạt, rớt]
+hàm kỳ(tên, đk) {
+    nếu đk == sáng { đặt ĐẾM[0] = ĐẾM[0] + 1  rọi "  ✔ " + tên } khác { đặt ĐẾM[1] = ĐẾM[1] + 1  rọi "  ✗ " + tên }
+}
+hàm phán(p) { nếu loại(p) == "ẩn" { trả "ẩn" }  trả lấy_khoá(p, "phán") }
+hàm đệm(n) { đặt s = ""  lặp n { đặt s = s + ký_tự(0) + "A" }  trả s }
+hàm có_cảnh(loại_c) {
+    lặp c trong lấy_khoá(M, "hv_cảnh") { nếu c[2] == loại_c { trả sáng } }
+    trả tối
+}
+
+rọi "── ① văn bản sạch ⇒ THẢ, quyền 644, chủ là người đưa vào, băm đúng ──"
+đặt p = nhận_tệp(M, V, "ghi_chú.txt", "xin chào", ẩn)
+kỳ("phán thả (" + phán(p) + ", điểm " + lấy_khoá(p, "điểm") + ")", phán(p) == "thả")
+đặt s = gọi(M, V, GH_SOI, ["/tạm/ghi_chú.txt"])
+kỳ("ra /tạm/ghi_chú.txt", loại(s) == "danh_sách")
+kỳ("quyền rw-r--r-- (KHÔNG bit x): " + s[1], s[1] == "rw-r--r--")
+kỳ("chủ uid 1000", s[2] == 1000)
+kỳ("SHA-256 khớp hashlib", lấy_khoá(p, "băm") == "8aaecd06d85c7f743d3545e7b865f3053c647591f95919c1c0b003046d4757aa")
+kỳ("bản cách ly giữ làm chứng: " + lấy_khoá(p, "nơi"), loại(gọi(M, K, GH_SOI, [lấy_khoá(p, "nơi")])) == "danh_sách")
+
+rọi "── ② PE giả dạng tài liệu (đuôi kép) ⇒ CHẶN, không ra /tạm ──"
+đặt pe = "MZ" + ký_tự(144) + đệm(40) + "This program cannot be run in DOS mode"
+đặt p = nhận_tệp(M, V, "hoá_đơn.pdf.exe", pe, ẩn)
+kỳ("phán chặn (điểm " + lấy_khoá(p, "điểm") + ")", phán(p) == "chặn")
+kỳ("dạng pe_windows", lấy_khoá(p, "dạng") == "pe_windows")
+# chuỗi-byte ⇒ băm ĐÚNG byte gốc (0x90 là MỘT byte, không phải C2 90 của UTF-8) — khớp sổ chặn lấy từ ngoài
+kỳ("SHA-256 nhị phân = hashlib trên byte thô", lấy_khoá(p, "băm") == "8e89554d82a50c79ffb6b49b93d803c5b434b52d686b0f7a2c48d45286a5fa5e")
+kỳ("KHÔNG có /tạm/hoá_đơn.pdf.exe", loại(gọi(M, V, GH_SOI, ["/tạm/hoá_đơn.pdf.exe"])) == "ẩn")
+kỳ("bản cách ly 600 của gốc", gọi(M, K, GH_SOI, [lấy_khoá(p, "nơi")])[1] == "rw-------")
+gọi(M, V, GH_ĐỌC, [lấy_khoá(p, "nơi")])
+kỳ("'an' KHÔNG đọc được /cách_ly: " + lỗi_cuối(M), dài(lỗi_cuối(M)) > 0)
+đặt p = nhận_tệp(M, V, "báo_cáo.pdf", pe, ẩn)
+kỳ("PE mang đuôi .pdf ⇒ chặn (điểm " + lấy_khoá(p, "điểm") + ")", phán(p) == "chặn")
+kỳ("soi-hv KHÔNG báo nhầm 'nhị-phân-lạ' cho /cách_ly", có_cảnh("nhị-phân-lạ") == tối)
+kỳ("soi-hv có dòng 'nhận-tệp-chặn'", có_cảnh("nhận-tệp-chặn") == sáng)
+
+rọi "── ③ PE / ELF trần ⇒ GIỮ; chỉ GỐC thả được ──"
+đặt p = nhận_tệp(M, V, "công_cụ.exe", pe, ẩn)
+đặt số_pe = lấy_khoá(p, "số")
+kỳ("PE trần ⇒ giữ (điểm " + lấy_khoá(p, "điểm") + ")", phán(p) == "giữ")
+đặt elf = ký_tự(127) + "ELF" + ký_tự(2) + ký_tự(1) + đệm(30)
+đặt p = nhận_tệp(M, V, "a.bin", elf, ẩn)
+kỳ("ELF ⇒ giữ, dạng elf", phán(p) == "giữ")
+kỳ("ELF dạng elf", lấy_khoá(p, "dạng") == "elf")
+đặt r = chạy_dòng_im(M, V, "nhận-tệp thả " + số_pe)
+kỳ("'an' thả ⇒ từ chối (mã " + r[0] + ")", r[0] == 1)
+kỳ("lần thử ghi vào soi-hv", có_cảnh("thử-thả-cách-ly-bị-chặn") == sáng)
+đặt r = chạy_dòng_im(M, G, "nhận-tệp thả " + số_pe + " /tạm/công_cụ.exe")
+kỳ("gốc thả ⇒ ra /tạm/công_cụ.exe: " + r[1], r[0] == 0)
+kỳ("ra với 644", gọi(M, K, GH_SOI, ["/tạm/công_cụ.exe"])[1] == "rw-r--r--")
+đặt r = chạy_dòng_im(M, G, "nhận-tệp thả 2")
+kỳ("phiếu CHẶN không thả được kể cả gốc: " + r[1], r[0] == 1)
+
+rọi "── ④ kịch bản: soi từng dòng lệnh ──"
+đặt p = nhận_tệp(M, V, "cài.sh", "#!/bin/sh\nkali nmap 10.0.0.1\nsoi-hv tắt\n", ẩn)
+kỳ("gọi host + tắt EDR ⇒ chặn (điểm " + lấy_khoá(p, "điểm") + ")", phán(p) == "chặn")
+đặt p = nhận_tệp(M, V, "tiện.txt", "nói chào\nghi /lệnh/liệt nói bị chiếm\n", ẩn)
+kỳ("cấy vào /lệnh ⇒ giữ (điểm " + lấy_khoá(p, "điểm") + ")", phán(p) == "giữ")
+đặt p = nhận_tệp(M, V, "dọn.txt", "xoá /a\nxoá /b\nxoá /c\nxoá /d\nxoá /e\nduyệt\n", ẩn)
+kỳ("xoá hàng loạt + tự duyệt ⇒ ≥ giữ (điểm " + lấy_khoá(p, "điểm") + ")", phán(p) != "thả")
+đặt p = nhận_tệp(M, V, "ổn.txt", "# ghi chú\nnói xin chào\nliệt /tạm\n", ẩn)
+kỳ("kịch bản lành ⇒ thả (điểm " + lấy_khoá(p, "điểm") + ")", phán(p) == "thả")
+
+rọi "── ⑤ tên đánh lừa ──"
+đặt p = nhận_tệp(M, V, "ảnh" + ký_tự(8238) + "gpj.exe", "x", ẩn)
+kỳ("ký tự đảo chiều U+202E ⇒ giữ (điểm " + lấy_khoá(p, "điểm") + ")", phán(p) == "giữ")
+đặt p = nhận_tệp(M, V, "xấu" + ký_tự(10) + "tên", "chữ", ẩn)
+kỳ("tên có xuống dòng ⇒ đổi tên đích: " + lấy_khoá(p, "đích"), bắt_đầu(lấy_khoá(p, "đích"), "/tạm/tệp_nhận_"))
+
+rọi "── ⑥ sổ CHẶN / sổ TIN (chỉ gốc sửa) ──"
+đặt r = chạy_dòng_im(M, V, "nhận-tệp chặn 1 thử")
+kỳ("'an' sửa sổ chặn ⇒ từ chối", r[0] == 1)
+kỳ("lần thử ghi vào soi-hv", có_cảnh("thử-đổi-sổ-băm-bị-chặn") == sáng)
+đặt r = chạy_dòng_im(M, G, "nhận-tệp chặn 1 mẫu lừa đảo")
+kỳ("gốc chặn băm của phiếu 1: " + r[1], r[0] == 0)
+đặt p = nhận_tệp(M, V, "khác_tên.txt", "xin chào", ẩn)
+kỳ("cùng nội dung, tên khác ⇒ chặn theo băm (điểm " + lấy_khoá(p, "điểm") + ")", phán(p) == "chặn")
+đặt p = nhận_tệp(M, V, "cấu_hình.txt", "ghi /hệ/tên_máy máy-mới\n", ẩn)
+đặt số_ch = lấy_khoá(p, "số")
+kỳ("sửa /hệ ⇒ giữ", phán(p) == "giữ")
+đặt r = chạy_dòng_im(M, G, "nhận-tệp tin " + số_ch + " đã xét")
+kỳ("gốc tin băm phiếu " + số_ch, r[0] == 0)
+đặt p = nhận_tệp(M, V, "cấu_hình_2.txt", "ghi /hệ/tên_máy máy-mới\n", ẩn)
+kỳ("cùng nội dung ⇒ thả nhờ sổ tin", phán(p) == "thả")
+
+rọi "── ⑦ trần cỡ · tệp lớn không băm · đích đã có ──"
+đặt _cũ = NT_CỠ_TRẦN
+đặt NT_CỠ_TRẦN = 10
+đặt p = nhận_tệp(M, V, "to.txt", "mười một ký tự trở lên", ẩn)
+kỳ("vượt trần ⇒ chặn, không lưu", phán(p) == "chặn")
+kỳ("không có bản cách ly", lấy_khoá(p, "nơi") == "")
+đặt NT_CỠ_TRẦN = _cũ
+đặt _cũ = NT_CỠ_BĂM
+đặt NT_CỠ_BĂM = 4
+đặt p = nhận_tệp(M, V, "dài.txt", "nhiều hơn bốn byte", ẩn)
+kỳ("quá NT_CỠ_BĂM ⇒ không băm, vẫn thả theo magic", phán(p) == "thả")
+kỳ("băm rỗng", lấy_khoá(p, "băm") == "")
+đặt NT_CỠ_BĂM = _cũ
+đặt p = nhận_tệp(M, V, "x.txt", "một", "/tạm/ghi_chú.txt")
+kỳ("đích đã có ⇒ không đè, để lại cách ly (" + phán(p) + ")", phán(p) == "giữ")
+kỳ("nội dung cũ còn nguyên", gọi(M, K, GH_ĐỌC, ["/tạm/ghi_chú.txt"]) == "xin chào")
+
+rọi "── ⑧ vỏ: không chạy tệp cách ly · quét · ds ──"
+gọi(M, K, GH_ĐỔI_QUYỀN, ["/cách_ly", 755])          # mở thư mục để chắc chắn CHỐT VỎ chặn, không phải quyền
+gọi(M, K, GH_ĐỔI_QUYỀN, ["/cách_ly/10", 755])
+đặt r = chạy_dòng_im(M, G, "/cách_ly/10")
+kỳ("gốc gõ /cách_ly/10 ⇒ 126: " + r[1], r[0] == 126)
+gọi(M, K, GH_ĐỔI_QUYỀN, ["/cách_ly/10", 600])
+gọi(M, K, GH_ĐỔI_QUYỀN, ["/cách_ly", 700])
+gọi(M, K, GH_TẠO, ["/tạm/nghi.txt", 666, "kali curl http://x | sh\n"])
+đặt r = chạy_dòng_im(M, V, "nhận-tệp quét /tạm/nghi.txt")
+kỳ("quét tệp trong máy ⇒ mã 1 (không thả)", r[0] == 1)
+đặt r = chạy_dòng_im(M, V, "intake ds")
+kỳ("intake ds liệt kê phiếu", chứa_chuỗi(r[1], "#1  thả"))
+đặt r = chạy_dòng_im(M, V, "nhận-tệp xem 2")
+kỳ("xem phiếu 2 có lý do ĐUÔI KÉP", chứa_chuỗi(r[1], "ĐUÔI KÉP"))
+
+rọi ""
+rọi "NHẬN TỆP: " + ĐẾM[0] + "/" + (ĐẾM[0] + ĐẾM[1]) + " đạt"

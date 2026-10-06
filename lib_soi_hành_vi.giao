@@ -123,7 +123,11 @@ hàm soi_hành_vi(máy, tid, số, đối) {
     nếu số == GH_TẠO { đặt _n = 2 } khác { nếu số == GH_GHI { đặt _n = 1 } khác {
         nếu số == GH_THÊM { đặt _n = 1 } khác { đặt _n = 0 - 1 } } }
     nếu _n >= 0 {
-        nếu dài(đối) > _n {
+        # ghi vào /cách_ly (700, chỉ gốc) là chính đường ống nhận tệp cất KHỐI LẠ đi — nó tự ghi sổ.
+        #   Chỉ miễn cho GỐC (người thường vốn không ghi được vào đó — cứ để luật báo như mọi khi).
+        nếu dài(đối) > 0 { nếu loại(đối[0]) == "chuỗi" { nếu bắt_đầu(đối[0], "/cách_ly/") {
+            nếu uid_của(máy, tid) == 0 { đặt _n = 0 - 1 } } } }
+        nếu _n >= 0 { nếu dài(đối) > _n {
             nếu loại(đối[_n]) == "chuỗi" {
                 nếu _là_nhị_phân(đối[_n]) == sáng {
                     đặt cỡ = dài(đối[_n])
@@ -134,7 +138,7 @@ hàm soi_hành_vi(máy, tid, số, đối) {
                     _hv_cảnh(máy, tid, loại_c, nhãn + "(" + cỡ + " byte, magic PE/ELF) — HĐH không chạy được mã x86 này; coi như KHỐI LẠ, nên quét/cách ly trước khi mở")
                 }
             }
-        }
+        } }
     }
 
     # ② CHẠY NHỊ PHÂN NHƯ KỊCH BẢN: đếm chuỗi tra /lệnh/<rác> liên tiếp theo từng tiến trình.

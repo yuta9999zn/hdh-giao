@@ -70,7 +70,7 @@ hàm _chuẩn_tên(t) {
     nếu t == "grep"   { trả "tìm" }       nếu t == "wc"    { trả "đếm" }
     nếu t == "ai"     { trả "nhờ" }       nếu t == "help"  { trả "giúp" }
     nếu t == "exit"   { trả "thoát" }     nếu t == "sudo"  { trả "duyệt" }
-    nếu t == "edr"    { trả "soi-hv" }
+    nếu t == "edr"    { trả "soi-hv" }      nếu t == "intake" { trả "nhận-tệp" }
     nếu t == "dmesg"  { trả "nhật_ký" }   nếu t == "chown" { trả "đổichủ" }
     nếu t == "mknod"  { trả "gắntb" }     nếu t == "id"    { trả "tôi" }
     nếu t == "run"    { trả "chạy" }      nếu t == "tick"  { trả "nhịp" }
@@ -192,6 +192,7 @@ hàm tên_lệnh_nội_trú() {
          "dịch", "định_dạng", "đĩa",
          "soi-mạng", "xem-vào", "theo-dõi", "tắt-dõi", "đá", "thôi-đá",   # ★ soi/đá wifi ngay trong vỏ
          "soi-hv",                                                      # ★ lớp SOI HÀNH VI ("EDR")
+         "nhận-tệp",                                                    # ★ ĐƯỜNG ỐNG NHẬN TỆP (cách ly + chấm điểm)
          "chạy_thật"]   # ★ gọi lệnh THẬT của hệ nền (Kali): nmap, ip, cat… — cần bật HĐH bằng `--kali`
     # (`rác` KHÔNG dùng được: đã là tên một kịch bản mẫu có sẵn ở /lệnh/rác — nó sẽ đè lên.)
 }
@@ -233,6 +234,11 @@ hàm chạy_một_lệnh(máy, tid, đối, vào) {
     đặt đường = tìm_lệnh(máy, tid, tên)
     nếu loại(đường) == "ẩn" {
         trả _kết(127, "vỏ: không có lệnh '" + đối[0] + "' (xem `liệt /lệnh`)")
+    }
+    # ★ Tệp đang CÁCH LY (đường ống nhận tệp) KHÔNG BAO GIỜ chạy — kể cả gốc-quyền, kể cả gọi bằng
+    #   đường tương đối. Muốn dùng thì `nhận-tệp thả` ra chỗ khác (ra với quyền 644, phải tự cấp x).
+    nếu bắt_đầu(tuyệt_đối(thư_của(máy, tid), đường), "/cách_ly/") {
+        trả _kết(126, "vỏ: " + đường + " đang bị CÁCH LY — không chạy. Xem lý do: `nhận-tệp ds` / `nhận-tệp xem <số>`")
     }
     đặt s = gọi(máy, tid, GH_SOI, [đường])
     nếu _chạy_được(máy, tid, s) == sáng { } khác {
@@ -783,6 +789,7 @@ hàm _nội_trú(máy, tid, đối, vào) {
         trả _kết(0, "đã về lịch ưu-tiên cổ điển")
     }
     nếu lệnh == "soi-hv" { trả _soi_hv_lệnh(máy, tid, đối) }
+    nếu lệnh == "nhận-tệp" { trả _nhận_tệp_lệnh(máy, tid, đối) }
     nếu lệnh == "soi-mạng" {                                   # ★ ai đang nối wifi (đọc host)
         trả _kết(0, bảng_thiết_bị("soi_mang/so_thiet_bi.jsonl"))
     }
@@ -943,6 +950,87 @@ hàm _soi_hv_từ_chối(máy, tid, việc, lý_do) {
     trả _kết(1, lý_do)
 }
 
+# ---------------- ★ nhận-tệp: ĐƯỜNG ỐNG NHẬN TỆP (lib_nhận_tệp.giao) ----------------
+# Xem phiếu / soi thử thì ai cũng làm được. THẢ khỏi cách ly và SỬA sổ chặn/tin CHỈ gốc-quyền —
+# người thường cố làm thì bị từ chối VÀ ghi vào sổ cảnh báo của soi-hv.
+hàm _nt_dòng_phiếu(p) {
+    đặt bm = lấy_khoá(p, "băm")
+    nếu bm == "" { đặt bm = "(không băm)" } khác { đặt bm = lát_chuỗi(bm, 0, 16) + "…" }
+    trả "#" + lấy_khoá(p, "số") + "  " + lấy_khoá(p, "phán") + "  điểm " + lấy_khoá(p, "điểm") + "  " + lấy_khoá(p, "dạng") + "  " + lấy_khoá(p, "cỡ") + " byte  " + bm + "  '" + lấy_khoá(p, "tên") + "' → " + lấy_khoá(p, "đích")
+}
+
+hàm _nt_lý_hoá(lý) {
+    đặt ds = []
+    lặp x trong lý { gom(ds, "    +" + x[0] + "  " + x[1]) }
+    nếu dài(ds) == 0 { gom(ds, "    (không dấu hiệu nào)") }
+    trả ds
+}
+
+hàm _nt_băm_từ(máy, x) {
+    "Đối là số phiếu ⇒ băm của phiếu ấy · là hex64 ⇒ chính nó · còn lại ⇒ ẩn."
+    đặt n = số_hoá(x)
+    nếu loại(n) == "số" {
+        đặt p = nt_phiếu(máy, n)
+        nếu loại(p) == "ẩn" { trả ẩn }
+        nếu lấy_khoá(p, "băm") == "" { trả ẩn }
+        trả lấy_khoá(p, "băm")
+    }
+    nếu _nt_là_hex64(x) == sáng { trả thường(x) }
+    trả ẩn
+}
+
+hàm _nhận_tệp_lệnh(máy, tid, đối) {
+    nếu có_khoá(máy, "nt_phiếu") { } khác { trả _kết(1, "nhận-tệp: máy này CHƯA dựng đường ống nhận tệp (thiếu lib_nhận_tệp / nhận_tệp_khởi)") }
+    đặt việc = _từ_thứ(đối, 1)
+    nếu loại(việc) == "ẩn" { đặt việc = "ds" }
+
+    nếu việc == "ds" {
+        đặt ds = []
+        lặp p trong lấy_khoá(máy, "nt_phiếu") { gom(ds, _nt_dòng_phiếu(p)) }
+        nếu dài(ds) == 0 { trả _kết(0, "nhận-tệp: chưa nhận tệp nào") }
+        trả _kết(0, _dòng_hoá(ds))
+    }
+    nếu việc == "xem" {
+        đặt p = nt_phiếu(máy, số_hoá(_từ_thứ(đối, 2)))
+        nếu loại(p) == "ẩn" { trả _kết(2, "cách dùng: nhận-tệp xem <số phiếu>") }
+        đặt ds = [_nt_dòng_phiếu(p), "  sha256: " + lấy_khoá(p, "băm"), "  cách ly: " + lấy_khoá(p, "nơi"), "  lý do:"]
+        lặp d trong _nt_lý_hoá(lấy_khoá(p, "lý_do")) { gom(ds, d) }
+        trả _kết(0, _dòng_hoá(ds))
+    }
+    nếu việc == "quét" {
+        đặt đ = _từ_thứ(đối, 2)
+        nếu loại(đ) == "ẩn" { trả _kết(2, "cách dùng: nhận-tệp quét <tệp>") }
+        đặt nội = gọi(máy, tid, GH_ĐỌC, [đ])
+        nếu dài(lỗi_cuối(máy)) == 0 { } khác { trả _kết(1, "nhận-tệp quét: " + lỗi_cuối(máy)) }
+        đặt pt = nt_phân_tích(máy, tên_cuối(tuyệt_đối(thư_của(máy, tid), đ)), nội, ẩn)
+        đặt ds = [đ + ": " + lấy_khoá(pt, "phán") + " · điểm " + lấy_khoá(pt, "điểm") + " · " + lấy_khoá(pt, "dạng") + " · " + lấy_khoá(pt, "cỡ") + " byte",
+                  "  sha256: " + lấy_khoá(pt, "băm"), "  lý do:"]
+        lặp d trong _nt_lý_hoá(lấy_khoá(pt, "lý_do")) { gom(ds, d) }
+        đặt mã_ra = 0
+        nếu lấy_khoá(pt, "phán") == "thả" { } khác { đặt mã_ra = 1 }
+        trả _kết(mã_ra, _dòng_hoá(ds))
+    }
+    nếu việc == "ds-chặn" { trả _kết(0, gọi(máy, tid, GH_ĐỌC, [NT_SỔ_CHẶN])) }
+    nếu việc == "ds-tin"  { trả _kết(0, gọi(máy, tid, GH_ĐỌC, [NT_SỔ_TIN])) }
+    nếu việc == "thả" {
+        đặt n = số_hoá(_từ_thứ(đối, 2))
+        nếu loại(n) == "số" { } khác { trả _kết(2, "cách dùng: nhận-tệp thả <số phiếu> [đích]") }
+        đặt r = nt_thả(máy, tid, n, _từ_thứ(đối, 3))
+        nếu r == sáng { trả _kết(0, "✔ đã thả phiếu " + n + " ra " + lấy_khoá(nt_phiếu(máy, n), "đích") + " (quyền 644 — muốn chạy phải tự `quyền … 755`)") }
+        trả _kết(1, "nhận-tệp thả: " + r)
+    }
+    nếu việc == "chặn" { đặt sổ = NT_SỔ_CHẶN } khác { nếu việc == "tin" { đặt sổ = NT_SỔ_TIN } khác { đặt sổ = "" } }
+    nếu sổ == "" {
+        trả _kết(2, "nhận-tệp: việc lạ '" + việc + "' — dùng: ds · xem <số> · quét <tệp> · ds-chặn · ds-tin · thả <số> [đích] · chặn <số|sha256> [ghi chú] · tin <số|sha256> [ghi chú]")
+    }
+    đặt bm = _nt_băm_từ(máy, _từ_thứ(đối, 2))
+    nếu loại(bm) == "ẩn" { trả _kết(2, "cách dùng: nhận-tệp " + việc + " <số phiếu có băm | sha256 64 hex> [ghi chú]") }
+    đặt gc = _còn_lại(đối, 3)
+    nếu gc == "" { đặt gc = "thêm bằng tay" }
+    nếu nt_thêm_sổ(máy, tid, sổ, bm, gc) == sáng { trả _kết(0, "✔ đã thêm " + bm + " vào " + sổ) }
+    trả _kết(1, "nhận-tệp " + việc + ": chỉ GỐC-QUYỀN sửa được sổ chặn/tin (đã ghi lại lần thử này)")
+}
+
 hàm _giúp() {
     trả _dòng_hoá([
         "LỆNH VỎ GIAO (tên Việt · bí danh Linux):",
@@ -965,6 +1053,9 @@ hàm _giúp() {
         "  ★ định_dạng|file [tệp] — sổ /hệ/định_dạng: magic nào chạy bằng trình nào, cần năng lực gì",
         "  ★ soi-hv|edr [cảnh [n] | trạng | cách-ly | ds-tin | mồi] — lớp SOI HÀNH VI (chặn ransomware, nhị phân lạ)",
         "    gốc-quyền: soi-hv thả <tid> · tin <chương-trình> <uid> · bỏ-tin <chương-trình> <uid> · bật · tắt",
+        "  ★ nhận-tệp|intake [ds | xem <số> | quét <tệp> | ds-chặn | ds-tin] — ĐƯỜNG ỐNG NHẬN TỆP: mọi tệp từ ngoài",
+        "    vào /cách_ly trước, chấm điểm (magic · tên · lệnh trong kịch bản · SHA-256) rồi mới thả/giữ/chặn",
+        "    gốc-quyền: nhận-tệp thả <số> [đích] · chặn <số|sha256> [ghi chú] · tin <số|sha256> [ghi chú]",
         "  ★ MỌI lệnh đều là TỆP trong /lệnh (xem `liệt /lệnh`, `xem /lệnh/soi_hệ`).",
         "    Viết lệnh mới lúc đang chạy:  ghi /nhà/an/lệnh/<tên> <các dòng lệnh, có $1 $2 $*>",
         "    rồi  quyền /nhà/an/lệnh/<tên> 755  — $PATH nằm ở /hệ/đường_lệnh."

@@ -10,6 +10,8 @@ Chạy:
     python chay_hdh_giao.py                # MÀN HÌNH ĐĂNG NHẬP (mặc định an/an · gốc/gốc)
     python chay_hdh_giao.py --gốc          # chế độ MỘT NGƯỜI DÙNG: vào thẳng uid 0, không hỏi
     python chay_hdh_giao.py --kịch bản.txt # chạy sẵn một tệp kịch bản lệnh rồi thoát
+    python chay_hdh_giao.py --nhận <tệp>   # đưa tệp host vào QUA CỔNG NHẬN TỆP (cách ly → chấm điểm); lặp được
+                                           # trong phiên: `nhận-host <tệp> [đích]`
 
 Trong vỏ:  `giúp` xem lệnh · `nhờ <lời nói>` giao việc cho trợ lý AI · `người` xem sổ người dùng ·
            `thành <người>` đổi người · `đổi_mk` đổi mật khẩu · `thoát` đăng xuất · `tắt` tắt máy.
@@ -22,7 +24,7 @@ import os, sys, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from giao import tokenize, Parser, Runtime, nạp_chuẩn, GiaoError, GiaoLimit, GiaoSyntax, AN
+from giao import tokenize, Parser, Runtime, nạp_chuẩn, GiaoError, GiaoLimit, GiaoSyntax, AN, SANG, TOI
 
 def _thoát_chuỗi(s):
     "Bọc một dòng người gõ thành hằng chuỗi GIAO an toàn (không cho chèn mã)."
@@ -88,6 +90,35 @@ class Máy:
     def chụp(self):
         self._chạy_giao("đặt __ảnh_ra = chụp_máy(M)")
         return self.rt.glob["__ảnh_ra"]
+
+    # ---------------- NHẬN TỆP TỪ HOST ----------------
+    # Host chỉ làm việc của BỘ ĐIỀU KHIỂN ĐĨA: đọc byte của tệp ngoài rồi trao cho cổng nhận tệp.
+    # Cách ly · phân loại · băm · chấm điểm · thả/giữ/chặn đều trong GIAO (lib_nhận_tệp.giao).
+    NT_TRẦN = 64 * 1024 * 1024              # khớp NT_CỠ_TRẦN: đọc dư 1 byte để GIAO tự thấy "vượt trần"
+
+    def nhận_tệp(self, đường_host, đích=None):
+        "Đưa MỘT tệp host qua đường ống nhận tệp. → văn bản phiếu (do HĐH soạn)."
+        try:
+            with open(đường_host, "rb") as f:
+                b = f.read(self.NT_TRẦN + 1)
+        except OSError as e:
+            return f"[nhận] không đọc được {đường_host}: {e}"
+        try:
+            nội, là_byte = b.decode("utf-8"), False      # văn bản UTF-8 giữ nguyên chữ Việt
+        except UnicodeDecodeError:
+            nội, là_byte = b.decode("latin-1"), True     # nhị phân: mỗi byte ↦ một ký tự 0..255 (magic MZ/ELF còn nguyên)
+        g = self.rt.glob
+        g["__nt_byte"] = SANG if là_byte else TOI        # để GIAO băm ĐÚNG byte gốc (không mã hoá UTF-8 lại)
+        g["__nt_tên"], g["__nt_nội"] = os.path.basename(đường_host), nội
+        g["__nt_đích"] = AN if đích is None else đích
+        try:
+            self._chạy_giao(
+                'đặt __nt_p = nhận_tệp_byte(M, V, __nt_tên, __nt_nội, __nt_đích, __nt_byte)\n'
+                'nếu loại(__nt_p) == "ẩn" { đặt __nt_ra = "[nhận] " + lỗi_cuối(M) } khác {\n'
+                '    đặt __nt_ra = _nhận_tệp_lệnh(M, V, ["nhận-tệp", "xem", lấy_khoá(__nt_p, "số")])[1] }')
+        finally:
+            g["__nt_nội"] = ""                  # đừng giữ bản thứ hai của khối lạ trong bộ nhớ host
+        return g["__nt_ra"]
 
     def _chạy_giao(self, mã):
         self.rt.exec_block(Parser(tokenize(mã)).parse())
@@ -269,6 +300,15 @@ def lệnh_đổi_mk(máy):
         print("[đổi_mk] mật khẩu hiện tại không đúng — chưa đổi gì.")
 
 
+def _cờ_mọi_giá_trị(*tên):
+    "Mọi giá trị của một cờ lặp lại được (`--nhận a --nhận b`, `--nhận=a`)."
+    ra = []
+    for i, a in enumerate(sys.argv):
+        for t in tên:
+            if a == t and i + 1 < len(sys.argv): ra.append(sys.argv[i + 1])
+            elif a.startswith(t + "="): ra.append(a.split("=", 1)[1])
+    return ra
+
 def _cờ_giá_trị(tên):
     "Lấy giá trị của cờ dạng `--tên tệp` hoặc `--tên=tệp`."
     for i, a in enumerate(sys.argv):
@@ -281,8 +321,10 @@ def main():
     kali = "--kali" in sys.argv or "--toàn-quyền" in sys.argv or "--toan-quyen" in sys.argv
     tệp_nạp = _cờ_giá_trị("--nạp") or _cờ_giá_trị("--nap")
     tệp_lưu = _cờ_giá_trị("--lưu") or _cờ_giá_trị("--luu")
+    tệp_nhận = _cờ_mọi_giá_trị("--nhận", "--nhan")
     kịch = None
-    for a in sys.argv[1:]:
+    for i, a in enumerate(sys.argv[1:], 1):
+        if sys.argv[i - 1] in ("--nhận", "--nhan", "--nạp", "--nap", "--lưu", "--luu"): continue  # giá trị của cờ, không phải kịch bản
         if a.endswith(".txt"): kịch = a
 
     print("┌────────────────────────────────────────────────────────────┐")
@@ -301,6 +343,10 @@ def main():
         máy = Máy(gốc=gốc, ảnh=ảnh, kali=kali)
     except (GiaoError, GiaoSyntax, GiaoLimit) as e:
         print(f"[không khởi động được] {getattr(e, 'msg', e)}"); sys.exit(1)
+
+    # ★ Tệp từ host KHÔNG BAO GIỜ rơi thẳng vào hệ-tệp: mỗi tệp qua cổng nhận (cách ly → chấm điểm).
+    for t in tệp_nhận:
+        print(máy.nhận_tệp(t))
 
     def lưu_ảnh():
         if not tệp_lưu: return
@@ -344,6 +390,10 @@ def main():
             lệnh_sudo(máy, dòng); continue
         if đầu[0] in ("đổi_mk", "doi_mk", "passwd"):
             lệnh_đổi_mk(máy); continue
+        if đầu[0] in ("nhận-host", "nhan-host"):     # đưa tệp host vào — qua cổng nhận tệp của HĐH
+            if len(đầu) < 2: print("[nhận-host] dùng: nhận-host <đường tệp trên host> [đích trong HĐH]")
+            else: print(máy.nhận_tệp(đầu[1], đầu[2] if len(đầu) > 2 else None))
+            continue
         try:
             máy.gõ(dòng)
         except GiaoLimit as e:

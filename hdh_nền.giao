@@ -9,6 +9,7 @@ nhập "lib_trợ_lý.giao"
 nhập "lib_người_dùng.giao"   # sổ người dùng + đăng nhập thật
 nhập "lib_chương_trình.giao"   # chương trình THẬT chạy dưới bộ lập lịch
 nhập "lib_soi_hành_vi.giao"  # ★ lớp SOI HÀNH VI ("EDR") — soi gọi-hệ out-of-band, bắt nhị phân lạ / câu giờ
+nhập "lib_nhận_tệp.giao"    # ★ ĐƯỜNG ỐNG NHẬN TỆP — mọi tệp từ ngoài vào /cách_ly trước, chấm điểm rồi mới thả
 nhập "kho_nen.giao"          # kho gói nhúng sẵn, ký kép (sinh bằng `sh goi.sh nen`)
 
 đặt M = khởi_máy()
@@ -27,6 +28,7 @@ hàm dựng_nền(im_lặng) {
     gọi(M, khởi, GH_TẠO_THƯ, ["/ống", 777])           # nơi treo ỐNG liên-tiến-trình (FIFO)
     gọi(M, khởi, GH_TẠO_THƯ, ["/thùng_rác", 777])     # ★ xoá KHẢ HỒI ở tầng gọi-hệ (Linux không có)
     cài_lệnh(M, khởi)                                       # ~ /bin: mọi lệnh vỏ là một TỆP
+    nhận_tệp_khởi(M, khởi)                                  # ★ /cách_ly (700) + /hệ/chặn_băm + /hệ/tin_băm
 
     # ~ /etc/passwd (644, ai đọc cũng được) và ~ /etc/shadow (600, CHỈ gốc-quyền đọc)
     gọi(M, khởi, GH_TẠO, ["/hệ/người_dùng", 644, "gốc:0:/\nan:1000:/nhà/an"])
