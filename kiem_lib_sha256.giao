@@ -16,5 +16,12 @@ lặp 100 { đặt trăm_a = trăm_a + "a" }
 rọi sha256_hex(trăm_a)
 # 2816597888e4a0d3a36b82b83316ab32680eb8f00f8cd3b904d681246d285a0e
 
+# ★ ĐƯỜNG NHANH (≥ SHA_NGƯỠNG_NHANH, lệnh-máy băm_sha256) ≡ đường tự băm (sha256_bytes) — cả UTF-8 nhiều byte
+đặt dài_vb = ""
+lặp 1200 { đặt dài_vb = dài_vb + "Việt 🔐 " }         # ~9600 ký tự (15600 byte UTF-8) ⇒ chắc chắn qua ngưỡng
+đặt chậm = ""
+lặp w trong sha256_bytes(utf8_mã(dài_vb)) { đặt chậm = chậm + _s_hex32(w) }
+rọi "nhanh ≡ tự băm: " + (sha256_hex(dài_vb) == chậm)
+
 # utf8_mã: byte đúng chuẩn
 rọi utf8_mã("aă")         # [97, 196, 131]

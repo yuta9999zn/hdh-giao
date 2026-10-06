@@ -175,8 +175,17 @@ hàm _s_hex32(v) {
     trả ra
 }
 
+# ★ ĐƯỜNG NHANH: lệnh-máy băm_sha256 — GVM-64 tự băm (builtin 72, ~100 MB/giây); giao.py gọi wasm/bam_lenh.wasm
+#   (ghim, ~140 MB/giây, nhưng mỗi lần gọi khởi một tiến trình wasmtime). Chuỗi ngắn hơn ngưỡng thì tự băm ở đây
+#   rẻ hơn cái giá khởi tiến trình ấy. Builtin trả ẩn (máy không có wasmtime) ⇒ lùi về đường dưới.
+đặt SHA_NGƯỠNG_NHANH = 4096
+
 # sha256_hex(chuỗi) → hex 64 ký tự (mã hoá UTF-8 trước khi băm — khớp hashlib Python)
 hàm sha256_hex(s) {
+    nếu dài(s) >= SHA_NGƯỠNG_NHANH {
+        đặt nh = băm_sha256(s, tối)
+        nếu loại(nh) == "chuỗi" { trả nh }
+    }
     đặt H = sha256_bytes(utf8_mã(s))
     đặt ra = ""
     lặp w trong H { đặt ra = ra + _s_hex32(w) }

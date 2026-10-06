@@ -25,6 +25,12 @@ Nền học thuyết: Nguyễn Trường An (DFCT / NNL-NTHT / CDFL).
   nó dưới wasmtime (không cấp thư mục; khác ghim ⇒ từ chối) — ~140 MB/giây, khoảng 8.000 lần đường thông dịch
   `lib_sha256` (~16 KB/giây). Đường ống băm được mọi tệp tới trần (40 MB ≈ 0,3 s). Máy không có wasmtime ⇒
   builtin trả `ẩn`, đường ống lùi về thông dịch và chỉ băm tệp ≤ 64 KB, phiếu ghi rõ "không băm".
+- **SHA-256 là lệnh-máy của GVM-64** (builtin 72, cùng tên `băm_sha256`): viết thẳng trong `wasm/gvm64.ts`, không
+  module nạp kèm, lệnh chạy máy không đổi. ~100 MB/giây trên máy (băm 40 MB ≈ 0,4 s). `giaoc64.py` và
+  `giaoc64.giao` thêm mã 72; `wasm/giaoc64_tu.g64` dựng lại. `lib_sha256.sha256_hex` dùng lệnh này cho chuỗi
+  ≥ 4096 ký tự (chuỗi ngắn hơn tự băm — trên giao.py rẻ hơn khởi tiến trình wasmtime), nên `lib_kho` (kiểm băm
+  gói khi cài), `goi.giao` và đường ống nhận tệp đều nhanh trên cả hai máy. `kiem_lib_sha256` thêm ca đường
+  nhanh ≡ tự băm (UTF-8 nhiều byte), GVM-64 ≡ thông dịch từng ký tự.
 - Lệnh vỏ **`nhận-tệp`/`intake`**: `ds` · `xem <số>` · `quét <tệp>` (soi tại chỗ, không cất) · `ds-chặn` · `ds-tin`;
   gốc: `thả <số> [đích]` · `chặn <số|sha256> [ghi chú]` · `tin <số|sha256> [ghi chú]`. Vỏ không chạy tệp nằm
   trong `/cách_ly` kể cả với gốc. Host: `chay_hdh_giao.py --nhận <tệp>` (lặp được) và lệnh `nhận-host <tệp> [đích]`

@@ -53,6 +53,12 @@ wasmtime (không cấp thư mục), nên hai máy dùng **một** bản Argon2, 
 KIỂM (không có hàm ký), không import gì. Lệnh chạy máy: `--preload argon2=wasm/argon2.wasm --preload
 ky=wasm/ky.wasm`; mọi vỏ (`vo_gvm64.py`, `tu_bien_dich.sh`, Node) kiểm ghim SHA-256 của CẢ HAI module.
 
+**SHA-256 là lệnh-máy** (v0.46, builtin 72 `băm_sha256(chuỗi, là_byte)`). Khác Argon2/ký kép, cái này
+nằm NGAY TRONG `gvm64.ts` (FIPS 180-4, ~100 MB/giây), nên không có module nạp kèm và lệnh chạy máy không
+đổi. `là_byte = sáng`: mỗi ký tự 0..255 là một byte (nội dung nhị phân); `tối`: mã hoá UTF-8. Trình thông
+dịch gọi `wasm/bam_lenh.wasm` (cùng thuật toán, viết bằng C, ghim `wasm/bam.sha256`) dưới wasmtime; thiếu
+wasmtime thì trả `ẩn`. `lib_sha256.sha256_hex` dùng lệnh này cho chuỗi ≥ 4096 ký tự.
+
 - **wasmtime** (Rust, Bytecode Alliance) là vỏ chính. Hộp cát mặc định chặt: không cấp thư mục thì
   không có tệp nào.
 - **Node** (`wasm/giao64.mjs`) chỉ là vỏ dự phòng để kiểm, **không phải hộp cát**. Chính Node cảnh báo

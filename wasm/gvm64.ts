@@ -62,6 +62,58 @@ function utf8VaoKy(s: string, pos: i32): i32 {
   return b.length;
 }
 
+// ---- SHA-256 (FIPS 180-4) NGAY TRONG MÁY — lệnh-máy băm_sha256 (builtin 72) ----
+// Không module nạp kèm: máy tự băm. Cùng thuật toán với wasm/bam_lenh.c (đường của giao.py) và lib_sha256.giao.
+const SHA_K: StaticArray<u32> = [
+  0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+  0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+  0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+  0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+  0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+  0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+  0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+  0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2];
+const SHA_H = new StaticArray<u32>(8); const SHA_W = new StaticArray<u32>(64);
+function shaKhoi(p: usize): void {                               // một khối 64 byte bắt đầu ở địa chỉ p
+  for (let i = 0; i < 16; i++) {
+    let q = p + <usize>(4 * i);
+    SHA_W[i] = (<u32>load<u8>(q) << 24) | (<u32>load<u8>(q + 1) << 16) | (<u32>load<u8>(q + 2) << 8) | <u32>load<u8>(q + 3);
+  }
+  for (let i = 16; i < 64; i++) {
+    let w15 = SHA_W[i - 15], w2 = SHA_W[i - 2];
+    let s0 = rotr<u32>(w15, 7) ^ rotr<u32>(w15, 18) ^ (w15 >>> 3);
+    let s1 = rotr<u32>(w2, 17) ^ rotr<u32>(w2, 19) ^ (w2 >>> 10);
+    SHA_W[i] = SHA_W[i - 16] + s0 + SHA_W[i - 7] + s1;
+  }
+  let a = SHA_H[0], b = SHA_H[1], c = SHA_H[2], d = SHA_H[3], e = SHA_H[4], f = SHA_H[5], g = SHA_H[6], h = SHA_H[7];
+  for (let i = 0; i < 64; i++) {
+    let t1 = h + (rotr<u32>(e, 6) ^ rotr<u32>(e, 11) ^ rotr<u32>(e, 25)) + ((e & f) ^ (~e & g)) + SHA_K[i] + SHA_W[i];
+    let t2 = (rotr<u32>(a, 2) ^ rotr<u32>(a, 13) ^ rotr<u32>(a, 22)) + ((a & b) ^ (a & c) ^ (b & c));
+    h = g; g = f; f = e; e = d + t1; d = c; c = b; b = a; a = t1 + t2;
+  }
+  SHA_H[0] += a; SHA_H[1] += b; SHA_H[2] += c; SHA_H[3] += d; SHA_H[4] += e; SHA_H[5] += f; SHA_H[6] += g; SHA_H[7] += h;
+}
+function sha256Hex(m: Uint8Array): string {
+  SHA_H[0] = 0x6a09e667; SHA_H[1] = 0xbb67ae85; SHA_H[2] = 0x3c6ef372; SHA_H[3] = 0xa54ff53a;
+  SHA_H[4] = 0x510e527f; SHA_H[5] = 0x9b05688c; SHA_H[6] = 0x1f83d9ab; SHA_H[7] = 0x5be0cd19;
+  let n = m.length, i = 0;
+  for (; i + 64 <= n; i += 64) shaKhoi(m.dataStart + <usize>i);
+  let du = new Uint8Array(128); let nd = n - i;                   // phần dư + đệm: 1 hoặc 2 khối
+  for (let j = 0; j < nd; j++) du[j] = m[i + j];
+  du[nd] = 0x80;
+  let tong = nd + 1 > 56 ? 128 : 64;
+  let bit = <u64>n * 8;
+  for (let j = 0; j < 8; j++) du[tong - 1 - j] = <u8>(bit >> (8 * <u64>j));
+  shaKhoi(du.dataStart); if (tong == 128) shaKhoi(du.dataStart + 64);
+  let ra = "";
+  for (let j = 0; j < 8; j++) {
+    let h = SHA_H[j].toString(16);
+    while (h.length < 8) h = "0" + h;
+    ra += h;
+  }
+  return ra;
+}
+
 const IOV = new StaticArray<u32>(4); const NW = new StaticArray<u32>(2); const TBUF = new StaticArray<u64>(1);
 function ghiFd(fd: u32, ptr: usize, len: usize): void {
   while (len > 0) {
@@ -1175,6 +1227,20 @@ function builtin(id: i32, b: i32, n: i32): void {
       if (k_ky_kep(lm, lc) != 0) { RA(); return; }
       let ra = new LObj(); ra.push(K_STR, 0, new SObj(kyRaHex(0, 64))); ra.push(K_STR, 0, new SObj(kyRaHex(64, 3309)));
       RO(K_LIST, ra); return;
+    }
+    case 72: { // băm_sha256(chuỗi, là_byte) → hex 64. là_byte=sáng: mỗi ký tự 0..255 là MỘT byte (nhị phân); tối: UTF-8
+      if (!need(n, 2, "băm_sha256")) return;
+      if (sk[b] != K_STR) { err("băm_sha256 cần chuỗi"); return; }
+      let s = (<SObj>so[b]).s; let m: Uint8Array;
+      if (sk[b + 1] == K_STR && (<SObj>so[b + 1]).s == "sáng") {
+        m = new Uint8Array(s.length);
+        for (let q = 0; q < s.length; q++) {
+          let c = s.charCodeAt(q);
+          if (c > 255) { err("băm_sha256: là_byte=sáng nhưng có ký tự > 255"); return; }
+          m[q] = <u8>c;
+        }
+      } else m = Uint8Array.wrap(String.UTF8.encode(s, false));
+      RS(sha256Hex(m)); return;
     }
     case 69: { // kiểm_ký_kép(khoá_ed_hex, khoá_ml_hex, nội_dung, ngữ_cảnh, ký_ed_hex, ký_ml_hex) → [ed?, ml?] (sáng/tối); hỏng → ẩn
       if (!need(n, 6, "kiểm_ký_kép")) return;

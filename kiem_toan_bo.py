@@ -122,7 +122,7 @@ kỳ = ["e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
       "d9defc99671f93c3d55304e3cb1be019081a0624b8bf1dca421351258e4521ff",
       "2816597888e4a0d3a36b82b83316ab32680eb8f00f8cd3b904d681246d285a0e",
-      "[97, 196, 131]"]
+      "[97, 196, 131]", "nhanh ≡ tự băm: sáng"]
 mục("SHA-256 THUẦN GIAO (FIPS 180-4 + UTF-8 tự dựng — khớp hashlib TỪNG KÝ TỰ)",
     ok and all(k in o for k in kỳ), "thiếu: "+", ".join(k for k in kỳ if k not in o))
 ok,o = chạy("lib_bit", ["giao.py","kiem_lib_bit.giao"])
